@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-type  GameStage = "lobby" | "submitting" | "reveal" | "winner";
+type GameStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
 
 export default function GameRoom() {
   const params = useParams();
@@ -12,7 +12,13 @@ export default function GameRoom() {
 
   const [name, setName] = useState("");
   const [joined, setJoined] = useState(false);
-  const [players, setPlayers] = useState<string[]>([]);
+  type Player = {
+  name: string;
+  points: number;
+  avatar_url: string | null;
+};
+
+  const [players, setPlayers] = useState<Player[]>([]);
   const [stage, setStage] = useState<GameStage>("lobby");
   const [submission, setSubmission] = useState("");
   const [submissions, setSubmissions] = useState<string[]>([]);
@@ -20,13 +26,42 @@ export default function GameRoom() {
   const [pointsAwarded, setPointsAwarded] = useState(false);
   const [scoreboard, setScoreboard] = useState<string[]>([]);
   const [finalWinner, setFinalWinner] = useState("");
+  const [loadingMessage, setLoadingMessage] = useState("Generating chaos...");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const loadingMessages = [
+  "Teaching raccoons wedding etiquette...",
+  "Negotiating with angry alligators...",
+  "Adding unnecessary explosions...",
+  "Convincing the bride this is normal...",
+  "Searching for maximum chaos...",
+  "Making the image 37% funnier...",
+];
 
-  const roundPrompt = "Worst thing to bring to a wedding";
+  const [roundPrompt, setRoundPrompt] = useState("");
+
+  async function loadRandomPrompt() {
+  const { data, error } = await supabase
+    .from("prompts")
+    .select("prompt")
+    .eq("active", true);
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  if (!data || data.length === 0) return;
+
+  const randomPrompt =
+    data[Math.floor(Math.random() * data.length)];
+
+  setRoundPrompt(randomPrompt.prompt);
+}
 
   async function loadPlayers() {
   const { data, error } = await supabase
     .from("players")
-    .select("name ,points")
+    .select("name ,points, avatar_url")
     .eq("room_code", code)
     .order("points", { ascending: false })
     ;
@@ -36,13 +71,13 @@ export default function GameRoom() {
     return;
   }
 
-  setPlayers(data.map((player) => `${player.name} - ${player.points} pts`));
+  setPlayers(data);
 }
 
 async function loadSubmissions() {
   const { data, error } = await supabase
     .from("submissions")
-    .select("player_name, prompt")
+    .select("player_name, prompt, image_url")
     .eq("room_code", code)
     .order("id", { ascending: true });
 
@@ -51,7 +86,7 @@ async function loadSubmissions() {
     return;
   }
 
-  setSubmissions(data.map((item) => `${item.player_name}: ${item.prompt}`));
+  setSubmissions(data.map((item) => `${item.player_name}: ${item.prompt}|||${item.image_url}`));
 }
 
 async function loadGame() {
@@ -68,9 +103,10 @@ async function loadGame() {
     return;
   }
 
-  if (data) {
-    setStage(data.stage as GameStage);
-  }
+ if (data) {
+  setStage(data.stage as GameStage);
+  setRoundPrompt(data.prompt);
+}
 }
 
 useEffect(() => {
@@ -90,10 +126,32 @@ useEffect(() => {
   return () => clearInterval(interval);
 }, []);
 
- async function joinGame() {
+async function joinGame() {
   if (!name.trim()) return;
 
   const cleanName = name.trim();
+
+  let avatarUrl = null;
+
+  if (avatarFile) {
+    const filePath = `${code}/${cleanName}-${Date.now()}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(filePath, avatarFile);
+
+    if (uploadError) {
+      console.error(uploadError);
+      alert("Failed to upload avatar");
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("avatars")
+      .getPublicUrl(filePath);
+
+    avatarUrl = data.publicUrl;
+  }
 
   const { data: existingPlayer } = await supabase
     .from("players")
@@ -107,6 +165,8 @@ useEffect(() => {
       {
         name: cleanName,
         room_code: code,
+        avatar_url: avatarUrl,
+        points: 0,
       },
     ]);
 
@@ -121,34 +181,100 @@ useEffect(() => {
   setJoined(true);
 }
 
-  async function startGame() {
+ async function startGame() {
+  const { data: prompts } = await supabase
+    .from("prompts")
+    .select("prompt")
+    .eq("active", true);
+
+  if (!prompts?.length) return;
+
+  const randomPrompt =
+    prompts[Math.floor(Math.random() * prompts.length)];
+
   const { error } = await supabase.from("games").insert([
     {
       room_code: code,
       stage: "submitting",
-      prompt: roundPrompt,
+      prompt: randomPrompt.prompt,
+      winner_awarded: false,
     },
   ]);
 
   if (error) {
     console.error(error);
-    alert("Failed to start game");
     return;
   }
 
+  setRoundPrompt(randomPrompt.prompt);
   setStage("submitting");
 }
 
   async function submitPrompt() {
   if (!submission.trim()) return;
 
-  const { error } = await supabase.from("submissions").insert([
-    {
-      room_code: code,
-      player_name: name,
-      prompt: submission.trim(),
-    },
-  ]);
+const imagePrompt = `
+You are creating a hilarious party game image.
+
+Question:
+${roundPrompt}
+
+Player Answer:
+${submission.trim()}
+
+The image should clearly show the connection between the question and answer.
+
+The joke should be understandable without reading the answer.
+
+Exaggerate facial expressions and reactions.
+
+Rules:
+- Make the scene absurd
+- Exaggerate reactions
+- Make it instantly understandable
+- Bright colorful cartoon style
+- No text in image
+- Focus on visual comedy
+- Make players laugh within 3 seconds
+`;
+setStage("generating");
+
+setLoadingMessage(
+  loadingMessages[Math.floor(Math.random() * loadingMessages.length)]
+  
+);
+await supabase
+  .from("games")
+  .update({ stage: "generating" })
+  .eq("room_code", code);
+
+setStage("generating");
+const imageResponse = await fetch("/api/generate-image", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    prompt: imagePrompt,
+  }),
+});
+
+const imageData = await imageResponse.json();
+
+if (!imageResponse.ok) {
+  console.error(imageData);
+  alert("Image generation failed");
+  return;
+}
+
+const { error } = await supabase.from("submissions").insert([
+  {
+    room_code: code,
+    player_name: name,
+    prompt: submission.trim(),
+    image_url: imageData.imageUrl,
+  },
+]);
 
   if (error) {
     console.error(error);
@@ -167,14 +293,19 @@ const { data: allPlayers } = await supabase
 
 const { data: allSubmissions } = await supabase
   .from("submissions")
-  .select("id")
+  .select("id, image_url")
   .eq("room_code", code);
 
-if (
+const everyoneSubmitted =
   allPlayers &&
   allSubmissions &&
-  allSubmissions.length >= allPlayers.length
-) {
+  allSubmissions.length >= allPlayers.length;
+
+const allImagesReady =
+  allSubmissions &&
+  allSubmissions.every((item) => item.image_url);
+
+if (everyoneSubmitted && allImagesReady) {
   const { error: gameError } = await supabase
     .from("games")
     .update({ stage: "reveal" })
@@ -187,7 +318,7 @@ if (
 
   setStage("reveal");
 } else {
-  alert("Prompt submitted. Waiting for everyone else.");
+  alert("Image submitted. Waiting for everyone else's images.");
 }
 }
 
@@ -334,32 +465,61 @@ async function loadScoreboard() {
       <h1 className="text-4xl font-bold">Room {code}</h1>
 
       {!joined ? (
-        <>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Enter your name"
-            className="border p-3 rounded-xl"
-          />
+  <>
+    <input
+      value={name}
+      onChange={(e) => setName(e.target.value)}
+      placeholder="Enter your name"
+      className="border p-3 rounded-xl"
+    />
 
-          <button
-            onClick={joinGame}
-            className="bg-black text-white px-6 py-3 rounded-xl"
-          >
-            Join Room
-          </button>
-        </>
-      ) : stage === "lobby" ? (
+    <input
+      type="file"
+      accept="image/*"
+      onChange={(e) => {
+        setAvatarFile(e.target.files?.[0] || null);
+      }}
+      className="border p-3 rounded-xl"
+    />
+
+    <button
+      onClick={joinGame}
+      className="bg-black text-white px-6 py-3 rounded-xl"
+    >
+      Join Room
+    </button>
+  </>
+) : stage === "lobby" ? (
         <>
           <h2 className="text-2xl font-bold">Lobby</h2>
 
           <div className="flex flex-col gap-2">
-            {players.map((player, index) => (
-              <div key={index} className="border rounded-xl p-3 text-center">
-                {player}
-              </div>
-            ))}
-          </div>
+  {players.map((player, index) => (
+    <div
+      key={index}
+      className="border rounded-xl p-3 flex items-center gap-3"
+    >
+      {player.avatar_url ? (
+        <img
+          src={player.avatar_url}
+          alt={player.name}
+          className="w-16 h-16 rounded-full object-cover border-2 border-purple-500"
+        />
+      ) : (
+        <div className="w-12 h-12 rounded-full bg-gray-300 flex items-center justify-center">
+          👤
+        </div>
+      )}
+
+      <div>
+        <div className="font-bold">{player.name}</div>
+        <div className="text-sm text-gray-500">
+          {player.points} pts
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
 
           <button
             onClick={startGame}
@@ -390,22 +550,52 @@ async function loadScoreboard() {
             Submit Prompt
           </button>
         </>
-      ) : stage === "reveal" ? (
+      ) : stage === "generating" ? (
+  <div className="min-h-screen w-full bg-purple-700 flex flex-col items-center justify-center text-white">
+    <div className="text-8xl mb-6 animate-bounce">
+      👑
+    </div>
+
+    <h2 className="text-4xl font-bold mb-4">
+      Creating Chaos...
+    </h2>
+
+    <p className="text-xl text-center max-w-md">
+      The AI is cooking up something ridiculous.
+    </p>
+
+    <div className="mt-8 animate-pulse text-lg">
+      Generating masterpiece...
+    </div>
+  </div>
+    ) :stage === "reveal" ? (
      <>
     <h2 className="text-2xl font-bold">Vote for Winner</h2>
 
           <p className="font-semibold">{roundPrompt}</p>
 
           <div className="flex flex-col gap-3 w-full max-w-md">
-            {submissions.map((item, index) => (
-            <button
-                key={index}
-                onClick={() => voteForSubmission(item)}
-                className="border rounded-xl p-4 text-left hover:bg-gray-100"
-                >
-                {item}
-            </button>
-        ))}
+           {submissions.map((item, index) => {
+  const [text, imageUrl] = item.split("|||");
+
+     return (
+        <button
+         key={index}
+        onClick={() => voteForSubmission(text)}
+         className="border rounded-xl p-4 text-left hover:bg-gray-100"
+     >
+        {imageUrl && (
+        <img
+          src={imageUrl}
+          alt={text}
+          className="w-full rounded-xl mb-3"
+        />
+      )}
+
+      <p className="font-bold">Submission #{index + 1}</p>
+    </button>
+  );
+})}
           </div>
 
           <button
