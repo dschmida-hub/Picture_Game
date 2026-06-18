@@ -28,6 +28,14 @@ export default function GameRoom() {
   const [finalWinner, setFinalWinner] = useState("");
   const [loadingMessage, setLoadingMessage] = useState("Generating chaos...");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState("Random");
+  const [isAdvancing, setIsAdvancing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const hasSubmitted = submissions.some((item) =>
+    item.startsWith(`${name}:`)
+  );
+
   const loadingMessages = [
   "Teaching raccoons wedding etiquette...",
   "Negotiating with angry alligators...",
@@ -39,7 +47,7 @@ export default function GameRoom() {
 
   const [roundPrompt, setRoundPrompt] = useState("");
 
-  async function loadRandomPrompt() {
+async function loadRandomPrompt() {
   const { data, error } = await supabase
     .from("prompts")
     .select("prompt")
@@ -47,15 +55,17 @@ export default function GameRoom() {
 
   if (error) {
     console.error(error);
-    return;
+    return "";
   }
 
-  if (!data || data.length === 0) return;
+  if (!data || data.length === 0) return "";
 
   const randomPrompt =
-    data[Math.floor(Math.random() * data.length)];
+    data[Math.floor(Math.random() * data.length)].prompt;
 
-  setRoundPrompt(randomPrompt.prompt);
+  setRoundPrompt(randomPrompt);
+
+  return randomPrompt;
 }
 
   async function loadPlayers() {
@@ -181,16 +191,35 @@ async function joinGame() {
   setJoined(true);
 }
 
- async function startGame() {
-  const { data: prompts } = await supabase
+async function startGame() {
+  if (isStarting) return;
+
+  setIsStarting(true);
+
+  try {
+     let promptQuery = supabase
     .from("prompts")
     .select("prompt")
     .eq("active", true);
 
-  if (!prompts?.length) return;
+  if (selectedCategory !== "Random") {
+    promptQuery = promptQuery.eq("category", selectedCategory);
+  }
 
-  const randomPrompt =
-    prompts[Math.floor(Math.random() * prompts.length)];
+  const { data: prompts, error: promptError } = await promptQuery;
+
+  if (promptError) {
+    console.error(promptError);
+    alert("Failed to load prompts");
+    return;
+  }
+
+  if (!prompts?.length) {
+    alert("No prompts found for this category");
+    return;
+  }
+
+  const randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
 
   const { error } = await supabase.from("games").insert([
     {
@@ -203,17 +232,24 @@ async function joinGame() {
 
   if (error) {
     console.error(error);
+    alert("Failed to start game");
     return;
   }
 
   setRoundPrompt(randomPrompt.prompt);
   setStage("submitting");
+} finally {
+    setIsStarting(false);
+  }
 }
-
-  async function submitPrompt() {
+ async function submitPrompt() {
   if (!submission.trim()) return;
+  if (isSubmitting || hasSubmitted) return;
 
-const imagePrompt = `
+  setIsSubmitting(true);
+
+  try {
+    const imagePrompt = `
 You are creating a hilarious party game image.
 
 Question:
@@ -237,89 +273,78 @@ Rules:
 - Focus on visual comedy
 - Make players laugh within 3 seconds
 `;
-setStage("generating");
 
-setLoadingMessage(
-  loadingMessages[Math.floor(Math.random() * loadingMessages.length)]
-  
-);
-await supabase
-  .from("games")
-  .update({ stage: "generating" })
-  .eq("room_code", code);
+    setLoadingMessage(
+      loadingMessages[Math.floor(Math.random() * loadingMessages.length)]
+    );
 
-setStage("generating");
-const imageResponse = await fetch("/api/generate-image", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    prompt: imagePrompt,
-  }),
-});
+    const imageResponse = await fetch("/api/generate-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: imagePrompt }),
+    });
 
-const imageData = await imageResponse.json();
+    const imageData = await imageResponse.json();
 
-if (!imageResponse.ok) {
-  console.error(imageData);
-  alert("Image generation failed");
-  return;
-}
+    if (!imageResponse.ok) {
+      console.error(imageData);
+      alert("Image generation failed");
+      return;
+    }
 
-const { error } = await supabase.from("submissions").insert([
-  {
-    room_code: code,
-    player_name: name,
-    prompt: submission.trim(),
-    image_url: imageData.imageUrl,
-  },
-]);
+    const { error } = await supabase.from("submissions").insert([
+      {
+        room_code: code,
+        player_name: name,
+        prompt: submission.trim(),
+        image_url: imageData.imageUrl,
+      },
+    ]);
 
-  if (error) {
-    console.error(error);
-    alert("Failed to submit prompt");
-    return;
+    if (error) {
+      console.error(error);
+      alert("Failed to submit prompt");
+      return;
+    }
+
+    setSubmission("");
+    await loadSubmissions();
+
+    const { data: allPlayers } = await supabase
+      .from("players")
+      .select("id")
+      .eq("room_code", code);
+
+    const { data: allSubmissions } = await supabase
+      .from("submissions")
+      .select("id, image_url")
+      .eq("room_code", code);
+
+    const everyoneSubmitted =
+      allPlayers &&
+      allSubmissions &&
+      allSubmissions.length >= allPlayers.length;
+
+    const allImagesReady =
+      allSubmissions &&
+      allSubmissions.every((item) => item.image_url);
+
+    if (everyoneSubmitted && allImagesReady) {
+      const { error: gameError } = await supabase
+        .from("games")
+        .update({ stage: "reveal" })
+        .eq("room_code", code);
+
+      if (gameError) {
+        console.error(gameError);
+        return;
+      }
+
+      setStage("reveal");
+    }
+  } finally {
+    setIsSubmitting(false);
   }
-
- setSubmission("");
-
-await loadSubmissions();
-
-const { data: allPlayers } = await supabase
-  .from("players")
-  .select("id")
-  .eq("room_code", code);
-
-const { data: allSubmissions } = await supabase
-  .from("submissions")
-  .select("id, image_url")
-  .eq("room_code", code);
-
-const everyoneSubmitted =
-  allPlayers &&
-  allSubmissions &&
-  allSubmissions.length >= allPlayers.length;
-
-const allImagesReady =
-  allSubmissions &&
-  allSubmissions.every((item) => item.image_url);
-
-if (everyoneSubmitted && allImagesReady) {
-  const { error: gameError } = await supabase
-    .from("games")
-    .update({ stage: "reveal" })
-    .eq("room_code", code);
-
-  if (gameError) {
-    console.error(gameError);
-    return;
-  }
-
-  setStage("reveal");
-} else {
-  alert("Image submitted. Waiting for everyone else's images.");
-}
 }
 
 async function voteForSubmission(item: string) {
@@ -414,28 +439,32 @@ if (!gameData?.winner_awarded) {
 }
 
 async function nextRound() {
-  await supabase
-    .from("submissions")
-    .delete()
-    .eq("room_code", code);
+  if (isAdvancing) return;
 
-  await supabase
-    .from("votes")
-    .delete()
-    .eq("room_code", code);
+  setIsAdvancing(true);
 
-  await supabase.from("games").insert([
-    {
-      room_code: code,
-      stage: "submitting",
-      prompt: roundPrompt,
-      winner_awarded: false,
-    },
-  ]);
+  try {
+    const newPrompt = await loadRandomPrompt();
 
-  setWinner("");
-  setSubmissions([]);
-  setStage("submitting");
+    await supabase.from("submissions").delete().eq("room_code", code);
+    await supabase.from("votes").delete().eq("room_code", code);
+
+    await supabase
+      .from("games")
+      .update({
+        stage: "submitting",
+        prompt: newPrompt,
+        winner_awarded: false,
+      })
+      .eq("room_code", code);
+
+    setWinner("");
+    setSubmissions([]);
+    setRoundPrompt(newPrompt);
+    setStage("submitting");
+  } finally {
+    setIsAdvancing(false);
+  }
 }
 
 
@@ -520,36 +549,67 @@ async function loadScoreboard() {
     </div>
   ))}
 </div>
+    <select
+        value={selectedCategory}
+        onChange={(e) => setSelectedCategory(e.target.value)}
+        className="border p-3 rounded-xl"
+      >
+      <option value="Random">🎲 Random</option>
+       <option value="General">🎉 General</option>
+       <option value="Personal">👥 Personal</option>
+       <option value="Work">💼 Work</option>
+       <option value="Dating">❤️ Dating</option>
+       <option value="Absurd">🤪 Absurd</option>
+    </select>
+    <button
+      onClick={startGame}
+      disabled={isStarting}
+      className="bg-green-600 text-white px-6 py-3 rounded-xl"
+    >
+      {isStarting ? "Starting..." : "Start Game"}
+    </button>
+  </>
+) : stage === "submitting" ? (
+  <>
+    <h2 className="text-2xl font-bold">Round 1</h2>
 
-          <button
-            onClick={startGame}
-            className="bg-green-600 text-white px-6 py-3 rounded-xl"
-          >
-            Start Game
-          </button>
-        </>
-      ) : stage === "submitting" ? (
-        <>
-          <h2 className="text-2xl font-bold">Round 1</h2>
+    <div className="border rounded-xl p-4 max-w-md text-center">
+      <p className="text-lg font-semibold">{roundPrompt}</p>
+    </div>
 
-          <div className="border rounded-xl p-4 max-w-md text-center">
-            <p className="text-lg font-semibold">{roundPrompt}</p>
-          </div>
+    {hasSubmitted || isSubmitting ? (
+ <div className="fixed inset-0 bg-purple-700 text-white flex flex-col items-center justify-center space-y-6 z-50">
+    <div className="text-7xl animate-bounce">👑</div>
 
-          <textarea
-            value={submission}
-            onChange={(e) => setSubmission(e.target.value)}
-            placeholder="Write your AI image prompt..."
-            className="border rounded-xl p-4 w-full max-w-md min-h-32"
-          />
+    <h2 className="text-3xl font-bold">Cooking up your image...</h2>
 
-          <button
-            onClick={submitPrompt}
-            className="bg-blue-600 text-white px-6 py-3 rounded-xl"
-          >
-            Submit Prompt
-          </button>
-        </>
+    <p className="text-lg">
+      {loadingMessage || "Adding maximum chaos..."}
+    </p>
+
+    <p className="text-sm opacity-80">
+      {submissions.length} / {players.length} submitted
+    </p>
+  </div>
+) : (
+      <>
+        <textarea
+          value={submission}
+          onChange={(e) => setSubmission(e.target.value)}
+          placeholder="Write your AI image prompt..."
+          className="border rounded-xl p-4 w-full max-w-md min-h-32"
+        />
+
+        <button
+          onClick={submitPrompt}
+          disabled={isSubmitting}
+          className="bg-blue-600 text-white px-6 py-3 rounded-xl disabled:opacity-50"
+        >
+          {isSubmitting ? "Submitting..." : "Submit Prompt"}
+        </button>
+      </>
+    )}
+  </>
       ) : stage === "generating" ? (
   <div className="min-h-screen w-full bg-purple-700 flex flex-col items-center justify-center text-white">
     <div className="text-8xl mb-6 animate-bounce">
@@ -631,11 +691,12 @@ async function loadScoreboard() {
 )}
 {!finalWinner && (
   <button
-    onClick={nextRound}
-    className="bg-black text-white px-6 py-3 rounded-xl"
-  >
-    Next Round
-  </button>
+  onClick={nextRound}
+   disabled={isAdvancing}
+  className="bg-purple-600 text-white px-6 py-3 rounded-xl disabled:opacity-50"
+>
+  {isAdvancing ? "Starting..." : "Next Round"}
+</button>
 )}
   </>
 )}
