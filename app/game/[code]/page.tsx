@@ -468,6 +468,29 @@ async function nextRound() {
 }
 
 
+async function saveImage(imageUrl: string, answerText: string) {
+  try {
+    const response = await fetch(imageUrl);
+    const blob = await response.blob();
+
+    const url = window.URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${answerText.slice(0, 30).replace(/[^a-z0-9]/gi, "_")}.png`;
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error(error);
+    alert("Could not save image");
+  }
+}
+
+
 async function loadScoreboard() {
   const { data, error } = await supabase
     .from("players")
@@ -639,21 +662,40 @@ async function loadScoreboard() {
   const [text, imageUrl] = item.split("|||");
 
      return (
-        <button
+       <button
          key={index}
-        onClick={() => voteForSubmission(text)}
-         className="border rounded-xl p-4 text-left hover:bg-gray-100"
-     >
-        {imageUrl && (
-        <img
+          onClick={() => voteForSubmission(text)}
+           className="border rounded-xl p-4 text-left hover:bg-gray-100"
+          >
+         {imageUrl && (
+                 <img
           src={imageUrl}
           alt={text}
           className="w-full rounded-xl mb-3"
-        />
-      )}
+          />
+        )}
 
-      <p className="font-bold">Submission #{index + 1}</p>
-    </button>
+        {imageUrl && (
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      saveImage(imageUrl, text);
+    }}
+    className="mb-3 bg-purple-600 text-white px-4 py-2 rounded-xl w-full"
+  >
+    Save Image
+  </button>
+)}
+
+  <p className="font-bold text-lg mb-2">
+    {text}
+  </p>
+
+  <p className="text-sm text-gray-500">
+    Submission #{index + 1}
+  </p>
+</button>
   );
 })}
           </div>
