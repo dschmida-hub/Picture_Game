@@ -32,9 +32,16 @@ export default function GameRoom() {
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
-  const hasSubmitted = submissions.some((item) =>
-    item.startsWith(`${name}:`)
-  );
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isJoining, setIsJoining] = useState(false);
+  const [hasVoted, setHasVoted] = useState(false);
+  const [voteMessage, setVoteMessage] = useState("");
+  const hasSubmitted = submissions.some((item) => {
+  const parts = item.split("|||");
+  const playerName = parts[2];
+
+  return playerName === name;
+});
 
   const loadingMessages = [
   "Teaching raccoons wedding etiquette...",
@@ -96,7 +103,11 @@ async function loadSubmissions() {
     return;
   }
 
-  setSubmissions(data.map((item) => `${item.player_name}: ${item.prompt}|||${item.image_url}`));
+  setSubmissions(
+  data.map(
+    (item) => `${item.prompt}|||${item.image_url}|||${item.player_name}`
+    )
+  );
 }
 
 async function loadGame() {
@@ -120,11 +131,32 @@ async function loadGame() {
 }
 
 useEffect(() => {
-  loadPlayers();
-  loadGame();
-  loadSubmissions();
-  loadWinner();
-  loadScoreboard();
+  if (stage === "submitting") {
+    setHasVoted(false);
+    setVoteMessage("");
+    setSubmission("");
+    setWinner("");
+    setPointsAwarded(false);
+  }
+}, [stage]);
+
+useEffect(() => {
+  async function loadInitialData() {
+    setIsPageLoading(true);
+
+    await Promise.all([
+      loadPlayers(),
+      loadGame(),
+      loadSubmissions(),
+      loadWinner(),
+      loadScoreboard(),
+    ]);
+
+    setIsPageLoading(false);
+  }
+
+  loadInitialData();
+
   const interval = setInterval(() => {
     loadPlayers();
     loadGame();
@@ -137,7 +169,14 @@ useEffect(() => {
 }, []);
 
 async function joinGame() {
+  
   if (!name.trim()) return;
+  
+  if (isJoining) return;
+
+  setIsJoining(true);
+
+  try {
 
   const cleanName = name.trim();
 
@@ -189,6 +228,9 @@ async function joinGame() {
 
   await loadPlayers();
   setJoined(true);
+  }finally {
+  setIsJoining(false);
+  }
 }
 
 async function startGame() {
@@ -347,23 +389,41 @@ Rules:
   }
 }
 
-async function voteForSubmission(item: string) {
+async function voteForSubmission(answerText: string, playerName: string) {
+  if (hasVoted) return;
+
+  const voteValue = `${playerName}: ${answerText}`;
+
+  const { data: existingVote } = await supabase
+    .from("votes")
+    .select("id")
+    .eq("room_code", code)
+    .eq("voter_name", name)
+    .maybeSingle();
+
+  if (existingVote) return;
+
+  setHasVoted(true);
+
   const { error } = await supabase.from("votes").insert([
     {
       room_code: code,
       voter_name: name,
-      voted_for: item,
+      voted_for: voteValue,
     },
   ]);
 
   if (error) {
     console.error(error);
     alert("Failed to vote");
+    setHasVoted(false);
     return;
   }
 
-  const { data: allPlayers } = await supabase
-    .from("players")
+  setVoteMessage("✅ Vote recorded! Waiting for other players...");
+
+  const { data: allSubmissions } = await supabase
+    .from("submissions")
     .select("id")
     .eq("room_code", code);
 
@@ -372,16 +432,24 @@ async function voteForSubmission(item: string) {
     .select("id")
     .eq("room_code", code);
 
-  if (allPlayers && allVotes && allVotes.length >= allPlayers.length) {
-    await supabase
-      .from("games")
-      .update({ stage: "winner" })
-      .eq("room_code", code);
+  if (allSubmissions && allVotes && allVotes.length >= allSubmissions.length) {
+  const { error: stageError } = await supabase
+  .from("games")
+  .update({ stage: "winner" })
+  .eq("room_code", code);
 
-    setStage("winner");
-  } else {
-    alert("Vote submitted. Waiting for everyone else.");
+if (stageError) {
+  console.error("Failed to update stage:", stageError);
+  alert("Failed to move to winner screen");
+  return;
+}
+
+console.log("Stage updated to winner");
+setStage("winner");
+await loadGame();
   }
+
+  await loadWinner();
 }
 
 async function loadWinner() {
@@ -413,11 +481,15 @@ async function loadWinner() {
     }
   });
 
-  if (!topSubmission) return;
+ if (!topSubmission) return;
 
-  const winnerName = topSubmission.split(":")[0].trim();
+const maxVotes = topVotes;
 
-  const { data: gameData } = await supabase
+const tiedSubmissions = Object.keys(voteCounts).filter(
+  (submission) => voteCounts[submission] === maxVotes
+);
+
+const { data: gameData } = await supabase
   .from("games")
   .select("winner_awarded")
   .eq("room_code", code)
@@ -426,16 +498,37 @@ async function loadWinner() {
   .maybeSingle();
 
 if (!gameData?.winner_awarded) {
-  await supabase.rpc("award_winner_once", {
-    player_name_input: winnerName,
-    room_code_input: code,
-  });
+  for (const winningSubmission of tiedSubmissions) {
+    const winnerName = winningSubmission.split(":")[0].trim();
+
+    await supabase.rpc("award_point_to_player", {
+      player_name_input: winnerName,
+      room_code_input: code,
+    });
+  }
+
+  await supabase
+    .from("games")
+    .update({ winner_awarded: true })
+    .eq("room_code", code);
 }
 
-  setPointsAwarded(true);
+setPointsAwarded(true);
 
-  setWinner(`${topSubmission} (${topVotes} vote${topVotes === 1 ? "" : "s"})`);
-  await loadPlayers();
+if (tiedSubmissions.length > 1) {
+  setWinner(
+    `Tie! ${tiedSubmissions.join(" and ")} each get 1 point.`
+  );
+} else {
+  const winnerName = topSubmission.split(":")[0].trim();
+  const winningAnswer = topSubmission.split(":").slice(1).join(":").trim();
+
+  setWinner(
+    `${winnerName}: ${winningAnswer} (${topVotes} vote${topVotes === 1 ? "" : "s"})`
+  );
+}
+
+await loadPlayers();
 }
 
 async function nextRound() {
@@ -458,10 +551,12 @@ async function nextRound() {
       })
       .eq("room_code", code);
 
-    setWinner("");
+    setHasVoted(false);
+    setVoteMessage("");
+    setSubmission("");
     setSubmissions([]);
-    setRoundPrompt(newPrompt);
-    setStage("submitting");
+    setWinner("");
+    setPointsAwarded(false);
   } finally {
     setIsAdvancing(false);
   }
@@ -511,6 +606,26 @@ async function loadScoreboard() {
     setFinalWinner(`${leader.name} wins the game with ${leader.points} points!`);
   }
 }
+if (isJoining) {
+  return (
+    <div className="fixed inset-0 bg-purple-700 text-white flex flex-col items-center justify-center space-y-6">
+      <div className="text-7xl animate-bounce">👑</div>
+      <h1 className="text-3xl font-bold">Joining Room...</h1>
+      <p className="opacity-80">Gathering the troublemakers</p>
+    </div>
+  );
+}
+
+if (isPageLoading) {
+  return (
+    <div className="fixed inset-0 bg-purple-700 text-white flex flex-col items-center justify-center space-y-6">
+      <div className="text-7xl animate-bounce">👑</div>
+      <h1 className="text-3xl font-bold">Loading Game...</h1>
+      <p className="opacity-80">Getting the chaos ready</p>
+    </div>
+  );
+}
+
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center gap-6 p-6">
@@ -535,11 +650,12 @@ async function loadScoreboard() {
     />
 
     <button
-      onClick={joinGame}
-      className="bg-black text-white px-6 py-3 rounded-xl"
-    >
-      Join Room
-    </button>
+  onClick={joinGame}
+  disabled={isJoining}
+  className="bg-black text-white px-6 py-3 rounded-xl disabled:opacity-50"
+>
+  {isJoining ? "Joining..." : "Join Room"}
+</button>
   </>
 ) : stage === "lobby" ? (
         <>
@@ -652,41 +768,53 @@ async function loadScoreboard() {
     </div>
   </div>
     ) :stage === "reveal" ? (
+
      <>
     <h2 className="text-2xl font-bold">Vote for Winner</h2>
 
+    <p className="text-gray-600 text-center">
+        Click your favorite submission
+    </p>
+
+
           <p className="font-semibold">{roundPrompt}</p>
+          {voteMessage && (
+      <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-xl">
+       {voteMessage}
+      </div>
+      )}
 
           <div className="flex flex-col gap-3 w-full max-w-md">
            {submissions.map((item, index) => {
-  const [text, imageUrl] = item.split("|||");
+  const [text, imageUrl, playerName] = item.split("|||");
+    <p className="font-bold text-lg mb-2">{text}</p>
 
      return (
-       <button
-         key={index}
-          onClick={() => voteForSubmission(text)}
-           className="border rounded-xl p-4 text-left hover:bg-gray-100"
-          >
-         {imageUrl && (
-                 <img
-          src={imageUrl}
-          alt={text}
-          className="w-full rounded-xl mb-3"
-          />
-        )}
+      <div
+  key={index}
+  onClick={() => voteForSubmission(text, playerName)}
+  className="border rounded-xl p-4 text-left hover:bg-gray-100 cursor-pointer"
+>
+  {imageUrl && (
+    <img
+      src={imageUrl}
+      alt={text}
+      className="w-full rounded-xl mb-3"
+    />
+  )}
 
-        {imageUrl && (
-  <button
-    type="button"
-    onClick={(e) => {
-      e.stopPropagation();
-      saveImage(imageUrl, text);
-    }}
-    className="mb-3 bg-purple-600 text-white px-4 py-2 rounded-xl w-full"
-  >
-    Save Image
-  </button>
-)}
+  {imageUrl && (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        saveImage(imageUrl, text);
+      }}
+      className="mb-3 bg-purple-600 text-white px-4 py-2 rounded-xl w-full"
+    >
+      Save Image
+    </button>
+  )}
 
   <p className="font-bold text-lg mb-2">
     {text}
@@ -695,17 +823,12 @@ async function loadScoreboard() {
   <p className="text-sm text-gray-500">
     Submission #{index + 1}
   </p>
-</button>
+</div>
   );
 })}
           </div>
 
-          <button
-            onClick={() => setStage("submitting")}
-            className="bg-black text-white px-6 py-3 rounded-xl"
-          >
-            Next Round
-          </button>
+        
         </>
     ) : (
     <>
