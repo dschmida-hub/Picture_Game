@@ -41,6 +41,8 @@ export default function GameRoom() {
   const [winnerName, setWinnerName] = useState("");
   const [winnerPrompt, setWinnerPrompt] = useState("");
   const [winnerImages, setWinnerImages] = useState<string[]>([]);
+  const hostName = players[0]?.name;
+  const isHost = joined && name === hostName;
   const hasSubmitted = submissions.some((item) => {
   const parts = item.split("|||");
   const playerName = parts[2];
@@ -239,6 +241,7 @@ async function joinGame() {
 }
 
 async function startGame() {
+   if (!isHost) return;
   if (isStarting) return;
 
   setIsStarting(true);
@@ -598,6 +601,7 @@ async function loadWinner() {
 }
 
 async function nextRound() {
+  if (!isHost) return;
   if (isAdvancing) return;
 
   setIsAdvancing(true);
@@ -753,12 +757,20 @@ if (isPageLoading) {
         </div>
       )}
 
-      <div>
-        <div className="font-bold">{player.name}</div>
-        <div className="text-sm text-gray-500">
-          {player.points} pts
-        </div>
-      </div>
+     <div>
+  <div className="font-bold">
+    {player.name}
+    {index === 0 && (
+      <span className="ml-2 text-yellow-500">
+        👑 Host
+      </span>
+    )}
+  </div>
+
+  <div className="text-sm text-gray-500">
+    {player.points} pts
+  </div>
+</div>
     </div>
   ))}
 </div>
@@ -774,14 +786,20 @@ if (isPageLoading) {
        <option value="Dating">❤️ Dating</option>
        <option value="Absurd">🤪 Absurd</option>
     </select>
-    <button
-      onClick={startGame}
-      disabled={isStarting}
-      className="bg-green-600 text-white px-6 py-3 rounded-xl"
-    >
-      {isStarting ? "Starting..." : "Start Game"}
-    </button>
-  </>
+    {isHost ? (
+  <button
+    onClick={startGame}
+    disabled={isStarting}
+    className="bg-green-600 text-white px-6 py-3 rounded-xl"
+  >
+    {isStarting ? "Starting..." : "Start Game"}
+  </button>
+) : (
+  <p className="text-gray-500 text-center">
+    Waiting for {hostName || "the host"} to start the game...
+  </p>
+)}
+</>
 ) : stage === "submitting" ? (
   <>
     <h2 className="text-2xl font-bold">Round 1</h2>
@@ -1015,15 +1033,21 @@ if (isPageLoading) {
       </div>
     )}
 
-    {!finalWinner && (
-      <button
-        onClick={nextRound}
-        disabled={isAdvancing}
-        className="bg-purple-600 text-white px-8 py-4 rounded-2xl disabled:opacity-50 font-extrabold shadow-lg"
-      >
-        {isAdvancing ? "Starting..." : "Next Round"}
-      </button>
-    )}
+    {!finalWinner && isHost && (
+  <button
+    onClick={nextRound}
+    disabled={isAdvancing}
+    className="bg-purple-600 text-white px-8 py-4 rounded-2xl disabled:opacity-50 font-extrabold shadow-lg"
+  >
+    {isAdvancing ? "Starting..." : "Next Round"}
+  </button>
+)}
+
+{!finalWinner && !isHost && (
+  <p className="text-gray-500 text-center">
+    Waiting for {hostName || "the host"} to start the next round...
+  </p>
+)}
   </>
 ) : (
   <p>Unknown game stage.</p>
