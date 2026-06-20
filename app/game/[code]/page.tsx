@@ -24,7 +24,8 @@ export default function GameRoom() {
   const [submissions, setSubmissions] = useState<string[]>([]);
   const [winner, setWinner] = useState("");
   const [pointsAwarded, setPointsAwarded] = useState(false);
-  const [scoreboard, setScoreboard] = useState<string[]>([]);
+  const [scoreboard, setScoreboard] = useState<any[]>([]);
+  const [scoreboardPlayers, setScoreboardPlayers] = useState<any[]>([]);
   const [finalWinner, setFinalWinner] = useState("");
   const [loadingMessage, setLoadingMessage] = useState("Generating chaos...");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -36,6 +37,10 @@ export default function GameRoom() {
   const [isJoining, setIsJoining] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
   const [voteMessage, setVoteMessage] = useState("");
+  const [winnerImageUrl, setWinnerImageUrl] = useState("");
+  const [winnerName, setWinnerName] = useState("");
+  const [winnerPrompt, setWinnerPrompt] = useState("");
+  const [winnerImages, setWinnerImages] = useState<string[]>([]);
   const hasSubmitted = submissions.some((item) => {
   const parts = item.split("|||");
   const playerName = parts[2];
@@ -300,19 +305,30 @@ ${roundPrompt}
 Player Answer:
 ${submission.trim()}
 
+Turn this into a single funny visual scene.
+
 The image should clearly show the connection between the question and answer.
+The answer should be the main punchline, but the joke should be understandable without reading the answer.
+Do not simply show the answer by itself.
 
-The joke should be understandable without reading the answer.
+Build the scene around the joke:
+- Show what is happening
+- Show why it is funny
+- Add background chaos or small visual gags
+- Exaggerate facial expressions and reactions
+- Make the situation instantly understandable
 
-Exaggerate facial expressions and reactions.
 
-Rules:
-- Make the scene absurd
-- Exaggerate reactions
-- Make it instantly understandable
+Style rules:
 - Bright colorful cartoon style
-- No text in image
+- Absurd comedy
+- Big expressive faces
+- Clear main subject
 - Focus on visual comedy
+- No written text, captions, subtitles, labels, signs, posters, logos, or words visible in the image
+- Characters may clearly be speaking, yelling, whispering, singing, or reacting
+- If the answer includes a phrase someone says, show it through the character’s pose, open mouth, facial expression, and the reaction of others
+- Do not put the spoken words on the image
 - Make players laugh within 3 seconds
 `;
 
@@ -463,72 +479,122 @@ async function loadWinner() {
     return;
   }
 
- 
-
   const voteCounts: Record<string, number> = {};
 
   data.forEach((vote) => {
     voteCounts[vote.voted_for] = (voteCounts[vote.voted_for] || 0) + 1;
   });
 
-  let topSubmission = "";
   let topVotes = 0;
 
-  Object.entries(voteCounts).forEach(([submission, count]) => {
+  Object.values(voteCounts).forEach((count) => {
     if (count > topVotes) {
-      topSubmission = submission;
       topVotes = count;
     }
   });
 
- if (!topSubmission) return;
+  if (topVotes === 0) return;
 
-const maxVotes = topVotes;
+  const tiedSubmissions = Object.keys(voteCounts).filter(
+    (submission) => voteCounts[submission] === topVotes
+  );
 
-const tiedSubmissions = Object.keys(voteCounts).filter(
-  (submission) => voteCounts[submission] === maxVotes
-);
+  const { data: gameData } = await supabase
+    .from("games")
+    .select("winner_awarded")
+    .eq("room_code", code)
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-const { data: gameData } = await supabase
-  .from("games")
-  .select("winner_awarded")
-  .eq("room_code", code)
-  .order("id", { ascending: false })
-  .limit(1)
-  .maybeSingle();
+  if (!gameData?.winner_awarded) {
+    for (const winningSubmission of tiedSubmissions) {
+      const winnerNameFromSubmission = winningSubmission.split(":")[0].trim();
 
-if (!gameData?.winner_awarded) {
-  for (const winningSubmission of tiedSubmissions) {
-    const winnerName = winningSubmission.split(":")[0].trim();
+      await supabase.rpc("award_point_to_player", {
+        player_name_input: winnerNameFromSubmission,
+        room_code_input: code,
+      });
+    }
 
-    await supabase.rpc("award_point_to_player", {
-      player_name_input: winnerName,
-      room_code_input: code,
-    });
+    await supabase
+      .from("games")
+      .update({ winner_awarded: true })
+      .eq("room_code", code);
   }
 
-  await supabase
-    .from("games")
-    .update({ winner_awarded: true })
-    .eq("room_code", code);
-}
+  setPointsAwarded(true);
 
-setPointsAwarded(true);
+  const winningImages: string[] = [];
 
-if (tiedSubmissions.length > 1) {
-  setWinner(
-    `Tie! ${tiedSubmissions.join(" and ")} each get 1 point.`
-  );
-} else {
-  const winnerName = topSubmission.split(":")[0].trim();
-  const winningAnswer = topSubmission.split(":").slice(1).join(":").trim();
+  for (const winningSubmission of tiedSubmissions) {
+    const playerName = winningSubmission.split(":")[0].trim();
 
-  setWinner(
-    `${winnerName}: ${winningAnswer} (${topVotes} vote${topVotes === 1 ? "" : "s"})`
-  );
-}
+    const promptText = winningSubmission
+      .split(":")
+      .slice(1)
+      .join(":")
+      .trim();
 
-await loadPlayers();
+    const { data: submissionData, error: submissionError } = await supabase
+      .from("submissions")
+      .select("image_url")
+      .eq("room_code", code)
+      .eq("player_name", playerName)
+      .eq("prompt", promptText)
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (submissionError) {
+      console.error(submissionError);
+    }
+
+    if (submissionData?.image_url) {
+      winningImages.push(submissionData.image_url);
+    }
+  }
+
+  setWinnerImages(winningImages);
+
+  if (tiedSubmissions.length > 1) {
+    const tiedNames = tiedSubmissions.map((submission) =>
+      submission.split(":")[0].trim()
+    );
+
+    setWinnerName(`Tie: ${tiedNames.join(" and ")}`);
+
+    const tiedPrompts = tiedSubmissions
+      .map((submission) => submission.split(":").slice(1).join(":").trim())
+      .join(" / ");
+
+    setWinnerPrompt(tiedPrompts);
+
+    setWinner(
+      `Tie! ${tiedSubmissions.join(" and ")} each get 1 point.`
+    );
+  } else {
+    const winningSubmission = tiedSubmissions[0];
+
+    const displayWinnerName = winningSubmission.split(":")[0].trim();
+
+    const displayWinnerPrompt = winningSubmission
+      .split(":")
+      .slice(1)
+      .join(":")
+      .trim();
+
+    setWinnerName(displayWinnerName);
+    setWinnerPrompt(displayWinnerPrompt);
+
+    setWinner(
+      `${displayWinnerName}: ${displayWinnerPrompt} (${topVotes} vote${
+        topVotes === 1 ? "" : "s"
+      })`
+    );
+  }
+
+  await loadPlayers();
 }
 
 async function nextRound() {
@@ -589,7 +655,7 @@ async function saveImage(imageUrl: string, answerText: string) {
 async function loadScoreboard() {
   const { data, error } = await supabase
     .from("players")
-    .select("name, points")
+    .select("name, points,avatar_url")
     .eq("room_code", code)
     .order("points", { ascending: false });
 
@@ -598,7 +664,15 @@ async function loadScoreboard() {
     return;
   }
 
-  setScoreboard(data.map((player) => `${player.name} - ${player.points} pts`));
+  const sortedPlayers = [...data].sort(
+  (a, b) => (b.points ?? 0) - (a.points ?? 0)
+);
+
+setScoreboardPlayers(sortedPlayers);
+
+setScoreboard(
+  sortedPlayers.map((player) => `${player.name} - ${player.points ?? 0}`)
+);
 
   const leader = data[0];
 
@@ -767,103 +841,192 @@ if (isPageLoading) {
       Generating masterpiece...
     </div>
   </div>
-    ) :stage === "reveal" ? (
+    ) : stage === "reveal" ? (
+  <>
+    <div className="w-full max-w-3xl text-center space-y-3">
+      <h2 className="text-3xl font-bold">Vote for the Funniest Image</h2>
 
-     <>
-    <h2 className="text-2xl font-bold">Vote for Winner</h2>
-
-    <p className="text-gray-600 text-center">
-        Click your favorite submission
-    </p>
-
-
-          <p className="font-semibold">{roundPrompt}</p>
-          {voteMessage && (
-      <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-xl">
-       {voteMessage}
+      <div className="bg-purple-100 border border-purple-300 rounded-2xl p-4">
+        <p className="text-sm text-purple-700 font-semibold mb-1">Prompt</p>
+        <p className="text-xl font-bold">{roundPrompt}</p>
       </div>
+
+      <p className="text-gray-600">
+        Tap the image you think is funniest.
+      </p>
+
+      {voteMessage && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-xl">
+          {voteMessage}
+        </div>
       )}
+    </div>
 
-          <div className="flex flex-col gap-3 w-full max-w-md">
-           {submissions.map((item, index) => {
-  const [text, imageUrl, playerName] = item.split("|||");
-    <p className="font-bold text-lg mb-2">{text}</p>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 w-full max-w-5xl">
+      {submissions.map((item, index) => {
+        const [text, imageUrl, playerName] = item.split("|||");
 
-     return (
-      <div
-  key={index}
-  onClick={() => voteForSubmission(text, playerName)}
-  className="border rounded-xl p-4 text-left hover:bg-gray-100 cursor-pointer"
->
-  {imageUrl && (
-    <img
-      src={imageUrl}
-      alt={text}
-      className="w-full rounded-xl mb-3"
-    />
-  )}
+        return (
+          <div
+            key={index}
+            onClick={() => voteForSubmission(text, playerName)}
+            className={`rounded-2xl border shadow-lg overflow-hidden cursor-pointer transition transform hover:scale-[1.02] ${
+              hasVoted
+                ? "opacity-70 pointer-events-none"
+                : "hover:shadow-2xl"
+            }`}
+          >
+            {imageUrl && (
+              <img
+                src={imageUrl}
+                alt={text}
+                className="w-full aspect-square object-cover bg-gray-100"
+              />
+            )}
 
-  {imageUrl && (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        saveImage(imageUrl, text);
-      }}
-      className="mb-3 bg-purple-600 text-white px-4 py-2 rounded-xl w-full"
-    >
-      Save Image
-    </button>
-  )}
+            <div className="p-4 bg-white">
+              <p className="font-bold text-lg text-center mb-2">
+                “{text}”
+              </p>
 
-  <p className="font-bold text-lg mb-2">
-    {text}
-  </p>
+              <p className="text-sm text-gray-500 text-center mb-3">
+                Submission #{index + 1}
+              </p>
 
-  <p className="text-sm text-gray-500">
-    Submission #{index + 1}
-  </p>
-</div>
-  );
-})}
+              {!hasVoted ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    voteForSubmission(text, playerName);
+                  }}
+                  className="w-full bg-black text-white px-4 py-3 rounded-xl font-bold"
+                >
+                  Vote for This
+                </button>
+              ) : (
+                <p className="text-center text-sm text-gray-500">
+                  Vote locked in
+                </p>
+              )}
+
+              {imageUrl && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    saveImage(imageUrl, text);
+                  }}
+                  className="mt-3 w-full bg-purple-600 text-white px-4 py-2 rounded-xl"
+                >
+                  Save Image
+                </button>
+              )}
+            </div>
           </div>
-
-        
-        </>
-    ) : (
-    <>
-    <h2 className="text-2xl font-bold">🏆 Winner</h2>
-<p className="border rounded-xl p-4 max-w-md text-center">
-  {winner || "Calculating winner..."}
-</p>
-<div className="border rounded-xl p-4 w-full max-w-md">
-  <h3 className="text-xl font-bold text-center mb-3">Scoreboard</h3>
-
-  <div className="flex flex-col gap-2">
-    {scoreboard.map((score, index) => (
-      <div key={index} className="text-center">
-        {score}
-      </div>
-    ))}
-  </div>
-</div>
-
-{finalWinner && (
-  <div className="border rounded-xl p-4 max-w-md text-center bg-yellow-100">
-    <h3 className="text-2xl font-bold">🎉 Final Winner</h3>
-    <p>{finalWinner}</p>
-  </div>
-)}
-{!finalWinner && (
-  <button
-  onClick={nextRound}
-   disabled={isAdvancing}
-  className="bg-purple-600 text-white px-6 py-3 rounded-xl disabled:opacity-50"
->
-  {isAdvancing ? "Starting..." : "Next Round"}
-</button>
-)}
+        );
+      })}
+    </div>
   </>
+/* =======================================
+   WINNER SCREEN
+======================================= */
+) : stage === "winner" ? (
+  <>
+    <div className="w-full max-w-md bg-gradient-to-b from-purple-700 to-purple-950 text-white rounded-3xl p-6 text-center shadow-2xl border-4 border-yellow-300">
+      <h2 className="text-4xl font-extrabold mb-4">
+        {winnerImages.length > 1 ? "Tie Winners" : "Round Winner"}
+      </h2>
+
+      <div
+        className={`grid gap-4 mb-5 ${
+          winnerImages.length > 1 ? "grid-cols-2" : "grid-cols-1"
+        }`}
+      >
+        {winnerImages.map((imageUrl, index) => (
+          <img
+            key={index}
+            src={imageUrl}
+            alt="Winning image"
+            className="w-full aspect-square object-cover rounded-2xl border-4 border-white shadow-xl"
+          />
+        ))}
+      </div>
+
+      <div className="relative bg-white text-black rounded-2xl p-4">
+        <div className="absolute -top-10 left-1/2 -translate-x-1/2 text-5xl">
+          👑
+        </div>
+
+        <p className="text-3xl font-extrabold mt-4">
+          {winnerName || "Calculating..."}
+        </p>
+
+        <p className="text-sm text-gray-500 mt-1">
+          {winnerImages.length > 1 ? "tied for the round" : "won the round"}
+        </p>
+
+        <p className="mt-4 text-lg font-semibold">
+          “{winnerPrompt || winner}”
+        </p>
+      </div>
+    </div>
+
+    <div className="bg-white border-4 border-purple-300 rounded-3xl p-5 w-full max-w-md shadow-xl">
+      <h3 className="text-3xl font-extrabold text-center mb-4">
+        Scoreboard
+      </h3>
+
+      <div className="flex flex-col gap-3">
+       {scoreboardPlayers.map((player, index) => (
+      <div
+        key={player.name}
+        className={`flex justify-between items-center rounded-2xl px-4 py-3 font-bold ${
+        index === 0
+        ? "bg-yellow-100 border-2 border-yellow-400 text-yellow-900"
+        : "bg-purple-100 text-purple-900"
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          {player.avatar_url && (
+          <img
+          src={player.avatar_url}
+          alt={player.name}
+          className="w-10 h-10 rounded-full object-cover border-2 border-white"
+          />
+        )}
+
+      <span>
+        {index === 0 ? "👑 " : ""}
+        {player.name}
+      </span>
+    </div>
+
+    <span>{player.points ?? 0}</span>
+  </div>
+))}
+      </div>
+    </div>
+
+    {finalWinner && (
+      <div className="border-4 border-yellow-400 rounded-3xl p-5 max-w-md text-center bg-yellow-100 shadow-xl">
+        <h3 className="text-3xl font-extrabold">🎉 Final Winner</h3>
+        <p className="text-xl font-bold mt-2">{finalWinner}</p>
+      </div>
+    )}
+
+    {!finalWinner && (
+      <button
+        onClick={nextRound}
+        disabled={isAdvancing}
+        className="bg-purple-600 text-white px-8 py-4 rounded-2xl disabled:opacity-50 font-extrabold shadow-lg"
+      >
+        {isAdvancing ? "Starting..." : "Next Round"}
+      </button>
+    )}
+  </>
+) : (
+  <p>Unknown game stage.</p>
 )}
 </main>
   );
