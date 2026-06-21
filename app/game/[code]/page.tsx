@@ -43,6 +43,7 @@ export default function GameRoom() {
   const [winnerImages, setWinnerImages] = useState<string[]>([]);
   const hostName = players[0]?.name;
   const isHost = joined && name === hostName;
+  const [roundHistory, setRoundHistory] = useState<any[]>([]);
   const hasSubmitted = submissions.some((item) => {
   const parts = item.split("|||");
   const playerName = parts[2];
@@ -98,6 +99,21 @@ async function loadRandomPrompt() {
   setPlayers(data);
 }
 
+async function loadRoundHistory() {
+  const { data, error } = await supabase
+    .from("round_history")
+    .select("*")
+    .eq("room_code", code)
+    .order("round_number", { ascending: true });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  setRoundHistory(data || []);
+}
+
 async function loadSubmissions() {
   const { data, error } = await supabase
     .from("submissions")
@@ -118,6 +134,7 @@ async function loadSubmissions() {
 }
 
 async function loadGame() {
+  
   const { data, error } = await supabase
     .from("games")
     .select("stage, prompt")
@@ -138,6 +155,13 @@ async function loadGame() {
 }
 
 useEffect(() => {
+  if (stage === "winner") {
+    loadWinner();
+    loadRoundHistory();
+  }
+}, [stage]);
+
+useEffect(() => {
   if (stage === "submitting") {
     setHasVoted(false);
     setVoteMessage("");
@@ -152,11 +176,12 @@ useEffect(() => {
     setIsPageLoading(true);
 
     await Promise.all([
-      loadPlayers(),
-      loadGame(),
-      loadSubmissions(),
-      loadWinner(),
-      loadScoreboard(),
+    loadPlayers(),
+    loadGame(),
+    loadSubmissions(),
+    loadWinner(),
+    loadScoreboard(),
+
     ]);
 
     setIsPageLoading(false);
@@ -165,13 +190,12 @@ useEffect(() => {
   loadInitialData();
 
   const interval = setInterval(() => {
-    loadPlayers();
-    loadGame();
-    loadSubmissions();
-    loadWinner();
-    loadScoreboard();
-  }, 2000);
-
+  loadPlayers();
+  loadGame();
+  loadSubmissions();
+  loadWinner();
+  loadScoreboard();
+}, 2000);
   return () => clearInterval(interval);
 }, []);
 
@@ -323,16 +347,41 @@ Build the scene around the joke:
 
 
 Style rules:
-- Bright colorful cartoon style
-- Absurd comedy
-- Big expressive faces
-- Clear main subject
-- Focus on visual comedy
-- No written text, captions, subtitles, labels, signs, posters, logos, or words visible in the image
-- Characters may clearly be speaking, yelling, whispering, singing, or reacting
-- If the answer includes a phrase someone says, show it through the character’s pose, open mouth, facial expression, and the reaction of others
-- Do not put the spoken words on the image
-- Make players laugh within 3 seconds
+
+Bright colorful cartoon style
+Absurd comedy
+Big expressive faces
+Clear main subject
+Focus on visual comedy
+Make the joke immediately understandable
+Make players laugh within 3 seconds
+
+Speech and reactions:
+
+Characters may be speaking, yelling, whispering, singing, arguing, reacting, or giving speeches
+If the answer involves something being said, make it obvious through facial expressions, body language, mouth position, gestures, and the reactions of other characters
+Treat spoken phrases as an important part of the joke
+Build the scene around the impact of what was said
+
+Text restrictions:
+
+No captions
+No subtitles
+No speech bubbles
+No written dialogue
+No labels
+No signs
+No posters
+No logos
+No visible words anywhere in the image
+
+Comedy rules:
+
+Exaggerate reactions
+Exaggerate consequences
+Make the answer the center of the joke
+Show the funniest possible visual interpretation of the answer
+Prefer visual comedy over realistic scenes
 `;
 
     setLoadingMessage(
@@ -502,32 +551,6 @@ async function loadWinner() {
     (submission) => voteCounts[submission] === topVotes
   );
 
-  const { data: gameData } = await supabase
-    .from("games")
-    .select("winner_awarded")
-    .eq("room_code", code)
-    .order("id", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!gameData?.winner_awarded) {
-    for (const winningSubmission of tiedSubmissions) {
-      const winnerNameFromSubmission = winningSubmission.split(":")[0].trim();
-
-      await supabase.rpc("award_point_to_player", {
-        player_name_input: winnerNameFromSubmission,
-        room_code_input: code,
-      });
-    }
-
-    await supabase
-      .from("games")
-      .update({ winner_awarded: true })
-      .eq("room_code", code);
-  }
-
-  setPointsAwarded(true);
-
   const winningImages: string[] = [];
 
   for (const winningSubmission of tiedSubmissions) {
@@ -573,9 +596,7 @@ async function loadWinner() {
 
     setWinnerPrompt(tiedPrompts);
 
-    setWinner(
-      `Tie! ${tiedSubmissions.join(" and ")} each get 1 point.`
-    );
+    setWinner(`Tie! ${tiedSubmissions.join(" and ")} each get 1 point.`);
   } else {
     const winningSubmission = tiedSubmissions[0];
 
@@ -597,7 +618,54 @@ async function loadWinner() {
     );
   }
 
+  const { data: gameData } = await supabase
+    .from("games")
+    .select("winner_awarded")
+    .eq("room_code", code)
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!gameData?.winner_awarded) {
+    for (const winningSubmission of tiedSubmissions) {
+      const winnerNameFromSubmission = winningSubmission.split(":")[0].trim();
+
+      await supabase.rpc("award_point_to_player", {
+        player_name_input: winnerNameFromSubmission,
+        room_code_input: code,
+      });
+    }
+
+    for (const winningSubmission of tiedSubmissions) {
+      const playerName = winningSubmission.split(":")[0].trim();
+
+      const promptText = winningSubmission
+        .split(":")
+        .slice(1)
+        .join(":")
+        .trim();
+
+      const imageIndex = tiedSubmissions.indexOf(winningSubmission);
+
+      await supabase.from("round_history").insert({
+        room_code: code,
+        round_number: roundHistory.length + 1,
+        winner_name: playerName,
+        winner_prompt: promptText,
+        winner_image_url: winningImages[imageIndex] || null,
+      });
+    }
+
+    await supabase
+      .from("games")
+      .update({ winner_awarded: true })
+      .eq("room_code", code);
+  }
+
+  setPointsAwarded(true);
+
   await loadPlayers();
+  await loadRoundHistory();
 }
 
 async function nextRound() {
@@ -707,7 +775,18 @@ if (isPageLoading) {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center gap-6 p-6">
-      <h1 className="text-4xl font-bold">Room {code}</h1>
+      <div className="text-center">
+  <h1 className="text-4xl font-black tracking-tight">
+    <span className="inline-block -rotate-2 text-purple-600">Picture</span>{" "}
+    <span className="inline-block rotate-2 bg-black text-white px-3 py-1 rounded-xl">
+      This
+    </span>
+  </h1>
+
+  <p className="text-xs text-gray-400 mt-2">
+    Room {code}
+  </p>
+</div>
 
       {!joined ? (
   <>
@@ -804,40 +883,115 @@ if (isPageLoading) {
   <>
     <h2 className="text-2xl font-bold">Round 1</h2>
 
-    <div className="border rounded-xl p-4 max-w-md text-center">
-      <p className="text-lg font-semibold">{roundPrompt}</p>
-    </div>
+    <div className="w-full max-w-2xl rounded-3xl p-5 bg-white shadow-xl text-center">
+  <div className="mb-3 text-purple-600 font-bold tracking-wider">
+    🎯 ROUND PROMPT
+  </div>
+
+  <h2 className="text-3xl font-black">
+   {roundPrompt}
+  </h2>
+</div>
 
     {hasSubmitted || isSubmitting ? (
- <div className="fixed inset-0 bg-purple-700 text-white flex flex-col items-center justify-center space-y-6 z-50">
-    <div className="text-7xl animate-bounce">👑</div>
+  <div className="fixed inset-0 bg-purple-700 text-white flex flex-col items-center justify-center space-y-6 z-50">
 
-    <h2 className="text-3xl font-bold">Cooking up your image...</h2>
+    <div className="text-7xl animate-bounce">🎨</div>
 
-    <p className="text-lg">
+    <h2 className="text-4xl font-extrabold">
+      Generating Images...
+    </h2>
+
+    <p className="text-lg text-center max-w-md">
       {loadingMessage || "Adding maximum chaos..."}
     </p>
 
-    <p className="text-sm opacity-80">
-      {submissions.length} / {players.length} submitted
-    </p>
+    <div className="w-full max-w-md px-8">
+      <div className="bg-purple-900 rounded-full h-4 overflow-hidden">
+        <div
+          className="bg-white h-full transition-all duration-500"
+          style={{
+            width: `${
+              players.length > 0
+                ? (submissions.length / players.length) * 100
+                : 0
+            }%`,
+          }}
+        />
+      </div>
+
+      <p className="text-center mt-3 font-bold">
+        {submissions.length} / {players.length} ready
+      </p>
+    </div>
+
+    <div className="w-full max-w-md flex flex-col gap-2 px-8">
+      {players.map((player) => {
+        const submitted = submissions.some((submission) =>
+          submission.includes(`${player.name}:`)
+        );
+
+        return (
+          <div
+            key={player.name}
+            className="bg-purple-600 rounded-xl px-4 py-3 flex justify-between items-center"
+          >
+            <div className="flex items-center gap-3">
+              {player.avatar_url && (
+                <img
+                  src={player.avatar_url}
+                  alt={player.name}
+                  className="w-8 h-8 rounded-full object-cover border-2 border-white"
+                />
+              )}
+
+              <span className="font-bold">
+                {player.name}
+              </span>
+            </div>
+
+            <span className="text-xl">
+              {submitted ? "✅" : "⏳"}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+
   </div>
 ) : (
       <>
-        <textarea
-          value={submission}
-          onChange={(e) => setSubmission(e.target.value)}
-          placeholder="Write your AI image prompt..."
-          className="border rounded-xl p-4 w-full max-w-md min-h-32"
-        />
+        <div className="w-full max-w-xl bg-white rounded-3xl shadow-lg p-5 border border-gray-200">
+  <label className="block text-sm font-bold text-purple-600 mb-2">
+    Your Answer
+  </label>
 
-        <button
-          onClick={submitPrompt}
-          disabled={isSubmitting}
-          className="bg-blue-600 text-white px-6 py-3 rounded-xl disabled:opacity-50"
-        >
-          {isSubmitting ? "Submitting..." : "Submit Prompt"}
-        </button>
+  <textarea
+    value={submission}
+    onChange={(e) => setSubmission(e.target.value)}
+    placeholder="Make your friends laugh..."
+    maxLength={120}
+    className="w-full border-2 border-purple-300 rounded-2xl p-4 text-lg min-h-40 resize-none focus:outline-none focus:border-purple-500"
+  />
+
+  <div className="flex justify-between items-center mt-2">
+    <p className="text-sm text-gray-500">
+      Think punchline, not paragraph.
+    </p>
+
+    <p className="text-sm text-gray-500">
+      {submission.length}/120
+    </p>
+  </div>
+</div>
+
+<button
+  onClick={submitPrompt}
+  disabled={isSubmitting || !submission.trim()}
+  className="bg-blue-600 text-white px-8 py-3 rounded-2xl disabled:opacity-50 font-bold shadow-lg"
+>
+  {isSubmitting ? "Submitting..." : "Lock In Answer"}
+</button>
       </>
     )}
   </>
@@ -859,19 +1013,19 @@ if (isPageLoading) {
       Generating masterpiece...
     </div>
   </div>
-    ) : stage === "reveal" ? (
+   ) : stage === "reveal" ? (
   <>
     <div className="w-full max-w-3xl text-center space-y-3">
-      <h2 className="text-3xl font-bold">Vote for the Funniest Image</h2>
 
-      <div className="bg-purple-100 border border-purple-300 rounded-2xl p-4">
-        <p className="text-sm text-purple-700 font-semibold mb-1">Prompt</p>
-        <p className="text-xl font-bold">{roundPrompt}</p>
+      <div className="w-full max-w-2xl mx-auto rounded-3xl p-5 bg-white shadow-xl text-center">
+        <div className="mb-2 text-purple-600 font-bold tracking-wider">
+          🎯 ROUND PROMPT
+        </div>
+
+        <h2 className="text-3xl font-black">
+          {roundPrompt}
+        </h2>
       </div>
-
-      <p className="text-gray-600">
-        Tap the image you think is funniest.
-      </p>
 
       {voteMessage && (
         <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-xl">
@@ -903,12 +1057,8 @@ if (isPageLoading) {
             )}
 
             <div className="p-4 bg-white">
-              <p className="font-bold text-lg text-center mb-2">
+              <p className="font-bold text-xl text-center leading-relaxed mb-4">
                 “{text}”
-              </p>
-
-              <p className="text-sm text-gray-500 text-center mb-3">
-                Submission #{index + 1}
               </p>
 
               {!hasVoted ? (
@@ -1027,11 +1177,46 @@ if (isPageLoading) {
     </div>
 
     {finalWinner && (
-      <div className="border-4 border-yellow-400 rounded-3xl p-5 max-w-md text-center bg-yellow-100 shadow-xl">
-        <h3 className="text-3xl font-extrabold">🎉 Final Winner</h3>
-        <p className="text-xl font-bold mt-2">{finalWinner}</p>
+  <div className="border-4 border-yellow-400 rounded-3xl p-5 max-w-4xl text-center bg-yellow-100 shadow-xl">
+    <h3 className="text-3xl font-extrabold">🎉 Final Winner</h3>
+    <p className="text-xl font-bold mt-2">{finalWinner}</p>
+
+    <div className="mt-8">
+      <h4 className="text-2xl font-extrabold mb-4">
+        🏆 Round History
+      </h4>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {roundHistory.map((round) => (
+          <div
+            key={round.id}
+            className="bg-white rounded-2xl p-3 shadow text-black"
+          >
+            <p className="font-bold mb-2">
+              Round {round.round_number}
+            </p>
+
+            {round.winner_image_url && (
+              <img
+                src={round.winner_image_url}
+                alt={round.winner_prompt}
+                className="w-full rounded-xl mb-2"
+              />
+            )}
+
+            <p className="font-bold">
+              👑 {round.winner_name}
+            </p>
+
+            <p className="text-sm text-gray-600">
+              "{round.winner_prompt}"
+            </p>
+          </div>
+        ))}
       </div>
-    )}
+    </div>
+  </div>
+)}
 
     {!finalWinner && isHost && (
   <button
