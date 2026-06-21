@@ -215,6 +215,7 @@ async function joinGame() {
   const cleanName = name.trim();
 
   let avatarUrl = null;
+  let avatarDescription = null;
 
   if (avatarFile) {
     const filePath = `${code}/${cleanName}-${Date.now()}`;
@@ -234,6 +235,19 @@ async function joinGame() {
       .getPublicUrl(filePath);
 
     avatarUrl = data.publicUrl;
+
+    const descResponse = await fetch("/api/describe-avatar", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    avatarUrl,
+  }),
+});
+
+const descData = await descResponse.json();
+ avatarDescription = descData.description || null;
   }
 
   const { data: existingPlayer } = await supabase
@@ -249,6 +263,7 @@ async function joinGame() {
         name: cleanName,
         room_code: code,
         avatar_url: avatarUrl,
+        avatar_description: avatarDescription,
         points: 0,
       },
     ]);
