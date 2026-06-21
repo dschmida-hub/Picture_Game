@@ -16,7 +16,7 @@ export async function POST(request: Request) {
      model: "gpt-image-1",
     prompt,
      size: "1024x1024",
-     quality: "medium",
+     quality: "low",
     });
 
     const imageBase64 = result.data?.[0]?.b64_json;

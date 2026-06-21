@@ -47,7 +47,6 @@ export default function GameRoom() {
   const hasSubmitted = submissions.some((item) => {
   const parts = item.split("|||");
   const playerName = parts[2];
-
   return playerName === name;
 });
 
@@ -172,6 +171,12 @@ useEffect(() => {
 }, [stage]);
 
 useEffect(() => {
+  if (stage === "winner") {
+    loadWinner();
+  }
+}, [stage]);
+
+useEffect(() => {
   async function loadInitialData() {
     setIsPageLoading(true);
 
@@ -179,7 +184,6 @@ useEffect(() => {
     loadPlayers(),
     loadGame(),
     loadSubmissions(),
-    loadWinner(),
     loadScoreboard(),
 
     ]);
@@ -193,7 +197,6 @@ useEffect(() => {
   loadPlayers();
   loadGame();
   loadSubmissions();
-  loadWinner();
   loadScoreboard();
 }, 2000);
   return () => clearInterval(interval);
@@ -517,7 +520,6 @@ setStage("winner");
 await loadGame();
   }
 
-  await loadWinner();
 }
 
 async function loadWinner() {
@@ -618,57 +620,81 @@ async function loadWinner() {
     );
   }
 
-  const { data: gameData } = await supabase
-    .from("games")
-    .select("winner_awarded")
-    .eq("room_code", code)
-    .order("id", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+ const { data: gameData } = await supabase
+  .from("games")
+  .select("id, winner_awarded")
+  .eq("room_code", code)
+  .order("id", { ascending: false })
+  .limit(1)
+  .maybeSingle();
 
-  if (!gameData?.winner_awarded) {
-    for (const winningSubmission of tiedSubmissions) {
-      const winnerNameFromSubmission = winningSubmission.split(":")[0].trim();
+if (!gameData) return;
 
-      await supabase.rpc("award_point_to_player", {
-        player_name_input: winnerNameFromSubmission,
-        room_code_input: code,
-      });
-    }
+if (!gameData.winner_awarded) {
+  const winnerNames = tiedSubmissions.map((submission) =>
+    submission.split(":")[0].trim()
+  );
 
-    for (const winningSubmission of tiedSubmissions) {
-      const playerName = winningSubmission.split(":")[0].trim();
+  const { error: awardError } = await supabase.rpc("award_winners_once", {
+    winner_names_input: winnerNames,
+    room_code_input: code,
+    game_id_input: gameData.id,
+  });
 
-      const promptText = winningSubmission
-        .split(":")
-        .slice(1)
-        .join(":")
-        .trim();
+  if (awardError) {
+    console.error("Award error:", awardError);
+    return;
+  }
 
-      const imageIndex = tiedSubmissions.indexOf(winningSubmission);
+  for (const winningSubmission of tiedSubmissions) {
+    const playerName = winningSubmission.split(":")[0].trim();
 
-      await supabase.from("round_history").insert({
+    const promptText = winningSubmission
+      .split(":")
+      .slice(1)
+      .join(":")
+      .trim();
+
+    const imageIndex = tiedSubmissions.indexOf(winningSubmission);
+
+    await supabase.from("round_history").upsert(
+      {
         room_code: code,
+        game_id: gameData.id,
         round_number: roundHistory.length + 1,
         winner_name: playerName,
         winner_prompt: promptText,
         winner_image_url: winningImages[imageIndex] || null,
-      });
-    }
-
-    await supabase
-      .from("games")
-      .update({ winner_awarded: true })
-      .eq("room_code", code);
+      },
+      {
+        onConflict: "room_code,game_id,winner_name,winner_prompt",
+      }
+    );
   }
+}
 
-  setPointsAwarded(true);
+setPointsAwarded(true);
 
-  await loadPlayers();
-  await loadRoundHistory();
+await loadPlayers();
+await loadScoreboard();
+await loadRoundHistory();
 }
 
 async function nextRound() {
+
+  const { data: currentPlayers } = await supabase
+  .from("players")
+  .select("name, points")
+  .eq("room_code", code);
+
+  const gameWinner = currentPlayers?.find(
+  (player) => (player.points ?? 0) >= 3
+  );
+
+if (gameWinner) {
+  setFinalWinner(`${gameWinner.name} wins the game!`);
+  return;
+}
   if (!isHost) return;
   if (isAdvancing) return;
 
@@ -894,11 +920,10 @@ if (isPageLoading) {
 </div>
 
     {hasSubmitted || isSubmitting ? (
-  <div className="fixed inset-0 bg-purple-700 text-white flex flex-col items-center justify-center space-y-6 z-50">
+  <div className="fixed inset-0 bg-purple-700 text-white flex flex-col items-center justify-center gap-5 z-50 p-6">
+    <div className="text-6xl animate-bounce">🎨</div>
 
-    <div className="text-7xl animate-bounce">🎨</div>
-
-    <h2 className="text-4xl font-extrabold">
+    <h2 className="text-3xl font-extrabold">
       Generating Images...
     </h2>
 
@@ -906,58 +931,54 @@ if (isPageLoading) {
       {loadingMessage || "Adding maximum chaos..."}
     </p>
 
-    <div className="w-full max-w-md px-8">
-      <div className="bg-purple-900 rounded-full h-4 overflow-hidden">
-        <div
-          className="bg-white h-full transition-all duration-500"
-          style={{
-            width: `${
-              players.length > 0
-                ? (submissions.length / players.length) * 100
-                : 0
-            }%`,
-          }}
-        />
-      </div>
+    <p className="text-sm opacity-80 font-bold">
+      {submissions.length} / {players.length} ready
+    </p>
 
-      <p className="text-center mt-3 font-bold">
-        {submissions.length} / {players.length} ready
-      </p>
-    </div>
-
-    <div className="w-full max-w-md flex flex-col gap-2 px-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
       {players.map((player) => {
-        const submitted = submissions.some((submission) =>
-          submission.includes(`${player.name}:`)
-        );
+        const playerSubmission = submissions.find((item) => {
+          const [text, imageUrl, playerName] = item.split("|||");
+          return playerName === player.name;
+        });
+
+        const [text, imageUrl] = playerSubmission
+          ? playerSubmission.split("|||")
+          : ["", ""];
 
         return (
           <div
             key={player.name}
-            className="bg-purple-600 rounded-xl px-4 py-3 flex justify-between items-center"
+            className="bg-purple-900/60 rounded-2xl p-3 text-center border border-white/20"
           >
-            <div className="flex items-center gap-3">
-              {player.avatar_url && (
+            {imageUrl ? (
+              <>
                 <img
-                  src={player.avatar_url}
-                  alt={player.name}
-                  className="w-8 h-8 rounded-full object-cover border-2 border-white"
+                  src={imageUrl}
+                  alt={text}
+                  className="w-full aspect-square object-cover rounded-xl mb-2"
                 />
-              )}
 
-              <span className="font-bold">
-                {player.name}
-              </span>
-            </div>
+                <p className="text-sm font-bold truncate">
+                  {player.name} ✅
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="w-full aspect-square rounded-xl bg-purple-800 flex flex-col items-center justify-center mb-2">
+                  <div className="text-4xl animate-pulse">⏳</div>
+                  <p className="text-xs mt-2 opacity-80">Generating...</p>
+                </div>
 
-            <span className="text-xl">
-              {submitted ? "✅" : "⏳"}
-            </span>
+                <p className="text-sm font-bold">
+                  {player.name}
+                </p>
+              </>
+            )}
           </div>
         );
       })}
     </div>
-
   </div>
 ) : (
       <>
