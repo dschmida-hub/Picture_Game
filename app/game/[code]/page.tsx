@@ -235,7 +235,7 @@ async function joinGame() {
       .getPublicUrl(filePath);
 
     avatarUrl = data.publicUrl;
-
+try{
     const descResponse = await fetch("/api/describe-avatar", {
   method: "POST",
   headers: {
@@ -249,6 +249,9 @@ async function joinGame() {
 const descData = await descResponse.json();
  avatarDescription = descData.description || null;
   }
+   catch (error) {
+  console.error("Avatar description failed:", error);
+   }}
 
   const { data: existingPlayer } = await supabase
     .from("players")
