@@ -16,6 +16,7 @@ export default function GameRoom() {
   name: string;
   points: number;
   avatar_url: string | null;
+  avatar_description?: string |null;
 };
 
   const [players, setPlayers] = useState<Player[]>([]);
@@ -85,7 +86,7 @@ async function loadRandomPrompt() {
   async function loadPlayers() {
   const { data, error } = await supabase
     .from("players")
-    .select("name ,points, avatar_url")
+    .select("name ,points, avatar_url, avatar_description")
     .eq("room_code", code)
     .order("points", { ascending: false })
     ;
@@ -340,6 +341,7 @@ async function startGame() {
  async function submitPrompt() {
   if (!submission.trim()) return;
   if (isSubmitting || hasSubmitted) return;
+  const currentPlayer = players.find((player) => player.name === name);
 
   setIsSubmitting(true);
 
@@ -352,6 +354,9 @@ ${roundPrompt}
 
 Player Answer:
 ${submission.trim()}
+
+Player Appearance:
+${currentPlayer?.avatar_description || "Generic person"}
 
 Turn this into a single funny visual scene.
 
@@ -387,14 +392,10 @@ Build the scene around the impact of what was said
 Text restrictions:
 
 No captions
-No subtitles
-No speech bubbles
-No written dialogue
 No labels
 No signs
 No posters
 No logos
-No visible words anywhere in the image
 
 Comedy rules:
 
@@ -404,6 +405,9 @@ Make the answer the center of the joke
 Show the funniest possible visual interpretation of the answer
 Prefer visual comedy over realistic scenes
 `;
+
+console.log("AI PROMPT:");
+console.log(imagePrompt);
 
     setLoadingMessage(
       loadingMessages[Math.floor(Math.random() * loadingMessages.length)]
@@ -903,11 +907,15 @@ if (isPageLoading) {
         className="border p-3 rounded-xl"
       >
       <option value="Random">🎲 Random</option>
-       <option value="General">🎉 General</option>
-       <option value="Personal">👥 Personal</option>
-       <option value="Work">💼 Work</option>
-       <option value="Dating">❤️ Dating</option>
-       <option value="Absurd">🤪 Absurd</option>
+      <option value="personal">👥 Personal</option>
+      <option value="history">🏰 History</option>
+      <option value="animals">🐻 Animals</option>
+      <option value="sports">🏈 Sports</option>
+      <option value="food">🍕 Food</option>
+      <option value="work">💼 Work</option>
+      <option value="general">🎉 General</option>
+      <option value="chaos">🤪 Chaos</option>
+      <option value="dating">❤️ Dating</option>
     </select>
     {isHost ? (
   <button
