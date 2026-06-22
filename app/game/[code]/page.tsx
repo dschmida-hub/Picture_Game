@@ -59,6 +59,7 @@ export default function GameRoom() {
   const [isStarting, setIsStarting] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
+  const [roomShareMessage, setRoomShareMessage] = useState("");
   const [hasVoted, setHasVoted] = useState(false);
   const [voteMessage, setVoteMessage] = useState("");
   const [winnerImageUrl, setWinnerImageUrl] = useState("");
@@ -189,7 +190,7 @@ async function loadPastImages() {
     .select("winner_image_url")
     .not("winner_image_url", "is", null)
     .order("id", { ascending: false })
-    .limit(24);
+    .limit(8);
 
   if (error) {
     console.error("Failed to load past images:", error);
@@ -438,6 +439,42 @@ const descData = await descResponse.json();
   setJoined(true);
   }finally {
   setIsJoining(false);
+  }
+}
+
+async function copyRoomCode() {
+  try {
+    await navigator.clipboard.writeText(code);
+    setRoomShareMessage("Room code copied!");
+  } catch (error) {
+    console.error("Failed to copy room code:", error);
+    window.prompt("Copy this room code:", code);
+  }
+}
+
+async function shareRoom() {
+  const roomUrl = `${window.location.origin}/game/${code}`;
+
+  if (!navigator.share) {
+    try {
+      await navigator.clipboard.writeText(roomUrl);
+      setRoomShareMessage("Game link copied!");
+    } catch (error) {
+      console.error("Failed to copy game link:", error);
+      window.prompt("Copy this game link:", roomUrl);
+    }
+    return;
+  }
+
+  try {
+    await navigator.share({
+      title: "Picture This",
+      text: `Join my Picture This game! Room code: ${code}`,
+      url: roomUrl,
+    });
+  } catch (error) {
+    // Closing the native share sheet is not an error the player needs to see.
+    console.error("Share cancelled or failed:", error);
   }
 }
 
@@ -1261,6 +1298,36 @@ if (isPageLoading) {
         <option value="pixel_art">Pixel Art</option>
       </select>
     </div>
+
+    {isHost && (
+      <div className="w-full max-w-xl rounded-2xl border border-purple-200 bg-white p-4 text-center shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
+          Invite your friends
+        </p>
+        <p className="mt-1 text-3xl font-black tracking-widest text-purple-700">
+          {code}
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={copyRoomCode}
+            className="rounded-xl bg-black px-4 py-3 font-bold text-white"
+          >
+            Copy Code
+          </button>
+          <button
+            type="button"
+            onClick={shareRoom}
+            className="rounded-xl bg-purple-600 px-4 py-3 font-bold text-white"
+          >
+            Share Game
+          </button>
+        </div>
+        {roomShareMessage && (
+          <p className="mt-2 text-sm font-bold text-green-700">{roomShareMessage}</p>
+        )}
+      </div>
+    )}
 
     {isHost ? (
   <button
