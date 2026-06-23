@@ -23,3 +23,15 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@keyframes confetti-fall {
+  from {
+    opacity: 1;
+    translate: 0 -10vh;
+  }
+
+  to {
+    opacity: 0;
+    translate: 40px 110vh;
+  }
+}

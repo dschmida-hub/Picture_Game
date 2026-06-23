@@ -30,6 +30,17 @@ function formatCountdown(seconds: number) {
   return `${minutes}:${remainingSeconds}`;
 }
 
+function getImageStyleLabel(style: string) {
+  return style.split("_").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
+}
+
+const confettiPieces = Array.from({ length: 28 }, (_, index) => ({
+  color: ["#9810fa", "#facc15", "#ec4899", "#22c55e", "#38bdf8"][index % 5],
+  delay: `${(index % 7) * 0.14}s`,
+  left: `${(index * 37) % 100}%`,
+  rotation: `${(index * 53) % 360}deg`,
+}));
+
 export default function GameRoom() {
   const params = useParams();
   const code = params.code as string;
@@ -63,6 +74,7 @@ export default function GameRoom() {
   const [selectedRoundDuration, setSelectedRoundDuration] = useState(90);
   const [selectedVotingDuration, setSelectedVotingDuration] = useState(45);
   const [isRoundCustomizationOpen, setIsRoundCustomizationOpen] = useState(false);
+  const [showRoundIntro, setShowRoundIntro] = useState(false);
   const [roundDeadline, setRoundDeadline] = useState<string | null>(null);
   const [votingDeadline, setVotingDeadline] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -103,6 +115,18 @@ export default function GameRoom() {
     ? Math.max(0, Math.ceil((new Date(votingDeadline).getTime() - currentTime) / 1000))
     : null;
   const isVotingTimeExpired = votingTimeRemainingSeconds === 0;
+  const currentRoundNumber = roundHistory.reduce(
+    (highestRound, round) => Math.max(highestRound, round.round_number || 0),
+    0
+  ) + 1;
+
+  useEffect(() => {
+    if (stage !== "submitting" || !currentGameId) return;
+
+    setShowRoundIntro(true);
+    const timeout = window.setTimeout(() => setShowRoundIntro(false), 1400);
+    return () => window.clearTimeout(timeout);
+  }, [currentGameId, stage]);
 
   useEffect(() => {
     const activeDeadline = stage === "submitting" ? roundDeadline : stage === "reveal" ? votingDeadline : null;
@@ -376,6 +400,7 @@ useEffect(() => {
     loadSubmissions(),
     loadScoreboard(),
     loadPastImages(),
+    loadRoundHistory(),
 
     ]);
 
@@ -1555,6 +1580,15 @@ if (isPageLoading) {
 </>
 ) : stage === "submitting" ? (
   <>
+    {showRoundIntro && (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-purple-700 p-6 text-center text-white">
+        <p className="text-sm font-extrabold uppercase tracking-wider text-purple-200">Get ready</p>
+        <h2 className="mt-2 text-6xl font-black">Round {currentRoundNumber}</h2>
+        <p className="mt-3 text-xl font-bold">
+          {selectedGameMode === "cards" ? "Fill in the blank." : "Write the funniest answer."}
+        </p>
+      </div>
+    )}
     <div
   className={`w-full max-w-2xl rounded-3xl p-6 text-center shadow-xl ${
     selectedGameMode === "cards"
@@ -1577,6 +1611,10 @@ if (isPageLoading) {
   <h2 className="break-words text-3xl font-black leading-tight">
     {roundPrompt}
   </h2>
+
+  <p className={`mt-3 text-sm font-bold ${selectedGameMode === "cards" ? "text-gray-300" : "text-purple-600"}`}>
+    Art style: {getImageStyleLabel(roundImageStyle)}
+  </p>
 
   {timeRemainingSeconds !== null && (
     <p className="mt-4 text-lg font-extrabold">
@@ -1794,6 +1832,10 @@ if (isPageLoading) {
           {roundPrompt}
         </h2>
 
+        <p className={`mt-3 text-sm font-bold ${selectedGameMode === "cards" ? "text-gray-300" : "text-purple-600"}`}>
+          Art style: {getImageStyleLabel(roundImageStyle)}
+        </p>
+
         {votingTimeRemainingSeconds !== null && (
           <p className="mt-4 text-lg font-extrabold">
             {isVotingTimeExpired
@@ -1888,6 +1930,24 @@ if (isPageLoading) {
 ======================================= */
 ) : stage === "winner" ? (
   <>
+    <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden" aria-hidden="true">
+      {confettiPieces.map((piece, index) => (
+        <span
+          key={index}
+          className="absolute"
+          style={{
+            animation: "confetti-fall 2.8s ease-in infinite",
+            animationDelay: piece.delay,
+            backgroundColor: piece.color,
+            height: "16px",
+            left: piece.left,
+            top: "-24px",
+            transform: `rotate(${piece.rotation})`,
+            width: "10px",
+          }}
+        />
+      ))}
+    </div>
     <div className="w-full max-w-md bg-gradient-to-b from-purple-700 to-purple-950 text-white rounded-3xl p-6 text-center shadow-2xl border-4 border-yellow-300">
       <h2 className="text-4xl font-extrabold mb-4">
         {winnerImages.length > 1 ? "Tie Winners" : "Round Winner"}
