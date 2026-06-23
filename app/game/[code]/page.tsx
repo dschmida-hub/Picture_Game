@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type GameStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
-type PromptOption = { prompt: string; image_style: string | null };
+type PromptOption = { id: number; prompt: string; image_style: string | null };
 
 const imageStyleInstructions: Record<string, string> = {
   cartoon: "Bright, colorful cartoon illustration with big expressive faces",
@@ -14,6 +14,7 @@ const imageStyleInstructions: Record<string, string> = {
   storybook: "Whimsical illustrated storybook art with rich, charming detail",
   pixel_art: "Detailed retro pixel-art scene with expressive characters",
 };
+const MAX_PLAYERS = 8;
 
 function getImageStyleInstruction(style: string | null) {
   return imageStyleInstructions[style || "cartoon"] || imageStyleInstructions.cartoon;
@@ -21,6 +22,12 @@ function getImageStyleInstruction(style: string | null) {
 
 function resolveImageStyle(promptStyle: string | null, selectedStyle: string) {
   return selectedStyle === "prompt" ? promptStyle || "cartoon" : selectedStyle;
+}
+
+function formatCountdown(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = String(seconds % 60).padStart(2, "0");
+  return `${minutes}:${remainingSeconds}`;
 }
 
 export default function GameRoom() {
@@ -53,7 +60,14 @@ export default function GameRoom() {
   const [selectedCategory, setSelectedCategory] = useState("Random");
   const [selectedGameMode, setSelectedGameMode] = useState<"classic" | "cards">("classic");
   const [selectedImageStyle, setSelectedImageStyle] = useState("prompt");
+  const [selectedRoundDuration, setSelectedRoundDuration] = useState(90);
+  const [selectedVotingDuration, setSelectedVotingDuration] = useState(45);
+  const [isRoundCustomizationOpen, setIsRoundCustomizationOpen] = useState(false);
+  const [roundDeadline, setRoundDeadline] = useState<string | null>(null);
+  const [votingDeadline, setVotingDeadline] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(Date.now());
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [isPlayingAgain, setIsPlayingAgain] = useState(false);
   const [isForcingStage, setIsForcingStage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
@@ -81,6 +95,24 @@ export default function GameRoom() {
     Boolean(item.split("|||")[1])
   );
   const currentGalleryImage = pastImages[galleryImageIndex % pastImages.length];
+  const timeRemainingSeconds = roundDeadline
+    ? Math.max(0, Math.ceil((new Date(roundDeadline).getTime() - currentTime) / 1000))
+    : null;
+  const isSubmissionTimeExpired = timeRemainingSeconds === 0;
+  const votingTimeRemainingSeconds = votingDeadline
+    ? Math.max(0, Math.ceil((new Date(votingDeadline).getTime() - currentTime) / 1000))
+    : null;
+  const isVotingTimeExpired = votingTimeRemainingSeconds === 0;
+
+  useEffect(() => {
+    const activeDeadline = stage === "submitting" ? roundDeadline : stage === "reveal" ? votingDeadline : null;
+    if (!activeDeadline) return;
+
+    setCurrentTime(Date.now());
+    const interval = window.setInterval(() => setCurrentTime(Date.now()), 1000);
+
+    return () => window.clearInterval(interval);
+  }, [roundDeadline, stage, votingDeadline]);
 
   useEffect(() => {
     const shouldShowGallery =
@@ -115,18 +147,18 @@ export default function GameRoom() {
   const [roundPrompt, setRoundPrompt] = useState("");
   const [roundImageStyle, setRoundImageStyle] = useState("cartoon");
 
-async function loadRandomPrompt() {
+async function pickRoundPrompt(): Promise<PromptOption | null> {
   let promptQuery;
 
   if (selectedGameMode === "cards") {
     promptQuery = supabase
       .from("cah_prompts")
-      .select("prompt, image_style")
+      .select("id, prompt, image_style")
       .eq("active", true);
   } else {
     promptQuery = supabase
       .from("prompts")
-      .select("prompt, image_style")
+      .select("id, prompt, image_style")
       .eq("active", true);
 
     if (selectedCategory !== "Random") {
@@ -137,15 +169,39 @@ async function loadRandomPrompt() {
   const { data, error } = await promptQuery;
 
   if (error) {
-    console.error("Failed to load next prompt:", error);
-    return "";
+    console.error("Failed to load prompts:", error);
+    return null;
   }
 
   if (!data?.length) {
-    return "";
+    return null;
   }
 
-  const randomPrompt = data[Math.floor(Math.random() * data.length)] as PromptOption;
+  const { data: usedGames, error: usedGamesError } = await supabase
+    .from("games")
+    .select("prompt_id")
+    .eq("room_code", code)
+    .eq("prompt_source", selectedGameMode)
+    .not("prompt_id", "is", null);
+
+  if (usedGamesError) {
+    console.error("Failed to load used prompts:", usedGamesError);
+    return null;
+  }
+
+  const usedPromptIds = new Set((usedGames || []).map((game) => game.prompt_id));
+  const unusedPrompts = (data as PromptOption[]).filter(
+    (prompt) => !usedPromptIds.has(prompt.id)
+  );
+  const promptDeck = unusedPrompts.length > 0 ? unusedPrompts : data as PromptOption[];
+
+  return promptDeck[Math.floor(Math.random() * promptDeck.length)];
+}
+
+async function loadRandomPrompt() {
+  const randomPrompt = await pickRoundPrompt();
+
+  if (!randomPrompt) return null;
 
   setRoundPrompt(randomPrompt.prompt);
   setRoundImageStyle(randomPrompt.image_style || "cartoon");
@@ -187,7 +243,7 @@ async function loadRoundHistory() {
 async function loadPastImages() {
   const { data, error } = await supabase
     .from("round_history")
-    .select("winner_image_url")
+    .select("gallery_thumbnail_url, winner_image_url")
     .not("winner_image_url", "is", null)
     .order("id", { ascending: false })
     .limit(8);
@@ -198,7 +254,11 @@ async function loadPastImages() {
   }
 
   const images = (data || [])
-    .map((round) => round.winner_image_url)
+    .map((round) => {
+      if (round.gallery_thumbnail_url) return round.gallery_thumbnail_url;
+      if (round.winner_image_url?.startsWith("data:")) return null;
+      return round.winner_image_url;
+    })
     .filter((imageUrl): imageUrl is string => Boolean(imageUrl));
 
   setPastImages(images.sort(() => Math.random() - 0.5).slice(0, 4));
@@ -233,7 +293,7 @@ async function loadGame() {
   
   const { data, error } = await supabase
     .from("games")
-    .select("id, stage, prompt, game_mode, image_style")
+    .select("id, stage, prompt, game_mode, image_style, submission_deadline, voting_deadline, voting_duration_seconds")
     .eq("room_code", code)
     .order("id", { ascending: false })
     .limit(1)
@@ -250,6 +310,9 @@ async function loadGame() {
   setRoundPrompt(data.prompt);
   setSelectedGameMode(data.game_mode as "classic" | "cards");
   setRoundImageStyle(data.image_style || "cartoon");
+  setRoundDeadline(data.submission_deadline);
+  setVotingDeadline(data.voting_deadline);
+  setSelectedVotingDuration(data.voting_duration_seconds || 45);
   await loadSubmissions(data.id);
 }
 }
@@ -402,11 +465,10 @@ const descData = await descResponse.json();
   console.error("Avatar description failed:", error);
    }}
 
-    const { data: roomPlayers, error: roomPlayersError } = await supabase
+    const { count: playerCount, error: roomPlayersError } = await supabase
       .from("players")
-      .select("id")
-      .eq("room_code", code)
-      .limit(1);
+      .select("id", { count: "exact", head: true })
+      .eq("room_code", code);
 
     if (roomPlayersError) {
       console.error(roomPlayersError);
@@ -414,7 +476,12 @@ const descData = await descResponse.json();
       return;
     }
 
-    const isFirstPlayer = !roomPlayers || roomPlayers.length === 0;
+    if ((playerCount || 0) >= MAX_PLAYERS) {
+      alert("This room is full (8 players max).");
+      return;
+    }
+
+    const isFirstPlayer = (playerCount || 0) === 0;
 
     const { data: newPlayer, error } = await supabase.from("players").insert([
       {
@@ -480,48 +547,17 @@ async function shareRoom() {
 
 async function startGame() {
   if (!isHost || isStarting) return;
+  if (players.length < 2) {
+    alert("Wait for at least one more player before starting.");
+    return;
+  }
 
   setIsStarting(true);
 
   try {
-    let prompts: PromptOption[] | null = null;
+    const randomPrompt = await pickRoundPrompt();
 
-if (selectedGameMode === "cards") {
-  const { data, error } = await supabase
-    .from("cah_prompts")
-    .select("prompt, image_style")
-    .eq("active", true);
-
-  if (error) {
-    console.error("CAH prompt error:", error);
-    alert(`Failed to load Cards prompts: ${error.message}`);
-    return;
-  }
-
-  prompts = data;
-} else {
-  let promptQuery = supabase
-    .from("prompts")
-    .select("prompt, image_style")
-    .eq("active", true);
-
-  // Categories apply only to Classic prompts.
-  if (selectedCategory !== "Random") {
-    promptQuery = promptQuery.eq("category", selectedCategory);
-  }
-
-  const { data, error } = await promptQuery;
-
-  if (error) {
-    console.error("Classic prompt error:", error);
-    alert(`Failed to load Classic prompts: ${error.message}`);
-    return;
-  }
-
-  prompts = data;
-}
-
-    if (!prompts?.length) {
+    if (!randomPrompt) {
     alert(
       selectedGameMode === "cards"
       ? "No fill-in-the-blank prompts found"
@@ -530,11 +566,13 @@ if (selectedGameMode === "cards") {
   return;
   }
 
-    const randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
     const activeImageStyle = resolveImageStyle(
       randomPrompt.image_style,
       selectedImageStyle
     );
+    const submissionDeadline = new Date(
+      Date.now() + selectedRoundDuration * 1000
+    ).toISOString();
 
     console.log("Selected CAH prompt:", randomPrompt.prompt);
 
@@ -543,8 +581,12 @@ if (selectedGameMode === "cards") {
         room_code: code,
         stage: "submitting",
         prompt: randomPrompt.prompt,
+        prompt_id: randomPrompt.id,
+        prompt_source: selectedGameMode,
         game_mode: selectedGameMode,
         image_style: activeImageStyle,
+        submission_deadline: submissionDeadline,
+        voting_duration_seconds: selectedVotingDuration,
         winner_awarded: false,
       },
     ]).select("id").single();
@@ -558,6 +600,8 @@ if (selectedGameMode === "cards") {
     setCurrentGameId(newGame.id);
     setRoundPrompt(randomPrompt.prompt);
     setRoundImageStyle(activeImageStyle);
+    setRoundDeadline(submissionDeadline);
+    setVotingDeadline(null);
     setStage("submitting");
   } finally {
     setIsStarting(false);
@@ -566,6 +610,10 @@ if (selectedGameMode === "cards") {
  async function submitPrompt() {
   if (!submission.trim()) return;
   if (isSubmitting || hasSubmitted) return;
+  if (isSubmissionTimeExpired) {
+    alert("Time is up for this round.");
+    return;
+  }
   if (!currentGameId) {
     alert("The round is still loading. Please try again.");
     return;
@@ -663,6 +711,7 @@ console.log(imagePrompt);
         player_name: name,
         prompt: submission.trim(),
         image_url: imageData.imageUrl,
+        gallery_thumbnail_url: imageData.thumbnailUrl || null,
       },
     ]);
 
@@ -695,9 +744,12 @@ console.log(imagePrompt);
       allSubmissions.every((item) => item.image_url);
 
     if (everyoneSubmitted && allImagesReady) {
+      const nextVotingDeadline = new Date(
+        Date.now() + selectedVotingDuration * 1000
+      ).toISOString();
       const { error: gameError } = await supabase
         .from("games")
-        .update({ stage: "reveal" })
+        .update({ stage: "reveal", voting_deadline: nextVotingDeadline })
         .eq("id", currentGameId);
 
       if (gameError) {
@@ -706,6 +758,7 @@ console.log(imagePrompt);
       }
 
       setStage("reveal");
+      setVotingDeadline(nextVotingDeadline);
     }
   } finally {
     setIsSubmitting(false);
@@ -715,6 +768,10 @@ console.log(imagePrompt);
 async function voteForSubmission(answerText: string, playerName: string) {
   if (hasVoted) return;
   if (!currentGameId) return;
+  if (isVotingTimeExpired) {
+    alert("Voting time is up.");
+    return;
+  }
 
   const voteValue = `${playerName}: ${answerText}`;
 
@@ -794,14 +851,19 @@ async function forceReveal() {
       return;
     }
 
+    const nextVotingDeadline = new Date(
+      Date.now() + selectedVotingDuration * 1000
+    ).toISOString();
+
     const { error: stageError } = await supabase
       .from("games")
-      .update({ stage: "reveal" })
+      .update({ stage: "reveal", voting_deadline: nextVotingDeadline })
       .eq("id", currentGameId);
 
     if (stageError) throw stageError;
 
     setStage("reveal");
+    setVotingDeadline(nextVotingDeadline);
   } catch (error) {
     console.error("Failed to reveal submitted images:", error);
     alert("Could not reveal the submitted images.");
@@ -878,6 +940,7 @@ async function loadWinner() {
   );
 
   const winningImages: string[] = [];
+  const winningThumbnails: string[] = [];
 
   for (const winningSubmission of tiedSubmissions) {
     const playerName = winningSubmission.split(":")[0].trim();
@@ -890,7 +953,7 @@ async function loadWinner() {
 
     const { data: submissionData, error: submissionError } = await supabase
       .from("submissions")
-      .select("image_url")
+      .select("image_url, gallery_thumbnail_url")
       .eq("game_id", currentGameId)
       .eq("player_name", playerName)
       .eq("prompt", promptText)
@@ -904,6 +967,7 @@ async function loadWinner() {
 
     if (submissionData?.image_url) {
       winningImages.push(submissionData.image_url);
+      winningThumbnails.push(submissionData.gallery_thumbnail_url || "");
     }
   }
 
@@ -1002,6 +1066,7 @@ if (!gameData.winner_awarded) {
         winner_name: playerName,
         winner_prompt: promptText,
         winner_image_url: winningImages[imageIndex] || null,
+        gallery_thumbnail_url: winningThumbnails[imageIndex] || null,
       },
       {
         onConflict: "room_code,game_id,winner_name,winner_prompt",
@@ -1035,6 +1100,9 @@ async function nextRound() {
       newPrompt.image_style,
       selectedImageStyle
     );
+    const submissionDeadline = new Date(
+      Date.now() + selectedRoundDuration * 1000
+    ).toISOString();
 
     const { data: newGame, error: gameError } = await supabase
       .from("games")
@@ -1042,8 +1110,12 @@ async function nextRound() {
         room_code: code,
         stage: "submitting",
         prompt: newPrompt.prompt,
+        prompt_id: newPrompt.id,
+        prompt_source: selectedGameMode,
         game_mode: selectedGameMode,
         image_style: activeImageStyle,
+        submission_deadline: submissionDeadline,
+        voting_duration_seconds: selectedVotingDuration,
         winner_awarded: false,
       })
       .select("id")
@@ -1054,6 +1126,8 @@ async function nextRound() {
     setCurrentGameId(newGame.id);
     setRoundPrompt(newPrompt.prompt);
     setRoundImageStyle(activeImageStyle);
+    setRoundDeadline(submissionDeadline);
+    setVotingDeadline(null);
     setStage("submitting"); // Move this browser immediately.
     setHasVoted(false);
     setVoteMessage("");
@@ -1066,6 +1140,45 @@ async function nextRound() {
     alert("Could not start the next round. Check the browser console.");
   } finally {
     setIsAdvancing(false);
+  }
+}
+
+async function playAgain() {
+  if (!isHost || !currentGameId || isPlayingAgain) return;
+
+  setIsPlayingAgain(true);
+
+  try {
+    const { error: scoreResetError } = await supabase
+      .from("players")
+      .update({ points: 0 })
+      .eq("room_code", code);
+
+    if (scoreResetError) throw scoreResetError;
+
+    const { error: stageError } = await supabase
+      .from("games")
+      .update({ stage: "lobby" })
+      .eq("id", currentGameId);
+
+    if (stageError) throw stageError;
+
+    setFinalWinner("");
+    setWinner("");
+    setWinnerName("");
+    setWinnerPrompt("");
+    setWinnerImages([]);
+    setSubmissions([]);
+    setRoundDeadline(null);
+    setVotingDeadline(null);
+    setStage("lobby");
+    await loadPlayers();
+    await loadScoreboard();
+  } catch (error) {
+    console.error("Failed to start a rematch:", error);
+    alert("Could not start a rematch.");
+  } finally {
+    setIsPlayingAgain(false);
   }
 }
 
@@ -1151,10 +1264,6 @@ if (isPageLoading) {
       This
     </span>
   </h1>
-
-  <p className="text-xs text-gray-400 mt-2">
-    Room {code}
-  </p>
 </div>
 
       {!joined ? (
@@ -1185,7 +1294,37 @@ if (isPageLoading) {
   </>
 ) : stage === "lobby" ? (
         <>
-          <h2 className="text-2xl font-bold">Lobby</h2>
+          <div className="text-center">
+            <h2 className="text-3xl font-black">Waiting for Players</h2>
+            <p className="mt-1 text-sm font-bold text-purple-600">
+              {players.length} / {MAX_PLAYERS} players in the room
+            </p>
+          </div>
+
+          <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          <div className="rounded-3xl border border-purple-200 bg-white p-5 shadow-lg">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-extrabold">Players</h3>
+              <p className="text-sm text-gray-500">
+                {players.length === MAX_PLAYERS
+                  ? "The room is full!"
+                  : `Waiting for ${MAX_PLAYERS - players.length} more player${MAX_PLAYERS - players.length === 1 ? "" : "s"}.`}
+              </p>
+            </div>
+            <span className="rounded-full bg-purple-100 px-3 py-1 text-sm font-extrabold text-purple-700">
+              {players.length} / {MAX_PLAYERS}
+            </span>
+          </div>
+
+          <div className="mb-4 grid gap-1" style={{ gridTemplateColumns: `repeat(${MAX_PLAYERS}, minmax(0, 1fr))` }}>
+            {Array.from({ length: MAX_PLAYERS }, (_, index) => (
+              <div
+                key={index}
+                className={`h-2 rounded-full ${index < players.length ? "bg-purple-600" : "bg-gray-200"}`}
+              />
+            ))}
+          </div>
 
           <div className="flex flex-col gap-2">
   {players.map((player, index) => (
@@ -1222,6 +1361,10 @@ if (isPageLoading) {
     </div>
   ))}
 </div>
+          </div>
+          <div className="flex w-full flex-col gap-4">
+  {isHost ? (
+    <>
   <div className="w-full max-w-xl rounded-2xl border border-purple-200 bg-purple-50 p-4">
     <p className="mb-3 text-sm font-extrabold uppercase tracking-wider text-purple-700">
       Choose game mode
@@ -1261,11 +1404,41 @@ if (isPageLoading) {
     )}
   </div>
 
+    <button
+      onClick={startGame}
+      disabled={isStarting || players.length < 2}
+      className="w-full max-w-xl bg-green-600 text-white px-6 py-4 rounded-2xl font-extrabold shadow-lg disabled:opacity-50"
+    >
+      {isStarting ? "Starting..." : "Start Game"}
+    </button>
+
+    {players.length < 2 && (
+      <p className="text-center text-sm font-bold text-purple-700">
+        Waiting for one more player to join.
+      </p>
+    )}
+
+    <div className="w-full max-w-xl">
+      <button
+        type="button"
+        onClick={() => setIsRoundCustomizationOpen((open) => !open)}
+        aria-expanded={isRoundCustomizationOpen}
+        className="w-full rounded-xl border border-purple-200 px-4 py-3 font-bold text-purple-700"
+      >
+        {isRoundCustomizationOpen ? "Hide Round Settings" : "Customize Round"}
+      </button>
+
+      {isRoundCustomizationOpen && (
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4 rounded-2xl border border-purple-200 bg-purple-50 p-4">
     {selectedGameMode === "classic" && (
+    <div>
+    <label className="mb-2 block text-sm font-bold text-purple-600">
+      Prompt category
+    </label>
     <select
         value={selectedCategory}
         onChange={(e) => setSelectedCategory(e.target.value)}
-        className="border p-3 rounded-xl"
+        className="w-full border p-3 rounded-xl"
       >
       <option value="Random">🎲 Random</option>
       <option value="personal">👥 Personal</option>
@@ -1278,6 +1451,7 @@ if (isPageLoading) {
       <option value="chaos">🤪 Chaos</option>
       <option value="dating">❤️ Dating</option>
     </select>
+    </div>
     )}
 
     <div className="w-full max-w-xl">
@@ -1288,7 +1462,7 @@ if (isPageLoading) {
         value={selectedImageStyle}
         onChange={(e) => setSelectedImageStyle(e.target.value)}
         disabled={!isHost}
-        className="w-full border p-3 rounded-xl disabled:opacity-60"
+        className="w-full border p-3 rounded-xl"
       >
         <option value="prompt">Prompt's style</option>
         <option value="cartoon">Colorful Cartoon</option>
@@ -1297,6 +1471,42 @@ if (isPageLoading) {
         <option value="storybook">Storybook</option>
         <option value="pixel_art">Pixel Art</option>
       </select>
+    </div>
+
+    <div className="w-full max-w-xl">
+      <label className="mb-2 block text-sm font-bold text-purple-600">
+        Answer timer
+      </label>
+      <select
+        value={selectedRoundDuration}
+        onChange={(e) => setSelectedRoundDuration(Number(e.target.value))}
+        disabled={!isHost}
+        className="w-full border p-3 rounded-xl"
+      >
+        <option value={60}>1 minute</option>
+        <option value={90}>1 minute 30 seconds</option>
+        <option value={120}>2 minutes</option>
+        <option value={180}>3 minutes</option>
+      </select>
+    </div>
+
+    <div className="w-full max-w-xl">
+      <label className="mb-2 block text-sm font-bold text-purple-600">
+        Voting timer
+      </label>
+      <select
+        value={selectedVotingDuration}
+        onChange={(e) => setSelectedVotingDuration(Number(e.target.value))}
+        className="w-full border p-3 rounded-xl"
+      >
+        <option value={30}>30 seconds</option>
+        <option value={45}>45 seconds</option>
+        <option value={60}>1 minute</option>
+        <option value={90}>1 minute 30 seconds</option>
+      </select>
+    </div>
+        </div>
+      )}
     </div>
 
     {isHost && (
@@ -1329,19 +1539,19 @@ if (isPageLoading) {
       </div>
     )}
 
-    {isHost ? (
-  <button
-    onClick={startGame}
-    disabled={isStarting}
-    className="bg-green-600 text-white px-6 py-3 rounded-xl"
-  >
-    {isStarting ? "Starting..." : "Start Game"}
-  </button>
+</>
 ) : (
-  <p className="text-gray-500 text-center">
-    Waiting for {hostName || "the host"} to start the game...
-  </p>
+  <div className="w-full max-w-xl rounded-2xl border border-purple-200 bg-purple-50 p-4 text-center">
+    <p className="font-bold">
+      Game mode: {selectedGameMode === "cards" ? "Fill in the Blank" : "Classic"}
+    </p>
+    <p className="mt-2 text-sm text-gray-500">
+      Waiting for {hostName || "the host"} to start the game...
+    </p>
+  </div>
 )}
+</div>
+</div>
 </>
 ) : stage === "submitting" ? (
   <>
@@ -1367,6 +1577,14 @@ if (isPageLoading) {
   <h2 className="break-words text-3xl font-black leading-tight">
     {roundPrompt}
   </h2>
+
+  {timeRemainingSeconds !== null && (
+    <p className="mt-4 text-lg font-extrabold">
+      {isSubmissionTimeExpired
+        ? "Time's up — waiting for the host"
+        : `Time remaining: ${formatCountdown(timeRemainingSeconds)}`}
+    </p>
+  )}
 </div>
 
     {hasSubmitted || isSubmitting ? (
@@ -1484,14 +1702,19 @@ if (isPageLoading) {
             : "Make your friends laugh..."
         }
         maxLength={120}
+        disabled={isSubmissionTimeExpired}
         className="w-full border-2 border-purple-300 rounded-2xl p-4 text-lg min-h-40 resize-none focus:outline-none focus:border-purple-500"
       />
 
       <div className="flex justify-between items-center mt-2">
         <p className="text-sm text-gray-500">
           {selectedGameMode === "cards"
-            ? "Short, specific, and delightfully wrong."
-            : "Think punchline, not paragraph."}
+            ? isSubmissionTimeExpired
+              ? "Time is up for this round."
+              : "Short, specific, and delightfully wrong."
+            : isSubmissionTimeExpired
+              ? "Time is up for this round."
+              : "Think punchline, not paragraph."}
         </p>
 
         <p className="text-sm text-gray-500">
@@ -1502,7 +1725,7 @@ if (isPageLoading) {
 
     <button
       onClick={submitPrompt}
-      disabled={isSubmitting || !submission.trim()}
+      disabled={isSubmitting || isSubmissionTimeExpired || !submission.trim()}
       className="bg-blue-600 text-white px-8 py-3 rounded-2xl disabled:opacity-50 font-bold shadow-lg"
     >
       {isSubmitting
@@ -1520,6 +1743,17 @@ if (isPageLoading) {
         className="text-purple-700 underline font-bold disabled:opacity-50"
       >
         {isForcingStage ? "Opening Reveal..." : "Reveal Submitted Images"}
+      </button>
+    )}
+
+    {isHost && isSubmissionTimeExpired && submissions.length === 0 && (
+      <button
+        type="button"
+        onClick={nextRound}
+        disabled={isAdvancing}
+        className="text-purple-700 underline font-bold disabled:opacity-50"
+      >
+        {isAdvancing ? "Skipping..." : "Skip Empty Round"}
       </button>
     )}
   </>
@@ -1559,6 +1793,14 @@ if (isPageLoading) {
         <h2 className="text-3xl font-black">
           {roundPrompt}
         </h2>
+
+        {votingTimeRemainingSeconds !== null && (
+          <p className="mt-4 text-lg font-extrabold">
+            {isVotingTimeExpired
+              ? "Voting time is up — waiting for the host"
+              : `Vote now: ${formatCountdown(votingTimeRemainingSeconds)}`}
+          </p>
+        )}
       </div>
 
       {voteMessage && (
@@ -1588,7 +1830,7 @@ if (isPageLoading) {
             key={index}
             onClick={() => voteForSubmission(text, playerName)}
             className={`rounded-2xl border shadow-lg overflow-hidden cursor-pointer transition transform hover:scale-[1.02] ${
-              hasVoted
+              hasVoted || isVotingTimeExpired
                 ? "opacity-70 pointer-events-none"
                 : "hover:shadow-2xl"
             }`}
@@ -1606,7 +1848,7 @@ if (isPageLoading) {
                 “{text}”
               </p>
 
-              {!hasVoted ? (
+              {!hasVoted && !isVotingTimeExpired ? (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1619,7 +1861,7 @@ if (isPageLoading) {
                 </button>
               ) : (
                 <p className="text-center text-sm text-gray-500">
-                  Vote locked in
+                  {isVotingTimeExpired ? "Voting time is up" : "Vote locked in"}
                 </p>
               )}
 
@@ -1762,6 +2004,23 @@ if (isPageLoading) {
     </div>
   </div>
 )}
+
+    {finalWinner && isHost && (
+      <button
+        type="button"
+        onClick={playAgain}
+        disabled={isPlayingAgain}
+        className="bg-green-600 text-white px-8 py-4 rounded-2xl disabled:opacity-50 font-extrabold shadow-lg"
+      >
+        {isPlayingAgain ? "Resetting Game..." : "Play Again"}
+      </button>
+    )}
+
+    {finalWinner && !isHost && (
+      <p className="text-gray-500 text-center">
+        Waiting for {hostName || "the host"} to start a rematch...
+      </p>
+    )}
 
     {!finalWinner && isHost && (
   <button
