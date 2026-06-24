@@ -3,6 +3,9 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { GameLogo } from "./components/GameLogo";
+import { SubmissionForm } from "./components/SubmissionForm";
+import { VotingScreen } from "./components/VotingScreen";
 
 type GameStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
 type PromptOption = { id: number; prompt: string; image_style: string | null };
@@ -71,7 +74,7 @@ export default function GameRoom() {
   const [selectedCategory, setSelectedCategory] = useState("Random");
   const [selectedGameMode, setSelectedGameMode] = useState<"classic" | "cards">("classic");
   const [selectedImageStyle, setSelectedImageStyle] = useState("prompt");
-  const [selectedRoundDuration, setSelectedRoundDuration] = useState(90);
+  const [selectedRoundDuration, setSelectedRoundDuration] = useState<number | "unlimited">(90);
   const [selectedVotingDuration, setSelectedVotingDuration] = useState(45);
   const [isRoundCustomizationOpen, setIsRoundCustomizationOpen] = useState(false);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
@@ -296,7 +299,7 @@ async function loadSubmissions(gameId = currentGameId) {
 
   const { data, error } = await supabase
     .from("submissions")
-    .select("player_name, prompt, image_url")
+    .select("player_name, prompt, image_url, image_caption")
     .eq("room_code", code)
     .eq("game_id", gameId)
     .order("id", { ascending: true });
@@ -308,7 +311,10 @@ async function loadSubmissions(gameId = currentGameId) {
 
   setSubmissions(
   data.map(
-    (item) => `${item.prompt}|||${item.image_url}|||${item.player_name}`
+    (item) =>
+      `${item.prompt}|||${item.image_url}|||${item.player_name}|||${
+        item.image_caption || "Untitled Masterpiece"
+      }`
     )
   );
 }
@@ -595,9 +601,10 @@ async function startGame() {
       randomPrompt.image_style,
       selectedImageStyle
     );
-    const submissionDeadline = new Date(
-      Date.now() + selectedRoundDuration * 1000
-    ).toISOString();
+    const submissionDeadline =
+      selectedRoundDuration === "unlimited"
+        ? null
+        : new Date(Date.now() + selectedRoundDuration * 1000).toISOString();
 
     console.log("Selected CAH prompt:", randomPrompt.prompt);
 
@@ -632,6 +639,27 @@ async function startGame() {
     setIsStarting(false);
   }
 }
+async function grantImageRetryTime() {
+  if (!currentGameId || !roundDeadline) return false;
+
+  const retryDeadline = new Date(
+    Math.max(new Date(roundDeadline).getTime(), Date.now()) + 60_000
+  ).toISOString();
+
+  const { error } = await supabase
+    .from("games")
+    .update({ submission_deadline: retryDeadline })
+    .eq("id", currentGameId);
+
+  if (error) {
+    console.error("Failed to extend the submission timer:", error);
+    return false;
+  }
+
+  setRoundDeadline(retryDeadline);
+  return true;
+}
+
  async function submitPrompt() {
   if (!submission.trim()) return;
   if (isSubmitting || hasSubmitted) return;
@@ -718,14 +746,27 @@ console.log(imagePrompt);
     const imageResponse = await fetch("/api/generate-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: imagePrompt }),
+      body: JSON.stringify({
+        prompt: imagePrompt,
+        answer: submission.trim(),
+        roundPrompt,
+      }),
     });
 
     const imageData = await imageResponse.json();
 
     if (!imageResponse.ok) {
       console.error(imageData);
-      alert("Image generation failed");
+      if (imageData.rejected) {
+        const wasExtended = await grantImageRetryTime();
+        alert(
+          wasExtended
+            ? "The AI couldn't create that one. You have an extra minute to adjust your answer and try again."
+            : "The AI couldn't create that one. Please adjust your answer and try again."
+        );
+      } else {
+        alert("Image generation failed");
+      }
       return;
     }
 
@@ -737,6 +778,7 @@ console.log(imagePrompt);
         prompt: submission.trim(),
         image_url: imageData.imageUrl,
         gallery_thumbnail_url: imageData.thumbnailUrl || null,
+        image_caption: imageData.caption || "Untitled Masterpiece",
       },
     ]);
 
@@ -793,6 +835,10 @@ console.log(imagePrompt);
 async function voteForSubmission(answerText: string, playerName: string) {
   if (hasVoted) return;
   if (!currentGameId) return;
+  if (playerName === name) {
+    alert("You can't vote for your own submission.");
+    return;
+  }
   if (isVotingTimeExpired) {
     alert("Voting time is up.");
     return;
@@ -1125,9 +1171,10 @@ async function nextRound() {
       newPrompt.image_style,
       selectedImageStyle
     );
-    const submissionDeadline = new Date(
-      Date.now() + selectedRoundDuration * 1000
-    ).toISOString();
+    const submissionDeadline =
+      selectedRoundDuration === "unlimited"
+        ? null
+        : new Date(Date.now() + selectedRoundDuration * 1000).toISOString();
 
     const { data: newGame, error: gameError } = await supabase
       .from("games")
@@ -1282,14 +1329,7 @@ if (isPageLoading) {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center gap-6 p-6">
-      <div className="text-center">
-  <h1 className="text-4xl font-black tracking-tight">
-    <span className="inline-block -rotate-2 text-purple-600">Picture</span>{" "}
-    <span className="inline-block rotate-2 bg-black text-white px-3 py-1 rounded-xl">
-      This
-    </span>
-  </h1>
-</div>
+      <GameLogo />
 
       {!joined ? (
   <>
@@ -1504,14 +1544,20 @@ if (isPageLoading) {
       </label>
       <select
         value={selectedRoundDuration}
-        onChange={(e) => setSelectedRoundDuration(Number(e.target.value))}
+        onChange={(e) =>
+          setSelectedRoundDuration(
+            e.target.value === "unlimited" ? "unlimited" : Number(e.target.value)
+          )
+        }
         disabled={!isHost}
         className="w-full border p-3 rounded-xl"
       >
+        <option value="unlimited">Unlimited</option>
         <option value={60}>1 minute</option>
         <option value={90}>1 minute 30 seconds</option>
         <option value={120}>2 minutes</option>
         <option value={180}>3 minutes</option>
+        <option value={300}>5 minutes</option>
       </select>
     </div>
 
@@ -1626,7 +1672,7 @@ if (isPageLoading) {
 </div>
 
     {hasSubmitted || isSubmitting ? (
-  <div className="fixed inset-0 bg-purple-700 text-white overflow-hidden z-50">
+  <div className="fixed inset-0 bg-purple-700 text-white overflow-y-auto z-50">
     {!hasCurrentRoundImage && currentGalleryImage && (
       <div className="absolute inset-0 bg-purple-950">
         <img
@@ -1642,7 +1688,7 @@ if (isPageLoading) {
       </div>
     )}
 
-    <div className="relative z-50 flex min-h-full w-full flex-col items-center justify-center gap-5 p-6">
+    <div className="relative z-50 flex min-h-full w-full flex-col items-center justify-center gap-5 p-6 py-10">
     <div className="text-6xl animate-bounce">🎨</div>
 
     <h2 className="text-3xl font-extrabold">
@@ -1717,84 +1763,20 @@ if (isPageLoading) {
     </div>
   </div>
 ) : (
-  <>
-    <div
-      className={`w-full max-w-xl rounded-3xl p-5 shadow-lg ${
-        selectedGameMode === "cards"
-          ? "border-4 border-black bg-white"
-          : "border border-gray-200 bg-white"
-      }`}
-    >
-      <label className="block text-sm font-bold text-purple-600 mb-2">
-        {selectedGameMode === "cards"
-          ? "Complete the prompt"
-          : "Your Answer"}
-      </label>
-
-      <textarea
-        value={submission}
-        onChange={(e) => setSubmission(e.target.value)}
-        placeholder={
-          selectedGameMode === "cards"
-            ? "Write the funniest possible fill-in..."
-            : "Make your friends laugh..."
-        }
-        maxLength={120}
-        disabled={isSubmissionTimeExpired}
-        className="w-full border-2 border-purple-300 rounded-2xl p-4 text-lg min-h-40 resize-none focus:outline-none focus:border-purple-500"
-      />
-
-      <div className="flex justify-between items-center mt-2">
-        <p className="text-sm text-gray-500">
-          {selectedGameMode === "cards"
-            ? isSubmissionTimeExpired
-              ? "Time is up for this round."
-              : "Short, specific, and delightfully wrong."
-            : isSubmissionTimeExpired
-              ? "Time is up for this round."
-              : "Think punchline, not paragraph."}
-        </p>
-
-        <p className="text-sm text-gray-500">
-          {submission.length}/120
-        </p>
-      </div>
-    </div>
-
-    <button
-      onClick={submitPrompt}
-      disabled={isSubmitting || isSubmissionTimeExpired || !submission.trim()}
-      className="bg-blue-600 text-white px-8 py-3 rounded-2xl disabled:opacity-50 font-bold shadow-lg"
-    >
-      {isSubmitting
-        ? "Submitting..."
-        : selectedGameMode === "cards"
-          ? "Lock In Fill"
-      : "Lock In Answer"}
-    </button>
-
-    {isHost && submissions.length > 0 && (
-      <button
-        type="button"
-        onClick={forceReveal}
-        disabled={isForcingStage}
-        className="text-purple-700 underline font-bold disabled:opacity-50"
-      >
-        {isForcingStage ? "Opening Reveal..." : "Reveal Submitted Images"}
-      </button>
-    )}
-
-    {isHost && isSubmissionTimeExpired && submissions.length === 0 && (
-      <button
-        type="button"
-        onClick={nextRound}
-        disabled={isAdvancing}
-        className="text-purple-700 underline font-bold disabled:opacity-50"
-      >
-        {isAdvancing ? "Skipping..." : "Skip Empty Round"}
-      </button>
-    )}
-  </>
+  <SubmissionForm
+    gameMode={selectedGameMode}
+    submission={submission}
+    isSubmitting={isSubmitting}
+    isSubmissionTimeExpired={isSubmissionTimeExpired}
+    isHost={isHost}
+    submissionsCount={submissions.length}
+    isForcingStage={isForcingStage}
+    isAdvancing={isAdvancing}
+    onSubmissionChange={setSubmission}
+    onSubmit={submitPrompt}
+    onForceReveal={forceReveal}
+    onSkipRound={nextRound}
+  />
 )}
   </>
       ) : stage === "generating" ? (
@@ -1863,67 +1845,25 @@ if (isPageLoading) {
       )}
     </div>
 
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 w-full max-w-5xl">
-      {submissions.map((item, index) => {
-        const [text, imageUrl, playerName] = item.split("|||");
-
-        return (
-          <div
-            key={index}
-            onClick={() => voteForSubmission(text, playerName)}
-            className={`rounded-2xl border shadow-lg overflow-hidden cursor-pointer transition transform hover:scale-[1.02] ${
-              hasVoted || isVotingTimeExpired
-                ? "opacity-70 pointer-events-none"
-                : "hover:shadow-2xl"
-            }`}
-          >
-            {imageUrl && (
-              <img
-                src={imageUrl}
-                alt={text}
-                className="w-full aspect-square object-cover bg-gray-100"
-              />
-            )}
-
-            <div className="p-4 bg-white">
-              <p className="font-bold text-xl text-center leading-relaxed mb-4">
-                “{text}”
-              </p>
-
-              {!hasVoted && !isVotingTimeExpired ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    voteForSubmission(text, playerName);
-                  }}
-                  className="w-full bg-black text-white px-4 py-3 rounded-xl font-bold"
-                >
-                  Vote for This
-                </button>
-              ) : (
-                <p className="text-center text-sm text-gray-500">
-                  {isVotingTimeExpired ? "Voting time is up" : "Vote locked in"}
-                </p>
-              )}
-
-              {imageUrl && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    saveImage(imageUrl, text);
-                  }}
-                  className="mt-3 w-full bg-purple-600 text-white px-4 py-2 rounded-xl"
-                >
-                  Save Image
-                </button>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+    <VotingScreen
+      showHeader={false}
+      gameMode={selectedGameMode}
+      roundPrompt={roundPrompt}
+      roundImageStyle={roundImageStyle}
+      votingTimeRemainingSeconds={votingTimeRemainingSeconds}
+      isVotingTimeExpired={isVotingTimeExpired}
+      voteMessage={voteMessage}
+      isHost={isHost}
+      isForcingStage={isForcingStage}
+      hasVoted={hasVoted}
+      playerName={name}
+      submissions={submissions}
+      onEndVotingEarly={endVotingEarly}
+      onVote={voteForSubmission}
+      onSaveImage={saveImage}
+      formatCountdown={formatCountdown}
+      getImageStyleLabel={getImageStyleLabel}
+    />
   </>
 /* =======================================
    WINNER SCREEN

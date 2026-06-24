@@ -11,20 +11,52 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+function wasImageRejected(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return /(safety|moderation|policy|rejected|blocked)/.test(message);
+}
+
+async function generateGalleryCaption(answer: string, roundPrompt: string) {
+  try {
+    const response = await openai.responses.create({
+      model: "gpt-4o-mini",
+      instructions:
+        "Write one funny, spoiler-free gallery title for a party-game image. " +
+        "Use 3 to 6 words. Do not quote, repeat, or closely paraphrase the player's answer. " +
+        "Do not mention the player, do not use quotation marks, and return only the title.",
+      input: `Round prompt: ${roundPrompt}\nPlayer answer: ${answer}`,
+    });
+
+    const caption = response.output_text
+      .trim()
+      .replace(/[\r\n]+/g, " ")
+      .replace(/\|\|\|/g, "")
+      .replace(/^['\"]|['\"]$/g, "");
+
+    return caption || "Untitled Masterpiece";
+  } catch (error) {
+    console.error("Failed to generate gallery caption:", error);
+    return "Untitled Masterpiece";
+  }
+}
+
 export async function POST(request: Request) {
   try {
-    const { prompt } = await request.json();
+    const { prompt, answer, roundPrompt } = await request.json();
 
     if (!prompt) {
       return Response.json({ error: "Prompt is required" }, { status: 400 });
     }
 
-    const result = await openai.images.generate({
-     model: "gpt-image-1",
-    prompt,
-     size: "1024x1024",
-     quality: "medium",
-    });
+    const [result, caption] = await Promise.all([
+      openai.images.generate({
+        model: "gpt-image-1",
+        prompt,
+        size: "1024x1024",
+        quality: "medium",
+      }),
+      generateGalleryCaption(answer || "", roundPrompt || ""),
+    ]);
 
 const imageBase64 = result.data?.[0]?.b64_json;
 
@@ -90,9 +122,19 @@ try {
 return Response.json({
   imageUrl: publicUrlData.publicUrl,
   thumbnailUrl,
+  caption,
 });
   } catch (error) {
     console.error(error);
-    return Response.json({ error: "Image generation failed" }, { status: 500 });
+    const rejected = wasImageRejected(error);
+    return Response.json(
+      {
+        error: rejected
+          ? "That image request was rejected. Please adjust your answer and try again."
+          : "Image generation failed",
+        rejected,
+      },
+      { status: rejected ? 422 : 500 }
+    );
   }
 }
