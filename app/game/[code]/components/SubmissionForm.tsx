@@ -7,6 +7,7 @@ type SubmissionFormProps = {
   isSubmissionTimeExpired: boolean;
   isHost: boolean;
   submissionsCount: number;
+  waitingOnPlayerNames: string[];
   isForcingStage: boolean;
   isAdvancing: boolean;
   onSubmissionChange: (value: string) => void;
@@ -22,6 +23,7 @@ export function SubmissionForm({
   isSubmissionTimeExpired,
   isHost,
   submissionsCount,
+  waitingOnPlayerNames,
   isForcingStage,
   isAdvancing,
   onSubmissionChange,
@@ -68,6 +70,23 @@ export function SubmissionForm({
       >
         {isSubmitting ? "Submitting..." : isCards ? "Lock In Fill" : "Lock In Answer"}
       </button>
+
+      <div className="w-full max-w-xl rounded-2xl border border-purple-200 bg-purple-50 p-4 text-center">
+        <p className="text-xs font-extrabold uppercase tracking-wider text-purple-700">
+          Waiting on
+        </p>
+        {waitingOnPlayerNames.length > 0 ? (
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            {waitingOnPlayerNames.map((playerName) => (
+              <span key={playerName} className="rounded-full bg-white px-3 py-1 text-sm font-bold text-purple-700">
+                {playerName}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-sm font-bold text-green-700">Everyone submitted!</p>
+        )}
+      </div>
 
       {isHost && submissionsCount > 0 && (
         <button

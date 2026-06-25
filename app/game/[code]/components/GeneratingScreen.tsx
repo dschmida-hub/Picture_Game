@@ -1,5 +1,6 @@
 import { parseSubmission } from "./submissions";
 import type { Player } from "./types";
+import { WaitingOnList } from "./WaitingOnList";
 
 type GeneratingScreenProps = {
   players: Player[];
@@ -10,6 +11,8 @@ type GeneratingScreenProps = {
   isGalleryImageVisible: boolean;
   isHost: boolean;
   isForcingStage: boolean;
+  waitingOnSubmissionNames: string[];
+  waitingOnImageNames: string[];
   onForceReveal: () => void;
 };
 
@@ -22,6 +25,8 @@ export function GeneratingScreen({
   isGalleryImageVisible,
   isHost,
   isForcingStage,
+  waitingOnSubmissionNames,
+  waitingOnImageNames,
   onForceReveal,
 }: GeneratingScreenProps) {
   return (
@@ -47,6 +52,20 @@ export function GeneratingScreen({
         <p className="text-sm font-bold opacity-80">
           {submissions.length} / {players.length} ready
         </p>
+
+        {waitingOnSubmissionNames.length > 0 ? (
+          <WaitingOnList
+            title="Waiting for answers"
+            names={waitingOnSubmissionNames}
+            emptyMessage="Everyone answered!"
+          />
+        ) : (
+          <WaitingOnList
+            title="Still generating"
+            names={waitingOnImageNames}
+            emptyMessage="All images are ready!"
+          />
+        )}
 
         {(hasCurrentRoundImage || !currentGalleryImage) && (
           <div className="grid w-full max-w-3xl grid-cols-1 gap-6 md:grid-cols-2">

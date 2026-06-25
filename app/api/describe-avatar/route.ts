@@ -1,17 +1,45 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import {
+  checkRateLimit,
+  checkSameOrigin,
+  readJsonWithLimit,
+  sanitizeText,
+  validatePublicSupabaseUrl,
+} from "../_utils/security";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
+type DescribeAvatarRequest = {
+  avatarUrl?: unknown;
+};
+
 export async function POST(req: Request) {
   try {
-    const { avatarUrl } = await req.json();
+    const originError = checkSameOrigin(req);
+    if (originError) return originError;
+
+    const rateLimitError = checkRateLimit(req, "describe-avatar", {
+      windowMs: 60_000,
+      maxRequests: 12,
+    });
+    if (rateLimitError) return rateLimitError;
+
+    const body = await readJsonWithLimit<DescribeAvatarRequest>(req, 2_000);
+    const avatarUrl = sanitizeText(body.avatarUrl, 600);
 
     if (!avatarUrl) {
       return NextResponse.json(
         { error: "Missing avatarUrl" },
+        { status: 400 }
+      );
+    }
+
+    if (!validatePublicSupabaseUrl(avatarUrl)) {
+      return NextResponse.json(
+        { error: "Invalid avatar URL" },
         { status: 400 }
       );
     }

@@ -1,6 +1,12 @@
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
+import {
+  checkRateLimit,
+  checkSameOrigin,
+  readJsonWithLimit,
+  sanitizeText,
+} from "../_utils/security";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -40,12 +46,34 @@ async function generateGalleryCaption(answer: string, roundPrompt: string) {
   }
 }
 
+type GenerateImageRequest = {
+  prompt?: unknown;
+  answer?: unknown;
+  roundPrompt?: unknown;
+};
+
 export async function POST(request: Request) {
   try {
-    const { prompt, answer, roundPrompt } = await request.json();
+    const originError = checkSameOrigin(request);
+    if (originError) return originError;
+
+    const rateLimitError = checkRateLimit(request, "generate-image", {
+      windowMs: 60_000,
+      maxRequests: 8,
+    });
+    if (rateLimitError) return rateLimitError;
+
+    const body = await readJsonWithLimit<GenerateImageRequest>(request, 16_000);
+    const prompt = sanitizeText(body.prompt, 4_000);
+    const answer = sanitizeText(body.answer, 160);
+    const roundPrompt = sanitizeText(body.roundPrompt, 300);
 
     if (!prompt) {
       return Response.json({ error: "Prompt is required" }, { status: 400 });
+    }
+
+    if (!answer || !roundPrompt) {
+      return Response.json({ error: "Answer and round prompt are required" }, { status: 400 });
     }
 
     const [result, caption] = await Promise.all([
@@ -55,7 +83,7 @@ export async function POST(request: Request) {
         size: "1024x1024",
         quality: "medium",
       }),
-      generateGalleryCaption(answer || "", roundPrompt || ""),
+      generateGalleryCaption(answer, roundPrompt),
     ]);
 
 const imageBase64 = result.data?.[0]?.b64_json;

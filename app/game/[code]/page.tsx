@@ -147,6 +147,7 @@ export default function GameRoom() {
   const [promptSuggestionMode, setPromptSuggestionMode] = useState<GameMode>("classic");
   const [isSubmittingPromptSuggestion, setIsSubmittingPromptSuggestion] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
+  const [votedPlayerNames, setVotedPlayerNames] = useState<string[]>([]);
   const [voteMessage, setVoteMessage] = useState("");
   const [winnerImageUrl, setWinnerImageUrl] = useState("");
   const [winnerName, setWinnerName] = useState("");
@@ -164,6 +165,23 @@ export default function GameRoom() {
   const hasCurrentRoundImage = submissions.some((item) =>
     Boolean(parseSubmission(item).imageUrl)
   );
+  const submittedPlayerNames = new Set(submissions.map((item) => parseSubmission(item).playerName));
+  const imageReadyPlayerNames = new Set(
+    submissions
+      .map((item) => parseSubmission(item))
+      .filter((submission) => Boolean(submission.imageUrl))
+      .map((submission) => submission.playerName)
+  );
+  const votedPlayerNameSet = new Set(votedPlayerNames);
+  const waitingOnSubmissionNames = players
+    .filter((player) => !submittedPlayerNames.has(player.name))
+    .map((player) => player.name);
+  const waitingOnImageNames = players
+    .filter((player) => submittedPlayerNames.has(player.name) && !imageReadyPlayerNames.has(player.name))
+    .map((player) => player.name);
+  const waitingOnVoteNames = players
+    .filter((player) => submittedPlayerNames.has(player.name) && !votedPlayerNameSet.has(player.name))
+    .map((player) => player.name);
   const currentGalleryImage = pastImages[galleryImageIndex % pastImages.length];
   const timeRemainingSeconds = roundDeadline
     ? Math.max(0, Math.ceil((new Date(roundDeadline).getTime() - currentTime) / 1000))
@@ -519,6 +537,25 @@ async function loadSubmissions(gameId = currentGameId) {
   );
 }
 
+async function loadVotes(gameId = currentGameId) {
+  if (!gameId) {
+    setVotedPlayerNames([]);
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("votes")
+    .select("voter_name")
+    .eq("game_id", gameId);
+
+  if (error) {
+    console.error("Failed to load votes:", error);
+    return;
+  }
+
+  setVotedPlayerNames(Array.from(new Set((data || []).map((vote) => vote.voter_name))));
+}
+
 async function loadGame() {
   
   const { data, error } = await supabase
@@ -544,6 +581,7 @@ async function loadGame() {
   setVotingDeadline(data.voting_deadline);
   setSelectedVotingDuration(data.voting_duration_seconds || 45);
   await loadSubmissions(data.id);
+  await loadVotes(data.id);
 }
 }
 
@@ -583,10 +621,12 @@ useEffect(() => {
 useEffect(() => {
   if (stage === "submitting") {
     setHasVoted(false);
+    setVotedPlayerNames([]);
     setVoteMessage("");
     setSubmission("");
     setWinner("");
     setPointsAwarded(false);
+    setVotedPlayerNames([]);
   }
 }, [stage]);
 
@@ -604,6 +644,7 @@ useEffect(() => {
     loadPlayers(),
     loadGame(),
     loadSubmissions(),
+    loadVotes(),
     loadScoreboard(),
     loadPastImages(),
     loadRoundHistory(),
@@ -621,6 +662,7 @@ useEffect(() => {
   const interval = setInterval(() => {
   loadPlayers();
   loadGame();
+  loadVotes();
   loadScoreboard();
   loadPromptSuggestions();
 }, 2000);
@@ -942,9 +984,6 @@ Show the funniest possible visual interpretation of the answer
 Prefer visual comedy over realistic scenes
 `;
 
-console.log("AI PROMPT:");
-console.log(imagePrompt);
-
     setLoadingMessage(
       loadingMessages[Math.floor(Math.random() * loadingMessages.length)]
     );
@@ -1082,6 +1121,7 @@ async function voteForSubmission(answerText: string, playerName: string) {
   }
 
   setVoteMessage("✅ Vote recorded! Waiting for other players...");
+  await loadVotes(currentGameId);
 
   const { data: allSubmissions } = await supabase
     .from("submissions")
@@ -1449,6 +1489,7 @@ async function playAgain() {
     setWinnerPrompt("");
     setWinnerImages([]);
     setSubmissions([]);
+    setVotedPlayerNames([]);
     setRoundDeadline(null);
     setVotingDeadline(null);
     setStage("lobby");
@@ -1603,6 +1644,8 @@ if (isPageLoading) {
         isGalleryImageVisible={isGalleryImageVisible}
         isHost={isHost}
         isForcingStage={isForcingStage}
+        waitingOnSubmissionNames={waitingOnSubmissionNames}
+        waitingOnImageNames={waitingOnImageNames}
         onForceReveal={forceReveal}
       />
     ) : (
@@ -1613,6 +1656,7 @@ if (isPageLoading) {
     isSubmissionTimeExpired={isSubmissionTimeExpired}
     isHost={isHost}
     submissionsCount={submissions.length}
+    waitingOnPlayerNames={waitingOnSubmissionNames}
     isForcingStage={isForcingStage}
     isAdvancing={isAdvancing}
     onSubmissionChange={setSubmission}
@@ -1652,6 +1696,7 @@ if (isPageLoading) {
       allowSelfVoting={players.length === 2}
       playerName={name}
       submissions={submissions}
+      waitingOnVoteNames={waitingOnVoteNames}
       onEndVotingEarly={endVotingEarly}
       onVote={voteForSubmission}
       onSaveImage={saveImage}

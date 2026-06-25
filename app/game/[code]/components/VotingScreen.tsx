@@ -1,4 +1,5 @@
 import { RoundPromptCard } from "./RoundPromptCard";
+import { WaitingOnList } from "./WaitingOnList";
 import { parseSubmission } from "./submissions";
 import type { GameMode } from "./types";
 
@@ -16,6 +17,7 @@ type VotingScreenProps = {
   allowSelfVoting: boolean;
   playerName: string;
   submissions: string[];
+  waitingOnVoteNames: string[];
   onEndVotingEarly: () => void;
   onVote: (answerText: string, submissionPlayerName: string) => void;
   onSaveImage: (imageUrl: string, imageCaption: string) => void;
@@ -37,6 +39,7 @@ export function VotingScreen({
   allowSelfVoting,
   playerName,
   submissions,
+  waitingOnVoteNames,
   onEndVotingEarly,
   onVote,
   onSaveImage,
@@ -63,6 +66,12 @@ export function VotingScreen({
               {voteMessage}
             </div>
           )}
+
+          <WaitingOnList
+            title="Waiting on votes"
+            names={waitingOnVoteNames}
+            emptyMessage="All votes are in!"
+          />
 
           {isHost && (
             <button
