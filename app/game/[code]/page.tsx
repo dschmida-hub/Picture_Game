@@ -1490,55 +1490,7 @@ if (isPageLoading) {
     </div>
   </div>
    ) : stage === "reveal" ? (
-  <>
-    <div className="w-full max-w-3xl text-center space-y-3">
-
-      <div className={`w-full max-w-2xl mx-auto rounded-3xl p-5 shadow-xl text-center ${
-        selectedGameMode === "cards" ? "bg-black text-white" : "bg-white"
-      }`}>
-        <div className={`mb-2 font-bold tracking-wider ${
-          selectedGameMode === "cards" ? "text-gray-300" : "text-purple-600"
-        }`}>
-          {selectedGameMode === "cards" ? "🃏 FILL IN THE BLANK" : "🎯 ROUND PROMPT"}
-        </div>
-
-        <h2 className="text-3xl font-black">
-          {roundPrompt}
-        </h2>
-
-        <p className={`mt-3 text-sm font-bold ${selectedGameMode === "cards" ? "text-gray-300" : "text-purple-600"}`}>
-          Art style: {getImageStyleLabel(roundImageStyle)}
-        </p>
-
-        {votingTimeRemainingSeconds !== null && (
-          <p className="mt-4 text-lg font-extrabold">
-            {isVotingTimeExpired
-              ? "Voting time is up — waiting for the host"
-              : `Vote now: ${formatCountdown(votingTimeRemainingSeconds)}`}
-          </p>
-        )}
-      </div>
-
-      {voteMessage && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-xl">
-          {voteMessage}
-        </div>
-      )}
-
-      {isHost && (
-        <button
-          type="button"
-          onClick={endVotingEarly}
-          disabled={isForcingStage}
-          className="bg-purple-700 text-white px-6 py-3 rounded-2xl font-extrabold disabled:opacity-50"
-        >
-          {isForcingStage ? "Calculating Winner..." : "End Voting & Reveal Winner"}
-        </button>
-      )}
-    </div>
-
     <VotingScreen
-      showHeader={false}
       gameMode={selectedGameMode}
       roundPrompt={roundPrompt}
       roundImageStyle={roundImageStyle}
@@ -1557,7 +1509,6 @@ if (isPageLoading) {
       formatCountdown={formatCountdown}
       getImageStyleLabel={getImageStyleLabel}
     />
-  </>
 /* =======================================
    WINNER SCREEN
 ======================================= */
