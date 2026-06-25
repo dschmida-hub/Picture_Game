@@ -328,7 +328,16 @@ async function pickRoundPrompt(): Promise<PromptOption | null> {
   const unusedPrompts = allPrompts.filter(
     (prompt) => !usedPromptKeys.has(`${prompt.source}:${prompt.id}`)
   );
-  const promptDeck = pickBestRatedPromptDeck(unusedPrompts.length > 0 ? unusedPrompts : allPrompts);
+  const unusedCustomPrompts = approvedSuggestions.filter(
+    (prompt) => !usedPromptKeys.has(`${prompt.source}:${prompt.id}`)
+  );
+  const promptDeck = pickBestRatedPromptDeck(
+    unusedCustomPrompts.length > 0
+      ? unusedCustomPrompts
+      : unusedPrompts.length > 0
+        ? unusedPrompts
+        : allPrompts
+  );
 
   return promptDeck[Math.floor(Math.random() * promptDeck.length)];
 }
