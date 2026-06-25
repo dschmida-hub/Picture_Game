@@ -7,6 +7,7 @@ import { GeneratingScreen } from "./components/GeneratingScreen";
 import { GameLogo } from "./components/GameLogo";
 import { JoinRoomForm } from "./components/JoinRoomForm";
 import { LobbyScreen } from "./components/LobbyScreen";
+import { LoadingScreen } from "./components/LoadingScreen";
 import { RoundPromptCard } from "./components/RoundPromptCard";
 import { SubmissionForm } from "./components/SubmissionForm";
 import { VotingScreen } from "./components/VotingScreen";
@@ -1047,7 +1048,7 @@ async function voteForSubmission(answerText: string, playerName: string) {
     return;
   }
 
-  setVoteMessage("âœ… Vote recorded! Waiting for other players...");
+  setVoteMessage("✅ Vote recorded! Waiting for other players...");
 
   const { data: allSubmissions } = await supabase
     .from("submissions")
@@ -1478,21 +1479,13 @@ setScoreboardPlayers(sortedPlayers);
 }
 if (isJoining) {
   return (
-    <div className="fixed inset-0 bg-purple-700 text-white flex flex-col items-center justify-center space-y-6">
-      <div className="text-7xl animate-bounce">ðŸ‘‘</div>
-      <h1 className="text-3xl font-bold">Joining Room...</h1>
-      <p className="opacity-80">Gathering the troublemakers</p>
-    </div>
+    <LoadingScreen title="Joining Room..." message="Gathering the troublemakers" />
   );
 }
 
 if (isPageLoading) {
   return (
-    <div className="fixed inset-0 bg-purple-700 text-white flex flex-col items-center justify-center space-y-6">
-      <div className="text-7xl animate-bounce">ðŸ‘‘</div>
-      <h1 className="text-3xl font-bold">Loading Game...</h1>
-      <p className="opacity-80">Getting the chaos ready</p>
-    </div>
+    <LoadingScreen title="Loading Game..." message="Getting the chaos ready" />
   );
 }
 
@@ -1597,9 +1590,7 @@ if (isPageLoading) {
   </>
       ) : stage === "generating" ? (
   <div className="min-h-screen w-full bg-purple-700 flex flex-col items-center justify-center text-white">
-    <div className="text-8xl mb-6 animate-bounce">
-      ðŸ‘‘
-    </div>
+    <div className="text-8xl mb-6 animate-bounce">🎨</div>
 
     <h2 className="text-4xl font-bold mb-4">
       Creating Chaos...
