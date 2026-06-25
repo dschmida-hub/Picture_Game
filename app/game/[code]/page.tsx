@@ -14,7 +14,15 @@ import { VotingScreen } from "./components/VotingScreen";
 import { WinnerScreen } from "./components/WinnerScreen";
 import { ratePrompt } from "./components/promptQuality";
 import { parseSubmission } from "./components/submissions";
-import type { GameMode, Player, PromptRating, PromptSuggestion, RoundHistoryItem, ScoreboardPlayer } from "./components/types";
+import type {
+  GameMode,
+  Player,
+  PromptLibraryItem,
+  PromptRating,
+  PromptSuggestion,
+  RoundHistoryItem,
+  ScoreboardPlayer,
+} from "./components/types";
 
 type GameStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
 type PromptSource = GameMode | `custom_${GameMode}`;
@@ -159,6 +167,9 @@ export default function GameRoom() {
   const [pastImages, setPastImages] = useState<string[]>([]);
   const [galleryImageIndex, setGalleryImageIndex] = useState(0);
   const [isGalleryImageVisible, setIsGalleryImageVisible] = useState(true);
+  const [promptLibraryItems, setPromptLibraryItems] = useState<PromptLibraryItem[]>([]);
+  const [promptLibraryIndex, setPromptLibraryIndex] = useState(0);
+  const [isRatingPrompt, setIsRatingPrompt] = useState(false);
   const hasSubmitted = submissions.some((item) => {
   return parseSubmission(item).playerName === name;
 });
@@ -183,6 +194,7 @@ export default function GameRoom() {
     .filter((player) => submittedPlayerNames.has(player.name) && !votedPlayerNameSet.has(player.name))
     .map((player) => player.name);
   const currentGalleryImage = pastImages[galleryImageIndex % pastImages.length];
+  const currentPromptToRate = promptLibraryItems[promptLibraryIndex] || null;
   const timeRemainingSeconds = roundDeadline
     ? Math.max(0, Math.ceil((new Date(roundDeadline).getTime() - currentTime) / 1000))
     : null;
@@ -406,6 +418,82 @@ async function loadPastImages() {
     .filter((imageUrl): imageUrl is string => Boolean(imageUrl));
 
   setPastImages(images.sort(() => Math.random() - 0.5).slice(0, 4));
+}
+
+async function loadPromptLibraryItems() {
+  const [classicResult, cardsResult] = await Promise.all([
+    supabase
+      .from("prompts")
+      .select("id, prompt, prompt_rating")
+      .eq("active", true)
+      .limit(60),
+    supabase
+      .from("cah_prompts")
+      .select("id, prompt, prompt_rating")
+      .eq("active", true)
+      .limit(60),
+  ]);
+
+  if (classicResult.error) {
+    console.error("Failed to load classic prompts for rating:", classicResult.error);
+  }
+
+  if (cardsResult.error) {
+    console.error("Failed to load card prompts for rating:", cardsResult.error);
+  }
+
+  const classicPrompts: PromptLibraryItem[] = (classicResult.data || []).map((prompt) => ({
+    id: prompt.id,
+    prompt: prompt.prompt,
+    game_mode: "classic",
+    source_table: "prompts",
+    prompt_rating: prompt.prompt_rating,
+  }));
+
+  const cardPrompts: PromptLibraryItem[] = (cardsResult.data || []).map((prompt) => ({
+    id: prompt.id,
+    prompt: prompt.prompt,
+    game_mode: "cards",
+    source_table: "cah_prompts",
+    prompt_rating: prompt.prompt_rating,
+  }));
+
+  setPromptLibraryItems([...classicPrompts, ...cardPrompts].sort(() => Math.random() - 0.5));
+  setPromptLibraryIndex(0);
+}
+
+function skipPromptRating() {
+  if (promptLibraryItems.length === 0) return;
+  setPromptLibraryIndex((index) => (index + 1) % promptLibraryItems.length);
+}
+
+async function rateLibraryPrompt(rating: PromptRating) {
+  if (!currentPromptToRate || isRatingPrompt) return;
+
+  setIsRatingPrompt(true);
+
+  try {
+    const { error } = await supabase
+      .from(currentPromptToRate.source_table)
+      .update({ prompt_rating: rating })
+      .eq("id", currentPromptToRate.id);
+
+    if (error) throw error;
+
+    setPromptLibraryItems((items) =>
+      items.map((item) =>
+        item.source_table === currentPromptToRate.source_table && item.id === currentPromptToRate.id
+          ? { ...item, prompt_rating: rating }
+          : item
+      )
+    );
+    skipPromptRating();
+  } catch (error) {
+    console.error("Failed to rate prompt:", error);
+    alert("Could not save that prompt rating.");
+  } finally {
+    setIsRatingPrompt(false);
+  }
 }
 
 async function loadPromptSuggestions() {
@@ -658,6 +746,7 @@ useEffect(() => {
     loadPastImages(),
     loadRoundHistory(),
     loadPromptSuggestions(),
+    loadPromptLibraryItems(),
 
     ]);
 
@@ -1655,7 +1744,11 @@ if (isPageLoading) {
         isForcingStage={isForcingStage}
         waitingOnSubmissionNames={waitingOnSubmissionNames}
         waitingOnImageNames={waitingOnImageNames}
+        promptToRate={currentPromptToRate}
+        isRatingPrompt={isRatingPrompt}
         onForceReveal={forceReveal}
+        onRatePrompt={rateLibraryPrompt}
+        onSkipPromptRating={skipPromptRating}
       />
     ) : (
   <SubmissionForm

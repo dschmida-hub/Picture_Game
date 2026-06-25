@@ -1,5 +1,6 @@
+import { PromptLibraryRater } from "./PromptLibraryRater";
 import { parseSubmission } from "./submissions";
-import type { Player } from "./types";
+import type { Player, PromptLibraryItem, PromptRating } from "./types";
 import { WaitingOnList } from "./WaitingOnList";
 
 type GeneratingScreenProps = {
@@ -13,7 +14,11 @@ type GeneratingScreenProps = {
   isForcingStage: boolean;
   waitingOnSubmissionNames: string[];
   waitingOnImageNames: string[];
+  promptToRate: PromptLibraryItem | null;
+  isRatingPrompt: boolean;
   onForceReveal: () => void;
+  onRatePrompt: (rating: PromptRating) => void;
+  onSkipPromptRating: () => void;
 };
 
 export function GeneratingScreen({
@@ -27,7 +32,11 @@ export function GeneratingScreen({
   isForcingStage,
   waitingOnSubmissionNames,
   waitingOnImageNames,
+  promptToRate,
+  isRatingPrompt,
   onForceReveal,
+  onRatePrompt,
+  onSkipPromptRating,
 }: GeneratingScreenProps) {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-purple-700 text-white">
@@ -66,6 +75,13 @@ export function GeneratingScreen({
             emptyMessage="All images are ready!"
           />
         )}
+
+        <PromptLibraryRater
+          prompt={promptToRate}
+          isSaving={isRatingPrompt}
+          onRate={onRatePrompt}
+          onSkip={onSkipPromptRating}
+        />
 
         {(hasCurrentRoundImage || !currentGalleryImage) && (
           <div className="grid w-full max-w-3xl grid-cols-1 gap-6 md:grid-cols-2">
