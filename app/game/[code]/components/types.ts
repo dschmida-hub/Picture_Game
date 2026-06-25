@@ -1,4 +1,5 @@
 export type GameMode = "classic" | "cards";
+export type RoundDuration = number | "unlimited";
 
 export type Player = {
   name: string;

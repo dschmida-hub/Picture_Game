@@ -3,9 +3,13 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { GeneratingScreen } from "./components/GeneratingScreen";
 import { GameLogo } from "./components/GameLogo";
+import { JoinRoomForm } from "./components/JoinRoomForm";
+import { LobbyScreen } from "./components/LobbyScreen";
 import { SubmissionForm } from "./components/SubmissionForm";
 import { VotingScreen } from "./components/VotingScreen";
+import { WinnerScreen } from "./components/WinnerScreen";
 import { parseSubmission } from "./components/submissions";
 import type { GameMode, Player, RoundHistoryItem, ScoreboardPlayer } from "./components/types";
 
@@ -39,6 +43,40 @@ function getImageStyleLabel(style: string) {
   return style.split("_").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function doesTextMentionName(text: string, playerName: string) {
+  const trimmedName = playerName.trim();
+  if (trimmedName.length < 2) return false;
+
+  const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegExp(trimmedName.toLowerCase())}([^a-z0-9]|$)`, "i");
+  return pattern.test(text.toLowerCase());
+}
+
+function buildPlayerAppearanceContext(players: Player[], currentPlayerName: string, answer: string) {
+  const trimmedAnswer = answer.trim();
+  const currentPlayer = players.find((player) => player.name === currentPlayerName);
+  const namedPlayers = players.filter((player) => doesTextMentionName(trimmedAnswer, player.name));
+  const mentionsSelf = /\b(i|me|my|mine|myself)\b/i.test(trimmedAnswer);
+  const relevantPlayers = [...namedPlayers];
+
+  if (mentionsSelf && currentPlayer && !relevantPlayers.some((player) => player.name === currentPlayer.name)) {
+    relevantPlayers.push(currentPlayer);
+  }
+
+  const playersToDescribe = relevantPlayers.length > 0 ? relevantPlayers : currentPlayer ? [currentPlayer] : [];
+
+  if (playersToDescribe.length === 0) {
+    return "No specific player appearance is available. Use a generic funny character.";
+  }
+
+  return playersToDescribe
+    .map((player) => `${player.name}: ${player.avatar_description || "Generic person"}`)
+    .join("\n");
+}
+
 const confettiPieces = Array.from({ length: 28 }, (_, index) => ({
   color: ["#9810fa", "#facc15", "#ec4899", "#22c55e", "#38bdf8"][index % 5],
   delay: `${(index % 7) * 0.14}s`,
@@ -61,7 +99,6 @@ export default function GameRoom() {
   const [submissions, setSubmissions] = useState<string[]>([]);
   const [winner, setWinner] = useState("");
   const [pointsAwarded, setPointsAwarded] = useState(false);
-  const [scoreboard, setScoreboard] = useState<string[]>([]);
   const [scoreboardPlayers, setScoreboardPlayers] = useState<ScoreboardPlayer[]>([]);
   const [finalWinner, setFinalWinner] = useState("");
   const [loadingMessage, setLoadingMessage] = useState("Generating chaos...");
@@ -664,7 +701,7 @@ async function grantImageRetryTime() {
     alert("The round is still loading. Please try again.");
     return;
   }
-  const currentPlayer = players.find((player) => player.name === name);
+  const playerAppearanceContext = buildPlayerAppearanceContext(players, name, submission);
 
   setIsSubmitting(true);
 
@@ -678,8 +715,11 @@ ${roundPrompt}
 Player Answer:
 ${submission.trim()}
 
-Player Appearance:
-${currentPlayer?.avatar_description || "Generic person"}
+Relevant Player Appearances:
+${playerAppearanceContext}
+
+If a player name is mentioned in the answer, use that named player's appearance for that character.
+Only use the submitting player's appearance when the answer refers to them directly or no other player is named.
 
 Turn this into a single funny visual scene.
 
@@ -1291,10 +1331,6 @@ async function loadScoreboard() {
 
 setScoreboardPlayers(sortedPlayers);
 
-setScoreboard(
-  sortedPlayers.map((player) => `${player.name} - ${player.points ?? 0}`)
-);
-
   const leader = data[0];
 
   if (leader && leader.points >= 3) {
@@ -1327,298 +1363,38 @@ if (isPageLoading) {
       <GameLogo />
 
       {!joined ? (
-  <>
-    <input
-      value={name}
-      onChange={(e) => setName(e.target.value)}
-      placeholder="Enter your name"
-      className="border p-3 rounded-xl"
-    />
-
-    <input
-      type="file"
-      accept="image/*"
-      onChange={(e) => {
-        setAvatarFile(e.target.files?.[0] || null);
-      }}
-      className="border p-3 rounded-xl"
-    />
-
-    <button
-  onClick={joinGame}
-  disabled={isJoining}
-  className="bg-black text-white px-6 py-3 rounded-xl disabled:opacity-50"
->
-  {isJoining ? "Joining..." : "Join Room"}
-</button>
-  </>
+  <JoinRoomForm
+    name={name}
+    isJoining={isJoining}
+    onNameChange={setName}
+    onAvatarFileChange={setAvatarFile}
+    onJoinGame={joinGame}
+  />
 ) : stage === "lobby" ? (
-        <>
-          <div className="text-center">
-            <h2 className="text-3xl font-black">Waiting for Players</h2>
-            <p className="mt-1 text-sm font-bold text-purple-600">
-              {players.length} / {MAX_PLAYERS} players in the room
-            </p>
-          </div>
-
-          <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-          <div className="rounded-3xl border border-purple-200 bg-white p-5 shadow-lg">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-extrabold">Players</h3>
-              <p className="text-sm text-gray-500">
-                {players.length === MAX_PLAYERS
-                  ? "The room is full!"
-                  : `Waiting for ${MAX_PLAYERS - players.length} more player${MAX_PLAYERS - players.length === 1 ? "" : "s"}.`}
-              </p>
-            </div>
-            <span className="rounded-full bg-purple-100 px-3 py-1 text-sm font-extrabold text-purple-700">
-              {players.length} / {MAX_PLAYERS}
-            </span>
-          </div>
-
-          <div className="mb-4 grid gap-1" style={{ gridTemplateColumns: `repeat(${MAX_PLAYERS}, minmax(0, 1fr))` }}>
-            {Array.from({ length: MAX_PLAYERS }, (_, index) => (
-              <div
-                key={index}
-                className={`h-2 rounded-full ${index < players.length ? "bg-purple-600" : "bg-gray-200"}`}
-              />
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-2">
-  {players.map((player, index) => (
-    <div
-      key={index}
-      className="border rounded-xl p-3 flex items-center gap-3"
-    >
-      {player.avatar_url ? (
-        <img
-          src={player.avatar_url}
-          alt={player.name}
-          className="w-16 h-16 rounded-full object-cover border-2 border-purple-500"
-        />
-      ) : (
-        <div className="w-12 h-12 rounded-full bg-gray-300 flex items-center justify-center">
-          👤
-        </div>
-      )}
-
-     <div>
-  <div className="font-bold">
-    {player.name}
-    {player.is_host && (
-      <span className="ml-2 text-yellow-500">
-        👑 Host
-      </span>
-    )}
-  </div>
-
-  <div className="text-sm text-gray-500">
-    {player.points} pts
-  </div>
-</div>
-    </div>
-  ))}
-</div>
-          </div>
-          <div className="flex w-full flex-col gap-4">
-  {isHost ? (
-    <>
-  <div className="w-full max-w-xl rounded-2xl border border-purple-200 bg-purple-50 p-4">
-    <p className="mb-3 text-sm font-extrabold uppercase tracking-wider text-purple-700">
-      Choose game mode
-    </p>
-    <div className="grid grid-cols-2 gap-3">
-      <button
-        type="button"
-        onClick={() => setSelectedGameMode("classic")}
-        disabled={!isHost}
-        className={`rounded-xl border-2 p-3 text-left transition disabled:cursor-default ${
-          selectedGameMode === "classic"
-            ? "border-purple-600 bg-white shadow-sm"
-            : "border-transparent bg-white/60 hover:border-purple-200"
-        }`}
-      >
-        <span className="block font-extrabold">Classic</span>
-        <span className="text-xs text-gray-500">Write a funny answer</span>
-      </button>
-      <button
-        type="button"
-        onClick={() => setSelectedGameMode("cards")}
-        disabled={!isHost}
-        className={`rounded-xl border-2 p-3 text-left transition disabled:cursor-default ${
-          selectedGameMode === "cards"
-            ? "border-black bg-black text-white shadow-sm"
-            : "border-transparent bg-white/60 hover:border-purple-200"
-        }`}
-      >
-        <span className="block font-extrabold">Fill in the Blank</span>
-        <span className={`text-xs ${selectedGameMode === "cards" ? "text-gray-300" : "text-gray-500"}`}>
-          Complete a prompt card
-        </span>
-      </button>
-    </div>
-    {!isHost && (
-      <p className="mt-3 text-xs text-gray-500">Only the host can choose the game mode.</p>
-    )}
-  </div>
-
-    <button
-      onClick={startGame}
-      disabled={isStarting || players.length < 2}
-      className="w-full max-w-xl bg-green-600 text-white px-6 py-4 rounded-2xl font-extrabold shadow-lg disabled:opacity-50"
-    >
-      {isStarting ? "Starting..." : "Start Game"}
-    </button>
-
-    {players.length < 2 && (
-      <p className="text-center text-sm font-bold text-purple-700">
-        Waiting for one more player to join.
-      </p>
-    )}
-
-    <div className="w-full max-w-xl">
-      <button
-        type="button"
-        onClick={() => setIsRoundCustomizationOpen((open) => !open)}
-        aria-expanded={isRoundCustomizationOpen}
-        className="w-full rounded-xl border border-purple-200 px-4 py-3 font-bold text-purple-700"
-      >
-        {isRoundCustomizationOpen ? "Hide Round Settings" : "Customize Round"}
-      </button>
-
-      {isRoundCustomizationOpen && (
-        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4 rounded-2xl border border-purple-200 bg-purple-50 p-4">
-    {selectedGameMode === "classic" && (
-    <div>
-    <label className="mb-2 block text-sm font-bold text-purple-600">
-      Prompt category
-    </label>
-    <select
-        value={selectedCategory}
-        onChange={(e) => setSelectedCategory(e.target.value)}
-        className="w-full border p-3 rounded-xl"
-      >
-      <option value="Random">🎲 Random</option>
-      <option value="personal">👥 Personal</option>
-      <option value="history">🏰 History</option>
-      <option value="animals">🐻 Animals</option>
-      <option value="sports">🏈 Sports</option>
-      <option value="food">🍕 Food</option>
-      <option value="work">💼 Work</option>
-      <option value="general">🎉 General</option>
-      <option value="chaos">🤪 Chaos</option>
-      <option value="dating">❤️ Dating</option>
-    </select>
-    </div>
-    )}
-
-    <div className="w-full max-w-xl">
-      <label className="mb-2 block text-sm font-bold text-purple-600">
-        Image style
-      </label>
-      <select
-        value={selectedImageStyle}
-        onChange={(e) => setSelectedImageStyle(e.target.value)}
-        disabled={!isHost}
-        className="w-full border p-3 rounded-xl"
-      >
-        <option value="prompt">Prompt's style</option>
-        <option value="cartoon">Colorful Cartoon</option>
-        <option value="comic_book">Comic Book</option>
-        <option value="clay_animation">Clay Animation</option>
-        <option value="storybook">Storybook</option>
-        <option value="pixel_art">Pixel Art</option>
-      </select>
-    </div>
-
-    <div className="w-full max-w-xl">
-      <label className="mb-2 block text-sm font-bold text-purple-600">
-        Answer timer
-      </label>
-      <select
-        value={selectedRoundDuration}
-        onChange={(e) =>
-          setSelectedRoundDuration(
-            e.target.value === "unlimited" ? "unlimited" : Number(e.target.value)
-          )
-        }
-        disabled={!isHost}
-        className="w-full border p-3 rounded-xl"
-      >
-        <option value="unlimited">Unlimited</option>
-        <option value={60}>1 minute</option>
-        <option value={90}>1 minute 30 seconds</option>
-        <option value={120}>2 minutes</option>
-        <option value={180}>3 minutes</option>
-        <option value={300}>5 minutes</option>
-      </select>
-    </div>
-
-    <div className="w-full max-w-xl">
-      <label className="mb-2 block text-sm font-bold text-purple-600">
-        Voting timer
-      </label>
-      <select
-        value={selectedVotingDuration}
-        onChange={(e) => setSelectedVotingDuration(Number(e.target.value))}
-        className="w-full border p-3 rounded-xl"
-      >
-        <option value={30}>30 seconds</option>
-        <option value={45}>45 seconds</option>
-        <option value={60}>1 minute</option>
-        <option value={90}>1 minute 30 seconds</option>
-      </select>
-    </div>
-        </div>
-      )}
-    </div>
-
-    {isHost && (
-      <div className="w-full max-w-xl rounded-2xl border border-purple-200 bg-white p-4 text-center shadow-sm">
-        <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
-          Invite your friends
-        </p>
-        <p className="mt-1 text-3xl font-black tracking-widest text-purple-700">
-          {code}
-        </p>
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={copyRoomCode}
-            className="rounded-xl bg-black px-4 py-3 font-bold text-white"
-          >
-            Copy Code
-          </button>
-          <button
-            type="button"
-            onClick={shareRoom}
-            className="rounded-xl bg-purple-600 px-4 py-3 font-bold text-white"
-          >
-            Share Game
-          </button>
-        </div>
-        {roomShareMessage && (
-          <p className="mt-2 text-sm font-bold text-green-700">{roomShareMessage}</p>
-        )}
-      </div>
-    )}
-
-</>
-) : (
-  <div className="w-full max-w-xl rounded-2xl border border-purple-200 bg-purple-50 p-4 text-center">
-    <p className="font-bold">
-      Game mode: {selectedGameMode === "cards" ? "Fill in the Blank" : "Classic"}
-    </p>
-    <p className="mt-2 text-sm text-gray-500">
-      Waiting for {hostName || "the host"} to start the game...
-    </p>
-  </div>
-)}
-</div>
-</div>
-</>
+  <LobbyScreen
+    code={code}
+    players={players}
+    maxPlayers={MAX_PLAYERS}
+    isHost={isHost}
+    hostName={hostName}
+    selectedGameMode={selectedGameMode}
+    selectedCategory={selectedCategory}
+    selectedImageStyle={selectedImageStyle}
+    selectedRoundDuration={selectedRoundDuration}
+    selectedVotingDuration={selectedVotingDuration}
+    isStarting={isStarting}
+    isRoundCustomizationOpen={isRoundCustomizationOpen}
+    roomShareMessage={roomShareMessage}
+    onGameModeChange={setSelectedGameMode}
+    onCategoryChange={setSelectedCategory}
+    onImageStyleChange={setSelectedImageStyle}
+    onRoundDurationChange={setSelectedRoundDuration}
+    onVotingDurationChange={setSelectedVotingDuration}
+    onToggleRoundCustomization={() => setIsRoundCustomizationOpen((open) => !open)}
+    onStartGame={startGame}
+    onCopyRoomCode={copyRoomCode}
+    onShareRoom={shareRoom}
+  />
 ) : stage === "submitting" ? (
   <>
     {showRoundIntro && (
@@ -1667,96 +1443,18 @@ if (isPageLoading) {
 </div>
 
     {hasSubmitted || isSubmitting ? (
-  <div className="fixed inset-0 bg-purple-700 text-white overflow-y-auto z-50">
-    {!hasCurrentRoundImage && currentGalleryImage && (
-      <div className="absolute inset-0 bg-purple-950">
-        <img
-          src={currentGalleryImage}
-          alt="A past winning image"
-          className="w-full h-full object-contain transition-opacity duration-500"
-          style={{ opacity: isGalleryImageVisible ? 1 : 0 }}
-        />
-        <div
-          className="absolute inset-0"
-          style={{ backgroundColor: "rgba(76, 0, 128, 0.72)" }}
-        />
-      </div>
-    )}
-
-    <div className="relative z-50 flex min-h-full w-full flex-col items-center justify-center gap-5 p-6 py-10">
-    <div className="text-6xl animate-bounce">🎨</div>
-
-    <h2 className="text-3xl font-extrabold">
-      Generating Images...
-    </h2>
-
-    <p className="text-lg text-center max-w-md">
-      {loadingMessage || "Adding maximum chaos..."}
-    </p>
-
-    <p className="text-sm opacity-80 font-bold">
-      {submissions.length} / {players.length} ready
-    </p>
-
-    {(hasCurrentRoundImage || !currentGalleryImage) && (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
-      {players.map((player) => {
-        const playerSubmission = submissions.find((item) => {
-          return parseSubmission(item).playerName === player.name;
-        });
-
-        const { text, imageUrl } = playerSubmission
-          ? parseSubmission(playerSubmission)
-          : { text: "", imageUrl: "" };
-
-        return (
-          <div
-            key={player.name}
-            className="bg-purple-900/60 rounded-2xl p-3 text-center border border-white/20"
-          >
-            {imageUrl ? (
-              <>
-                <img
-                  src={imageUrl}
-                  alt={text}
-                  className="w-full aspect-square object-cover rounded-xl mb-2"
-                />
-
-                <p className="text-sm font-bold truncate">
-                  {player.name} ✅
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="w-full aspect-square rounded-xl bg-purple-800 flex flex-col items-center justify-center mb-2">
-                  <div className="text-4xl animate-pulse">⏳</div>
-                  <p className="text-xs mt-2 opacity-80">Generating...</p>
-                </div>
-
-                <p className="text-sm font-bold">
-                  {player.name}
-                </p>
-              </>
-            )}
-          </div>
-        );
-      })}
-    </div>
-    )}
-
-    {isHost && submissions.length > 0 && (
-      <button
-        type="button"
-        onClick={forceReveal}
-        disabled={isForcingStage}
-        className="bg-white text-purple-700 px-6 py-3 rounded-2xl font-extrabold disabled:opacity-50"
-      >
-        {isForcingStage ? "Opening Reveal..." : "Reveal Submitted Images"}
-      </button>
-    )}
-    </div>
-  </div>
-) : (
+      <GeneratingScreen
+        players={players}
+        submissions={submissions}
+        loadingMessage={loadingMessage}
+        currentGalleryImage={currentGalleryImage}
+        hasCurrentRoundImage={hasCurrentRoundImage}
+        isGalleryImageVisible={isGalleryImageVisible}
+        isHost={isHost}
+        isForcingStage={isForcingStage}
+        onForceReveal={forceReveal}
+      />
+    ) : (
   <SubmissionForm
     gameMode={selectedGameMode}
     submission={submission}
@@ -1864,175 +1562,22 @@ if (isPageLoading) {
    WINNER SCREEN
 ======================================= */
 ) : stage === "winner" ? (
-  <>
-    <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden" aria-hidden="true">
-      {confettiPieces.map((piece, index) => (
-        <span
-          key={index}
-          className="absolute"
-          style={{
-            animation: "confetti-fall 2.8s ease-in infinite",
-            animationDelay: piece.delay,
-            backgroundColor: piece.color,
-            height: "16px",
-            left: piece.left,
-            top: "-24px",
-            transform: `rotate(${piece.rotation})`,
-            width: "10px",
-          }}
-        />
-      ))}
-    </div>
-    <div className="w-full max-w-md bg-gradient-to-b from-purple-700 to-purple-950 text-white rounded-3xl p-6 text-center shadow-2xl border-4 border-yellow-300">
-      <h2 className="text-4xl font-extrabold mb-4">
-        {winnerImages.length > 1 ? "Tie Winners" : "Round Winner"}
-      </h2>
-
-      <div
-        className={`grid gap-4 mb-5 ${
-          winnerImages.length > 1 ? "grid-cols-2" : "grid-cols-1"
-        }`}
-      >
-        {winnerImages.map((imageUrl, index) => (
-          <img
-            key={index}
-            src={imageUrl}
-            alt="Winning image"
-            className="w-full aspect-square object-cover rounded-2xl border-4 border-white shadow-xl"
-          />
-        ))}
-      </div>
-
-      <div className="relative bg-white text-black rounded-2xl p-4">
-        <div className="absolute -top-10 left-1/2 -translate-x-1/2 text-5xl">
-          👑
-        </div>
-
-        <p className="text-3xl font-extrabold mt-4">
-          {winnerName || "Calculating..."}
-        </p>
-
-        <p className="text-sm text-gray-500 mt-1">
-          {winnerImages.length > 1 ? "tied for the round" : "won the round"}
-        </p>
-
-        <p className="mt-4 text-lg font-semibold">
-          “{winnerPrompt || winner}”
-        </p>
-      </div>
-    </div>
-
-    <div className="bg-white border-4 border-purple-300 rounded-3xl p-5 w-full max-w-md shadow-xl">
-      <h3 className="text-3xl font-extrabold text-center mb-4">
-        Scoreboard
-      </h3>
-
-      <div className="flex flex-col gap-3">
-       {scoreboardPlayers.map((player, index) => (
-      <div
-        key={player.name}
-        className={`flex justify-between items-center rounded-2xl px-4 py-3 font-bold ${
-        index === 0
-        ? "bg-yellow-100 border-2 border-yellow-400 text-yellow-900"
-        : "bg-purple-100 text-purple-900"
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          {player.avatar_url && (
-          <img
-          src={player.avatar_url}
-          alt={player.name}
-          className="w-10 h-10 rounded-full object-cover border-2 border-white"
-          />
-        )}
-
-      <span>
-        {index === 0 ? "👑 " : ""}
-        {player.name}
-      </span>
-    </div>
-
-    <span>{player.points ?? 0}</span>
-  </div>
-))}
-      </div>
-    </div>
-
-    {finalWinner && (
-  <div className="border-4 border-yellow-400 rounded-3xl p-5 max-w-4xl text-center bg-yellow-100 shadow-xl">
-    <h3 className="text-3xl font-extrabold">🎉 Final Winner</h3>
-    <p className="text-xl font-bold mt-2">{finalWinner}</p>
-
-    <div className="mt-8">
-      <h4 className="text-2xl font-extrabold mb-4">
-        🏆 Round History
-      </h4>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {roundHistory.map((round) => (
-          <div
-            key={round.id}
-            className="bg-white rounded-2xl p-3 shadow text-black"
-          >
-            <p className="font-bold mb-2">
-              Round {round.round_number}
-            </p>
-
-            {round.winner_image_url && (
-              <img
-                src={round.winner_image_url}
-                alt={round.winner_prompt}
-                className="w-full rounded-xl mb-2"
-              />
-            )}
-
-            <p className="font-bold">
-              👑 {round.winner_name}
-            </p>
-
-            <p className="text-sm text-gray-600">
-              "{round.winner_prompt}"
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-)}
-
-    {finalWinner && isHost && (
-      <button
-        type="button"
-        onClick={playAgain}
-        disabled={isPlayingAgain}
-        className="bg-green-600 text-white px-8 py-4 rounded-2xl disabled:opacity-50 font-extrabold shadow-lg"
-      >
-        {isPlayingAgain ? "Resetting Game..." : "Play Again"}
-      </button>
-    )}
-
-    {finalWinner && !isHost && (
-      <p className="text-gray-500 text-center">
-        Waiting for {hostName || "the host"} to start a rematch...
-      </p>
-    )}
-
-    {!finalWinner && isHost && (
-  <button
-    onClick={nextRound}
-    disabled={isAdvancing}
-    className="bg-purple-600 text-white px-8 py-4 rounded-2xl disabled:opacity-50 font-extrabold shadow-lg"
-  >
-    {isAdvancing ? "Starting..." : "Next Round"}
-  </button>
-)}
-
-{!finalWinner && !isHost && (
-  <p className="text-gray-500 text-center">
-    Waiting for {hostName || "the host"} to start the next round...
-  </p>
-)}
-  </>
+  <WinnerScreen
+    confettiPieces={confettiPieces}
+    winnerImages={winnerImages}
+    winnerName={winnerName}
+    winnerPrompt={winnerPrompt}
+    winner={winner}
+    scoreboardPlayers={scoreboardPlayers}
+    finalWinner={finalWinner}
+    roundHistory={roundHistory}
+    isHost={isHost}
+    hostName={hostName}
+    isPlayingAgain={isPlayingAgain}
+    isAdvancing={isAdvancing}
+    onPlayAgain={playAgain}
+    onNextRound={nextRound}
+  />
 ) : (
   <p>Unknown game stage.</p>
 )}
