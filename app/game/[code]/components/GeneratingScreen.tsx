@@ -52,8 +52,15 @@ export function GeneratingScreen({
         </div>
       )}
 
-      <div className="relative z-50 flex min-h-full w-full flex-col items-center justify-center gap-5 p-6 py-10">
-        <div className="animate-bounce text-6xl">🎨</div>
+      <div className="relative z-50 flex min-h-full w-full flex-col items-center justify-center gap-4 p-4 py-8">
+        <PromptLibraryRater
+          prompt={promptToRate}
+          isSaving={isRatingPrompt}
+          onRate={onRatePrompt}
+          onSkip={onSkipPromptRating}
+        />
+
+        <div className="animate-bounce text-5xl">🎨</div>
         <h2 className="text-3xl font-extrabold">Generating Images...</h2>
         <p className="max-w-md text-center text-lg">
           {loadingMessage || "Adding maximum chaos..."}
@@ -75,13 +82,6 @@ export function GeneratingScreen({
             emptyMessage="All images are ready!"
           />
         )}
-
-        <PromptLibraryRater
-          prompt={promptToRate}
-          isSaving={isRatingPrompt}
-          onRate={onRatePrompt}
-          onSkip={onSkipPromptRating}
-        />
 
         {(hasCurrentRoundImage || !currentGalleryImage) && (
           <div className="grid w-full max-w-3xl grid-cols-1 gap-6 md:grid-cols-2">
