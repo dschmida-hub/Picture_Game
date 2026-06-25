@@ -13,6 +13,7 @@ type VotingScreenProps = {
   isHost: boolean;
   isForcingStage: boolean;
   hasVoted: boolean;
+  allowSelfVoting: boolean;
   playerName: string;
   submissions: string[];
   onEndVotingEarly: () => void;
@@ -33,6 +34,7 @@ export function VotingScreen({
   isHost,
   isForcingStage,
   hasVoted,
+  allowSelfVoting,
   playerName,
   submissions,
   onEndVotingEarly,
@@ -84,7 +86,8 @@ export function VotingScreen({
             imageCaption,
           } = parseSubmission(item);
           const isOwnSubmission = submissionPlayerName === playerName;
-          const isVoteUnavailable = hasVoted || isVotingTimeExpired || isOwnSubmission;
+          const isSelfVoteBlocked = isOwnSubmission && !allowSelfVoting;
+          const isVoteUnavailable = hasVoted || isVotingTimeExpired || isSelfVoteBlocked;
 
           return (
             <div
@@ -125,7 +128,9 @@ export function VotingScreen({
                 ) : (
                   <p className="text-center text-sm text-gray-500">
                     {isOwnSubmission
-                      ? "Your submission"
+                      ? allowSelfVoting
+                        ? "Vote locked in"
+                        : "Your submission"
                       : isVotingTimeExpired
                         ? "Voting time is up"
                         : "Vote locked in"}

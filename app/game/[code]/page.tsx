@@ -828,7 +828,9 @@ console.log(imagePrompt);
 async function voteForSubmission(answerText: string, playerName: string) {
   if (hasVoted) return;
   if (!currentGameId) return;
-  if (playerName === name) {
+  const allowSelfVoting = players.length === 2;
+
+  if (playerName === name && !allowSelfVoting) {
     alert("You can't vote for your own submission.");
     return;
   }
@@ -1848,6 +1850,7 @@ if (isPageLoading) {
       isHost={isHost}
       isForcingStage={isForcingStage}
       hasVoted={hasVoted}
+      allowSelfVoting={players.length === 2}
       playerName={name}
       submissions={submissions}
       onEndVotingEarly={endVotingEarly}
