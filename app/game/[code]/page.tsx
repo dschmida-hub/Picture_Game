@@ -425,17 +425,20 @@ async function submitPromptSuggestion() {
 
     if (suggestionError) throw suggestionError;
 
-    await supabase.from("room_prompt_suggestion_votes").insert({
+    const { error: voteError } = await supabase.from("room_prompt_suggestion_votes").insert({
       room_code: code,
       suggestion_id: suggestion.id,
       voter_name: name,
     });
 
+    if (voteError) throw voteError;
+
     setPromptSuggestionText("");
     await loadPromptSuggestions();
   } catch (error) {
     console.error("Failed to submit prompt suggestion:", error);
-    alert("Could not submit that prompt suggestion.");
+    const message = error instanceof Error ? error.message : "Unknown Supabase error";
+    alert(`Could not submit that prompt suggestion: ${message}`);
   } finally {
     setIsSubmittingPromptSuggestion(false);
   }
