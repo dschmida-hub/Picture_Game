@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { GameLogo } from "./components/GameLogo";
 import { SubmissionForm } from "./components/SubmissionForm";
 import { VotingScreen } from "./components/VotingScreen";
+import { parseSubmission } from "./components/submissions";
+import type { GameMode, Player, RoundHistoryItem, ScoreboardPlayer } from "./components/types";
 
 type GameStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
 type PromptOption = { id: number; prompt: string; image_style: string | null };
@@ -51,13 +53,6 @@ export default function GameRoom() {
 
   const [name, setName] = useState("");
   const [joined, setJoined] = useState(false);
-  type Player = {
-  name: string;
-  points: number;
-  avatar_url: string | null;
-  avatar_description?: string |null;
-  is_host: boolean;
-};
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [stage, setStage] = useState<GameStage>("lobby");
@@ -66,13 +61,13 @@ export default function GameRoom() {
   const [submissions, setSubmissions] = useState<string[]>([]);
   const [winner, setWinner] = useState("");
   const [pointsAwarded, setPointsAwarded] = useState(false);
-  const [scoreboard, setScoreboard] = useState<any[]>([]);
-  const [scoreboardPlayers, setScoreboardPlayers] = useState<any[]>([]);
+  const [scoreboard, setScoreboard] = useState<string[]>([]);
+  const [scoreboardPlayers, setScoreboardPlayers] = useState<ScoreboardPlayer[]>([]);
   const [finalWinner, setFinalWinner] = useState("");
   const [loadingMessage, setLoadingMessage] = useState("Generating chaos...");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("Random");
-  const [selectedGameMode, setSelectedGameMode] = useState<"classic" | "cards">("classic");
+  const [selectedGameMode, setSelectedGameMode] = useState<GameMode>("classic");
   const [selectedImageStyle, setSelectedImageStyle] = useState("prompt");
   const [selectedRoundDuration, setSelectedRoundDuration] = useState<number | "unlimited">(90);
   const [selectedVotingDuration, setSelectedVotingDuration] = useState(45);
@@ -97,17 +92,15 @@ export default function GameRoom() {
   const [winnerImages, setWinnerImages] = useState<string[]>([]);
   const hostName = players.find((player) => player.is_host)?.name;
   const isHost = joined && name === hostName;
-  const [roundHistory, setRoundHistory] = useState<any[]>([]);
+  const [roundHistory, setRoundHistory] = useState<RoundHistoryItem[]>([]);
   const [pastImages, setPastImages] = useState<string[]>([]);
   const [galleryImageIndex, setGalleryImageIndex] = useState(0);
   const [isGalleryImageVisible, setIsGalleryImageVisible] = useState(true);
   const hasSubmitted = submissions.some((item) => {
-  const parts = item.split("|||");
-  const playerName = parts[2];
-  return playerName === name;
+  return parseSubmission(item).playerName === name;
 });
   const hasCurrentRoundImage = submissions.some((item) =>
-    Boolean(item.split("|||")[1])
+    Boolean(parseSubmission(item).imageUrl)
   );
   const currentGalleryImage = pastImages[galleryImageIndex % pastImages.length];
   const timeRemainingSeconds = roundDeadline
@@ -1707,13 +1700,12 @@ if (isPageLoading) {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
       {players.map((player) => {
         const playerSubmission = submissions.find((item) => {
-          const [text, imageUrl, playerName] = item.split("|||");
-          return playerName === player.name;
+          return parseSubmission(item).playerName === player.name;
         });
 
-        const [text, imageUrl] = playerSubmission
-          ? playerSubmission.split("|||")
-          : ["", ""];
+        const { text, imageUrl } = playerSubmission
+          ? parseSubmission(playerSubmission)
+          : { text: "", imageUrl: "" };
 
         return (
           <div

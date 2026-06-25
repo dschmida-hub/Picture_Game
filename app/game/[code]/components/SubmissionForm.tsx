@@ -1,4 +1,4 @@
-type GameMode = "classic" | "cards";
+import type { GameMode } from "./types";
 
 type SubmissionFormProps = {
   gameMode: GameMode;

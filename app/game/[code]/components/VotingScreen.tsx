@@ -1,4 +1,6 @@
-type GameMode = "classic" | "cards";
+import { RoundPromptCard } from "./RoundPromptCard";
+import { parseSubmission } from "./submissions";
+import type { GameMode } from "./types";
 
 type VotingScreenProps = {
   showHeader?: boolean;
@@ -39,53 +41,48 @@ export function VotingScreen({
   formatCountdown,
   getImageStyleLabel,
 }: VotingScreenProps) {
-  const isCards = gameMode === "cards";
-
   return (
     <>
-      {showHeader && <div className="w-full max-w-3xl space-y-3 text-center">
-        <div
-          className={`mx-auto w-full max-w-2xl rounded-3xl p-5 text-center shadow-xl ${
-            isCards ? "bg-black text-white" : "bg-white"
-          }`}
-        >
-          <div className={`mb-2 font-bold tracking-wider ${isCards ? "text-gray-300" : "text-purple-600"}`}>
-            {isCards ? "🃏 FILL IN THE BLANK" : "🎯 ROUND PROMPT"}
-          </div>
-          <h2 className="text-3xl font-black">{roundPrompt}</h2>
-          <p className={`mt-3 text-sm font-bold ${isCards ? "text-gray-300" : "text-purple-600"}`}>
-            Art style: {getImageStyleLabel(roundImageStyle)}
-          </p>
-          {votingTimeRemainingSeconds !== null && (
-            <p className="mt-4 text-lg font-extrabold">
-              {isVotingTimeExpired
-                ? "Voting time is up — waiting for the host"
-                : `Vote now: ${formatCountdown(votingTimeRemainingSeconds)}`}
-            </p>
+      {showHeader && (
+        <div className="w-full max-w-3xl space-y-3 text-center">
+          <RoundPromptCard
+            gameMode={gameMode}
+            prompt={roundPrompt}
+            imageStyle={roundImageStyle}
+            timeRemainingSeconds={votingTimeRemainingSeconds}
+            expiredMessage="Voting time is up — waiting for the host"
+            activeTimerLabel="Vote now"
+            formatCountdown={formatCountdown}
+            getImageStyleLabel={getImageStyleLabel}
+          />
+
+          {voteMessage && (
+            <div className="rounded-xl border border-green-400 bg-green-100 px-4 py-3 text-green-700">
+              {voteMessage}
+            </div>
+          )}
+
+          {isHost && (
+            <button
+              type="button"
+              onClick={onEndVotingEarly}
+              disabled={isForcingStage}
+              className="rounded-2xl bg-purple-700 px-6 py-3 font-extrabold text-white disabled:opacity-50"
+            >
+              {isForcingStage ? "Calculating Winner..." : "End Voting & Reveal Winner"}
+            </button>
           )}
         </div>
-
-        {voteMessage && (
-          <div className="rounded-xl border border-green-400 bg-green-100 px-4 py-3 text-green-700">
-            {voteMessage}
-          </div>
-        )}
-
-        {isHost && (
-          <button
-            type="button"
-            onClick={onEndVotingEarly}
-            disabled={isForcingStage}
-            className="rounded-2xl bg-purple-700 px-6 py-3 font-extrabold text-white disabled:opacity-50"
-          >
-            {isForcingStage ? "Calculating Winner..." : "End Voting & Reveal Winner"}
-          </button>
-        )}
-      </div>}
+      )}
 
       <div className="grid w-full max-w-5xl grid-cols-1 gap-5 md:grid-cols-2">
         {submissions.map((item, index) => {
-          const [text, imageUrl, submissionPlayerName, imageCaption] = item.split("|||");
+          const {
+            text,
+            imageUrl,
+            playerName: submissionPlayerName,
+            imageCaption,
+          } = parseSubmission(item);
           const isOwnSubmission = submissionPlayerName === playerName;
           const isVoteUnavailable = hasVoted || isVotingTimeExpired || isOwnSubmission;
 
@@ -108,10 +105,12 @@ export function VotingScreen({
                   className="aspect-square w-full bg-gray-100 object-cover"
                 />
               )}
+
               <div className="bg-white p-4">
                 <p className="mb-4 text-center text-xl font-bold leading-relaxed">
                   {imageCaption || "Untitled Masterpiece"}
                 </p>
+
                 {!isVoteUnavailable ? (
                   <button
                     type="button"

@@ -1,4 +1,5 @@
-type Player = { name: string };
+import { parseSubmission } from "./submissions";
+import type { Player } from "./types";
 
 type GeneratingScreenProps = {
   players: Player[];
@@ -51,12 +52,11 @@ export function GeneratingScreen({
           <div className="grid w-full max-w-3xl grid-cols-1 gap-6 md:grid-cols-2">
             {players.map((player) => {
               const playerSubmission = submissions.find((item) => {
-                const [, , playerName] = item.split("|||");
-                return playerName === player.name;
+                return parseSubmission(item).playerName === player.name;
               });
-              const [text, imageUrl] = playerSubmission
-                ? playerSubmission.split("|||")
-                : ["", ""];
+              const { text, imageUrl } = playerSubmission
+                ? parseSubmission(playerSubmission)
+                : { text: "", imageUrl: "" };
 
               return (
                 <div
