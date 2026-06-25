@@ -1,9 +1,11 @@
-import type { GameMode, Player, RoundDuration } from "./types";
+import { PromptSuggestionPanel } from "./PromptSuggestionPanel";
+import type { GameMode, Player, PromptSuggestion, RoundDuration } from "./types";
 
 type LobbyScreenProps = {
   code: string;
   players: Player[];
   maxPlayers: number;
+  playerName: string;
   isHost: boolean;
   hostName?: string;
   selectedGameMode: GameMode;
@@ -14,6 +16,11 @@ type LobbyScreenProps = {
   isStarting: boolean;
   isRoundCustomizationOpen: boolean;
   roomShareMessage: string;
+  promptSuggestions: PromptSuggestion[];
+  promptSuggestionText: string;
+  promptSuggestionMode: GameMode;
+  promptApprovalVotesNeeded: number;
+  isSubmittingPromptSuggestion: boolean;
   onGameModeChange: (mode: GameMode) => void;
   onCategoryChange: (category: string) => void;
   onImageStyleChange: (style: string) => void;
@@ -23,12 +30,17 @@ type LobbyScreenProps = {
   onStartGame: () => void;
   onCopyRoomCode: () => void;
   onShareRoom: () => void;
+  onPromptSuggestionTextChange: (value: string) => void;
+  onPromptSuggestionModeChange: (mode: GameMode) => void;
+  onSubmitPromptSuggestion: () => void;
+  onVotePromptSuggestion: (suggestionId: number) => void;
 };
 
 export function LobbyScreen({
   code,
   players,
   maxPlayers,
+  playerName,
   isHost,
   hostName,
   selectedGameMode,
@@ -39,6 +51,11 @@ export function LobbyScreen({
   isStarting,
   isRoundCustomizationOpen,
   roomShareMessage,
+  promptSuggestions,
+  promptSuggestionText,
+  promptSuggestionMode,
+  promptApprovalVotesNeeded,
+  isSubmittingPromptSuggestion,
   onGameModeChange,
   onCategoryChange,
   onImageStyleChange,
@@ -48,6 +65,10 @@ export function LobbyScreen({
   onStartGame,
   onCopyRoomCode,
   onShareRoom,
+  onPromptSuggestionTextChange,
+  onPromptSuggestionModeChange,
+  onSubmitPromptSuggestion,
+  onVotePromptSuggestion,
 }: LobbyScreenProps) {
   return (
     <>
@@ -299,6 +320,19 @@ export function LobbyScreen({
           )}
         </div>
       </div>
+
+      <PromptSuggestionPanel
+        playerName={playerName}
+        suggestions={promptSuggestions}
+        suggestionText={promptSuggestionText}
+        suggestionMode={promptSuggestionMode}
+        approvalVotesNeeded={promptApprovalVotesNeeded}
+        isSubmittingSuggestion={isSubmittingPromptSuggestion}
+        onSuggestionTextChange={onPromptSuggestionTextChange}
+        onSuggestionModeChange={onPromptSuggestionModeChange}
+        onSubmitSuggestion={onSubmitPromptSuggestion}
+        onVoteSuggestion={onVotePromptSuggestion}
+      />
     </>
   );
 }

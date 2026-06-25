@@ -23,3 +23,13 @@ export type RoundHistoryItem = {
   winner_image_url: string | null;
   gallery_thumbnail_url?: string | null;
 };
+
+export type PromptSuggestion = {
+  id: number;
+  prompt: string;
+  game_mode: GameMode;
+  image_style: string | null;
+  submitted_by: string;
+  vote_count: number;
+  has_voted: boolean;
+};

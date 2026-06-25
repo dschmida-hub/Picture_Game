@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -7,14 +7,16 @@ import { GeneratingScreen } from "./components/GeneratingScreen";
 import { GameLogo } from "./components/GameLogo";
 import { JoinRoomForm } from "./components/JoinRoomForm";
 import { LobbyScreen } from "./components/LobbyScreen";
+import { RoundPromptCard } from "./components/RoundPromptCard";
 import { SubmissionForm } from "./components/SubmissionForm";
 import { VotingScreen } from "./components/VotingScreen";
 import { WinnerScreen } from "./components/WinnerScreen";
 import { parseSubmission } from "./components/submissions";
-import type { GameMode, Player, RoundHistoryItem, ScoreboardPlayer } from "./components/types";
+import type { GameMode, Player, PromptSuggestion, RoundHistoryItem, ScoreboardPlayer } from "./components/types";
 
 type GameStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
-type PromptOption = { id: number; prompt: string; image_style: string | null };
+type PromptSource = GameMode | `custom_${GameMode}`;
+type PromptOption = { id: number; prompt: string; image_style: string | null; source: PromptSource };
 
 const imageStyleInstructions: Record<string, string> = {
   cartoon: "Bright, colorful cartoon illustration with big expressive faces",
@@ -121,6 +123,10 @@ export default function GameRoom() {
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [roomShareMessage, setRoomShareMessage] = useState("");
+  const [promptSuggestions, setPromptSuggestions] = useState<PromptSuggestion[]>([]);
+  const [promptSuggestionText, setPromptSuggestionText] = useState("");
+  const [promptSuggestionMode, setPromptSuggestionMode] = useState<GameMode>("classic");
+  const [isSubmittingPromptSuggestion, setIsSubmittingPromptSuggestion] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
   const [voteMessage, setVoteMessage] = useState("");
   const [winnerImageUrl, setWinnerImageUrl] = useState("");
@@ -152,6 +158,7 @@ export default function GameRoom() {
     (highestRound, round) => Math.max(highestRound, round.round_number || 0),
     0
   ) + 1;
+  const promptApprovalVotesNeeded = Math.max(2, Math.ceil(players.length / 2));
 
   useEffect(() => {
     if (stage !== "submitting" || !currentGameId) return;
@@ -192,6 +199,11 @@ export default function GameRoom() {
     };
   }, [hasCurrentRoundImage, isSubmitting, pastImages.length]);
 
+  useEffect(() => {
+    if (!joined || !name) return;
+    loadPromptSuggestions();
+  }, [joined, name]);
+
   const loadingMessages = [
   "Teaching raccoons wedding etiquette...",
   "Negotiating with angry alligators...",
@@ -206,6 +218,8 @@ export default function GameRoom() {
 
 async function pickRoundPrompt(): Promise<PromptOption | null> {
   let promptQuery;
+  const basePromptSource: PromptSource = selectedGameMode;
+  const customPromptSource: PromptSource = `custom_${selectedGameMode}`;
 
   if (selectedGameMode === "cards") {
     promptQuery = supabase
@@ -230,15 +244,31 @@ async function pickRoundPrompt(): Promise<PromptOption | null> {
     return null;
   }
 
-  if (!data?.length) {
-    return null;
-  }
+  const basePrompts = ((data || []) as Array<{ id: number; prompt: string; image_style: string | null }>).map(
+    (prompt) => ({ ...prompt, source: basePromptSource })
+  );
+
+  const approvedSuggestions = promptSuggestions
+    .filter(
+      (suggestion) =>
+        suggestion.game_mode === selectedGameMode &&
+        suggestion.vote_count >= promptApprovalVotesNeeded
+    )
+    .map((suggestion) => ({
+      id: suggestion.id,
+      prompt: suggestion.prompt,
+      image_style: suggestion.image_style,
+      source: customPromptSource,
+    }));
+
+  const allPrompts = [...basePrompts, ...approvedSuggestions];
+
+  if (!allPrompts.length) return null;
 
   const { data: usedGames, error: usedGamesError } = await supabase
     .from("games")
-    .select("prompt_id")
+    .select("prompt_id, prompt_source")
     .eq("room_code", code)
-    .eq("prompt_source", selectedGameMode)
     .not("prompt_id", "is", null);
 
   if (usedGamesError) {
@@ -246,11 +276,11 @@ async function pickRoundPrompt(): Promise<PromptOption | null> {
     return null;
   }
 
-  const usedPromptIds = new Set((usedGames || []).map((game) => game.prompt_id));
-  const unusedPrompts = (data as PromptOption[]).filter(
-    (prompt) => !usedPromptIds.has(prompt.id)
+  const usedPromptKeys = new Set((usedGames || []).map((game) => `${game.prompt_source}:${game.prompt_id}`));
+  const unusedPrompts = allPrompts.filter(
+    (prompt) => !usedPromptKeys.has(`${prompt.source}:${prompt.id}`)
   );
-  const promptDeck = unusedPrompts.length > 0 ? unusedPrompts : data as PromptOption[];
+  const promptDeck = unusedPrompts.length > 0 ? unusedPrompts : allPrompts;
 
   return promptDeck[Math.floor(Math.random() * promptDeck.length)];
 }
@@ -319,6 +349,112 @@ async function loadPastImages() {
     .filter((imageUrl): imageUrl is string => Boolean(imageUrl));
 
   setPastImages(images.sort(() => Math.random() - 0.5).slice(0, 4));
+}
+
+async function loadPromptSuggestions() {
+  const { data: suggestions, error: suggestionsError } = await supabase
+    .from("room_prompt_suggestions")
+    .select("id, prompt, game_mode, image_style, submitted_by")
+    .eq("room_code", code)
+    .order("id", { ascending: false });
+
+  if (suggestionsError) {
+    console.error("Failed to load prompt suggestions:", suggestionsError);
+    return;
+  }
+
+  const suggestionIds = (suggestions || []).map((suggestion) => suggestion.id);
+
+  if (!suggestionIds.length) {
+    setPromptSuggestions([]);
+    return;
+  }
+
+  const { data: votes, error: votesError } = await supabase
+    .from("room_prompt_suggestion_votes")
+    .select("suggestion_id, voter_name")
+    .in("suggestion_id", suggestionIds);
+
+  if (votesError) {
+    console.error("Failed to load prompt suggestion votes:", votesError);
+    return;
+  }
+
+  const voteCounts = new Map<number, number>();
+  const votedByCurrentPlayer = new Set<number>();
+
+  (votes || []).forEach((vote) => {
+    voteCounts.set(vote.suggestion_id, (voteCounts.get(vote.suggestion_id) || 0) + 1);
+    if (vote.voter_name === name) {
+      votedByCurrentPlayer.add(vote.suggestion_id);
+    }
+  });
+
+  setPromptSuggestions(
+    (suggestions || []).map((suggestion) => ({
+      id: suggestion.id,
+      prompt: suggestion.prompt,
+      game_mode: suggestion.game_mode as GameMode,
+      image_style: suggestion.image_style,
+      submitted_by: suggestion.submitted_by,
+      vote_count: voteCounts.get(suggestion.id) || 0,
+      has_voted: votedByCurrentPlayer.has(suggestion.id),
+    }))
+  );
+}
+
+async function submitPromptSuggestion() {
+  const prompt = promptSuggestionText.trim();
+  if (!joined || !name || !prompt || isSubmittingPromptSuggestion) return;
+
+  setIsSubmittingPromptSuggestion(true);
+
+  try {
+    const { data: suggestion, error: suggestionError } = await supabase
+      .from("room_prompt_suggestions")
+      .insert({
+        room_code: code,
+        prompt,
+        game_mode: promptSuggestionMode,
+        image_style: selectedImageStyle === "prompt" ? "cartoon" : selectedImageStyle,
+        submitted_by: name,
+      })
+      .select("id")
+      .single();
+
+    if (suggestionError) throw suggestionError;
+
+    await supabase.from("room_prompt_suggestion_votes").insert({
+      room_code: code,
+      suggestion_id: suggestion.id,
+      voter_name: name,
+    });
+
+    setPromptSuggestionText("");
+    await loadPromptSuggestions();
+  } catch (error) {
+    console.error("Failed to submit prompt suggestion:", error);
+    alert("Could not submit that prompt suggestion.");
+  } finally {
+    setIsSubmittingPromptSuggestion(false);
+  }
+}
+
+async function voteForPromptSuggestion(suggestionId: number) {
+  if (!joined || !name) return;
+
+  const { error } = await supabase.from("room_prompt_suggestion_votes").insert({
+    room_code: code,
+    suggestion_id: suggestionId,
+    voter_name: name,
+  });
+
+  if (error) {
+    console.error("Failed to vote for prompt suggestion:", error);
+    return;
+  }
+
+  await loadPromptSuggestions();
 }
 
 async function loadSubmissions(gameId = currentGameId) {
@@ -437,6 +573,7 @@ useEffect(() => {
     loadScoreboard(),
     loadPastImages(),
     loadRoundHistory(),
+    loadPromptSuggestions(),
 
     ]);
 
@@ -451,6 +588,7 @@ useEffect(() => {
   loadPlayers();
   loadGame();
   loadScoreboard();
+  loadPromptSuggestions();
 }, 2000);
   return () => clearInterval(interval);
 }, []);
@@ -564,6 +702,7 @@ const descData = await descResponse.json();
     window.localStorage.setItem(playerStorageKey, String(newPlayer.id));
 
   await loadPlayers();
+  await loadPromptSuggestions();
   setJoined(true);
   }finally {
   setIsJoining(false);
@@ -644,7 +783,7 @@ async function startGame() {
         stage: "submitting",
         prompt: randomPrompt.prompt,
         prompt_id: randomPrompt.id,
-        prompt_source: selectedGameMode,
+        prompt_source: randomPrompt.source,
         game_mode: selectedGameMode,
         image_style: activeImageStyle,
         submission_deadline: submissionDeadline,
@@ -908,7 +1047,7 @@ async function voteForSubmission(answerText: string, playerName: string) {
     return;
   }
 
-  setVoteMessage("✅ Vote recorded! Waiting for other players...");
+  setVoteMessage("âœ… Vote recorded! Waiting for other players...");
 
   const { data: allSubmissions } = await supabase
     .from("submissions")
@@ -1218,7 +1357,7 @@ async function nextRound() {
         stage: "submitting",
         prompt: newPrompt.prompt,
         prompt_id: newPrompt.id,
-        prompt_source: selectedGameMode,
+        prompt_source: newPrompt.source,
         game_mode: selectedGameMode,
         image_style: activeImageStyle,
         submission_deadline: submissionDeadline,
@@ -1340,7 +1479,7 @@ setScoreboardPlayers(sortedPlayers);
 if (isJoining) {
   return (
     <div className="fixed inset-0 bg-purple-700 text-white flex flex-col items-center justify-center space-y-6">
-      <div className="text-7xl animate-bounce">👑</div>
+      <div className="text-7xl animate-bounce">ðŸ‘‘</div>
       <h1 className="text-3xl font-bold">Joining Room...</h1>
       <p className="opacity-80">Gathering the troublemakers</p>
     </div>
@@ -1350,7 +1489,7 @@ if (isJoining) {
 if (isPageLoading) {
   return (
     <div className="fixed inset-0 bg-purple-700 text-white flex flex-col items-center justify-center space-y-6">
-      <div className="text-7xl animate-bounce">👑</div>
+      <div className="text-7xl animate-bounce">ðŸ‘‘</div>
       <h1 className="text-3xl font-bold">Loading Game...</h1>
       <p className="opacity-80">Getting the chaos ready</p>
     </div>
@@ -1375,6 +1514,7 @@ if (isPageLoading) {
     code={code}
     players={players}
     maxPlayers={MAX_PLAYERS}
+    playerName={name}
     isHost={isHost}
     hostName={hostName}
     selectedGameMode={selectedGameMode}
@@ -1385,6 +1525,11 @@ if (isPageLoading) {
     isStarting={isStarting}
     isRoundCustomizationOpen={isRoundCustomizationOpen}
     roomShareMessage={roomShareMessage}
+    promptSuggestions={promptSuggestions}
+    promptSuggestionText={promptSuggestionText}
+    promptSuggestionMode={promptSuggestionMode}
+    promptApprovalVotesNeeded={promptApprovalVotesNeeded}
+    isSubmittingPromptSuggestion={isSubmittingPromptSuggestion}
     onGameModeChange={setSelectedGameMode}
     onCategoryChange={setSelectedCategory}
     onImageStyleChange={setSelectedImageStyle}
@@ -1394,6 +1539,10 @@ if (isPageLoading) {
     onStartGame={startGame}
     onCopyRoomCode={copyRoomCode}
     onShareRoom={shareRoom}
+    onPromptSuggestionTextChange={setPromptSuggestionText}
+    onPromptSuggestionModeChange={setPromptSuggestionMode}
+    onSubmitPromptSuggestion={submitPromptSuggestion}
+    onVotePromptSuggestion={voteForPromptSuggestion}
   />
 ) : stage === "submitting" ? (
   <>
@@ -1406,41 +1555,16 @@ if (isPageLoading) {
         </p>
       </div>
     )}
-    <div
-  className={`w-full max-w-2xl rounded-3xl p-6 text-center shadow-xl ${
-    selectedGameMode === "cards"
-      ? "bg-black text-white"
-      : "bg-white text-black"
-  }`}
->
-  <div
-    className={`mb-3 text-sm font-extrabold tracking-wider ${
-      selectedGameMode === "cards"
-        ? "text-gray-300"
-        : "text-purple-600"
-    }`}
-  >
-    {selectedGameMode === "cards"
-      ? "FILL IN THE BLANK"
-      : "ROUND PROMPT"}
-  </div>
-
-  <h2 className="break-words text-3xl font-black leading-tight">
-    {roundPrompt}
-  </h2>
-
-  <p className={`mt-3 text-sm font-bold ${selectedGameMode === "cards" ? "text-gray-300" : "text-purple-600"}`}>
-    Art style: {getImageStyleLabel(roundImageStyle)}
-  </p>
-
-  {timeRemainingSeconds !== null && (
-    <p className="mt-4 text-lg font-extrabold">
-      {isSubmissionTimeExpired
-        ? "Time's up — waiting for the host"
-        : `Time remaining: ${formatCountdown(timeRemainingSeconds)}`}
-    </p>
-  )}
-</div>
+    <RoundPromptCard
+      gameMode={selectedGameMode}
+      prompt={roundPrompt}
+      imageStyle={roundImageStyle}
+      timeRemainingSeconds={timeRemainingSeconds}
+      expiredMessage="Time's up — waiting for the host"
+      activeTimerLabel="Time remaining"
+      formatCountdown={formatCountdown}
+      getImageStyleLabel={getImageStyleLabel}
+    />
 
     {hasSubmitted || isSubmitting ? (
       <GeneratingScreen
@@ -1474,7 +1598,7 @@ if (isPageLoading) {
       ) : stage === "generating" ? (
   <div className="min-h-screen w-full bg-purple-700 flex flex-col items-center justify-center text-white">
     <div className="text-8xl mb-6 animate-bounce">
-      👑
+      ðŸ‘‘
     </div>
 
     <h2 className="text-4xl font-bold mb-4">
@@ -1535,3 +1659,4 @@ if (isPageLoading) {
 </main>
   );
 }
+
