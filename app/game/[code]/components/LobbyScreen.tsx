@@ -1,5 +1,5 @@
 import { PromptSuggestionPanel } from "./PromptSuggestionPanel";
-import type { GameMode, Player, PromptSuggestion, RoundDuration } from "./types";
+import type { GameMode, Player, PromptRating, PromptSuggestion, RoundDuration } from "./types";
 
 type LobbyScreenProps = {
   code: string;
@@ -19,6 +19,7 @@ type LobbyScreenProps = {
   promptSuggestions: PromptSuggestion[];
   promptSuggestionText: string;
   promptSuggestionMode: GameMode;
+  promptSuggestionRating: PromptRating;
   promptApprovalVotesNeeded: number;
   isSubmittingPromptSuggestion: boolean;
   onGameModeChange: (mode: GameMode) => void;
@@ -54,6 +55,7 @@ export function LobbyScreen({
   promptSuggestions,
   promptSuggestionText,
   promptSuggestionMode,
+  promptSuggestionRating,
   promptApprovalVotesNeeded,
   isSubmittingPromptSuggestion,
   onGameModeChange,
@@ -326,6 +328,7 @@ export function LobbyScreen({
         suggestions={promptSuggestions}
         suggestionText={promptSuggestionText}
         suggestionMode={promptSuggestionMode}
+        suggestionRating={promptSuggestionRating}
         approvalVotesNeeded={promptApprovalVotesNeeded}
         isSubmittingSuggestion={isSubmittingPromptSuggestion}
         onSuggestionTextChange={onPromptSuggestionTextChange}

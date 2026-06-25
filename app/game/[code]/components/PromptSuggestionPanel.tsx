@@ -1,3 +1,8 @@
+import {
+  getPromptRatingClasses,
+  getPromptRatingHint,
+  getPromptRatingLabel,
+} from "./promptQuality";
 import type { GameMode, PromptSuggestion } from "./types";
 
 type PromptSuggestionPanelProps = {
@@ -5,6 +10,7 @@ type PromptSuggestionPanelProps = {
   suggestions: PromptSuggestion[];
   suggestionText: string;
   suggestionMode: GameMode;
+  suggestionRating: PromptSuggestion["rating"];
   approvalVotesNeeded: number;
   isSubmittingSuggestion: boolean;
   onSuggestionTextChange: (value: string) => void;
@@ -18,6 +24,7 @@ export function PromptSuggestionPanel({
   suggestions,
   suggestionText,
   suggestionMode,
+  suggestionRating,
   approvalVotesNeeded,
   isSubmittingSuggestion,
   onSuggestionTextChange,
@@ -71,6 +78,21 @@ export function PromptSuggestionPanel({
         {suggestionText.length}/160
       </p>
 
+      {suggestionText.trim() && (
+        <div className="mt-2 flex flex-col gap-1 rounded-2xl border border-purple-100 bg-purple-50 p-3 md:flex-row md:items-center md:justify-between">
+          <span
+            className={`w-fit rounded-full border px-3 py-1 text-xs font-extrabold ${getPromptRatingClasses(
+              suggestionRating
+            )}`}
+          >
+            {getPromptRatingLabel(suggestionRating)}
+          </span>
+          <p className="text-sm font-bold text-gray-600">
+            {getPromptRatingHint(suggestionRating, suggestionMode)}
+          </p>
+        </div>
+      )}
+
       {suggestions.length > 0 && (
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
           {suggestions.map((suggestion) => {
@@ -84,9 +106,18 @@ export function PromptSuggestionPanel({
                 }`}
               >
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-extrabold text-purple-700">
-                    {suggestion.game_mode === "cards" ? "Fill in Blank" : "Classic"}
-                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-extrabold text-purple-700">
+                      {suggestion.game_mode === "cards" ? "Fill in Blank" : "Classic"}
+                    </span>
+                    <span
+                      className={`rounded-full border px-3 py-1 text-xs font-extrabold ${getPromptRatingClasses(
+                        suggestion.rating
+                      )}`}
+                    >
+                      {getPromptRatingLabel(suggestion.rating)}
+                    </span>
+                  </div>
                   <span className={`text-xs font-extrabold ${isApproved ? "text-green-700" : "text-purple-700"}`}>
                     {isApproved ? "Approved" : `${suggestion.vote_count}/${approvalVotesNeeded} votes`}
                   </span>

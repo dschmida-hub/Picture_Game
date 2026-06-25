@@ -12,12 +12,20 @@ import { RoundPromptCard } from "./components/RoundPromptCard";
 import { SubmissionForm } from "./components/SubmissionForm";
 import { VotingScreen } from "./components/VotingScreen";
 import { WinnerScreen } from "./components/WinnerScreen";
+import { ratePrompt } from "./components/promptQuality";
 import { parseSubmission } from "./components/submissions";
-import type { GameMode, Player, PromptSuggestion, RoundHistoryItem, ScoreboardPlayer } from "./components/types";
+import type { GameMode, Player, PromptRating, PromptSuggestion, RoundHistoryItem, ScoreboardPlayer } from "./components/types";
 
 type GameStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
 type PromptSource = GameMode | `custom_${GameMode}`;
-type PromptOption = { id: number; prompt: string; image_style: string | null; source: PromptSource };
+type PromptOption = {
+  id: number;
+  prompt: string;
+  image_style: string | null;
+  prompt_rating?: PromptRating | null;
+  source: PromptSource;
+  rating: PromptRating;
+};
 
 const imageStyleInstructions: Record<string, string> = {
   cartoon: "Bright, colorful cartoon illustration with big expressive faces",
@@ -78,6 +86,16 @@ function buildPlayerAppearanceContext(players: Player[], currentPlayerName: stri
   return playersToDescribe
     .map((player) => `${player.name}: ${player.avatar_description || "Generic person"}`)
     .join("\n");
+}
+
+function pickBestRatedPromptDeck(prompts: PromptOption[]) {
+  const goodPrompts = prompts.filter((prompt) => prompt.rating === "good");
+  if (goodPrompts.length > 0) return goodPrompts;
+
+  const okayPrompts = prompts.filter((prompt) => prompt.rating === "ehhh");
+  if (okayPrompts.length > 0) return okayPrompts;
+
+  return prompts;
 }
 
 const confettiPieces = Array.from({ length: 28 }, (_, index) => ({
@@ -160,6 +178,7 @@ export default function GameRoom() {
     0
   ) + 1;
   const promptApprovalVotesNeeded = Math.max(2, Math.ceil(players.length / 2));
+  const promptSuggestionRating = ratePrompt(promptSuggestionText, promptSuggestionMode);
 
   useEffect(() => {
     if (stage !== "submitting" || !currentGameId) return;
@@ -225,12 +244,12 @@ async function pickRoundPrompt(): Promise<PromptOption | null> {
   if (selectedGameMode === "cards") {
     promptQuery = supabase
       .from("cah_prompts")
-      .select("id, prompt, image_style")
+      .select("id, prompt, image_style, prompt_rating")
       .eq("active", true);
   } else {
     promptQuery = supabase
       .from("prompts")
-      .select("id, prompt, image_style")
+      .select("id, prompt, image_style, prompt_rating")
       .eq("active", true);
 
     if (selectedCategory !== "Random") {
@@ -245,8 +264,17 @@ async function pickRoundPrompt(): Promise<PromptOption | null> {
     return null;
   }
 
-  const basePrompts = ((data || []) as Array<{ id: number; prompt: string; image_style: string | null }>).map(
-    (prompt) => ({ ...prompt, source: basePromptSource })
+  const basePrompts = ((data || []) as Array<{
+    id: number;
+    prompt: string;
+    image_style: string | null;
+    prompt_rating: PromptRating | null;
+  }>).map(
+    (prompt) => ({
+      ...prompt,
+      source: basePromptSource,
+      rating: prompt.prompt_rating || ratePrompt(prompt.prompt, selectedGameMode),
+    })
   );
 
   const approvedSuggestions = promptSuggestions
@@ -260,6 +288,7 @@ async function pickRoundPrompt(): Promise<PromptOption | null> {
       prompt: suggestion.prompt,
       image_style: suggestion.image_style,
       source: customPromptSource,
+      rating: suggestion.rating,
     }));
 
   const allPrompts = [...basePrompts, ...approvedSuggestions];
@@ -281,7 +310,7 @@ async function pickRoundPrompt(): Promise<PromptOption | null> {
   const unusedPrompts = allPrompts.filter(
     (prompt) => !usedPromptKeys.has(`${prompt.source}:${prompt.id}`)
   );
-  const promptDeck = unusedPrompts.length > 0 ? unusedPrompts : allPrompts;
+  const promptDeck = pickBestRatedPromptDeck(unusedPrompts.length > 0 ? unusedPrompts : allPrompts);
 
   return promptDeck[Math.floor(Math.random() * promptDeck.length)];
 }
@@ -398,6 +427,7 @@ async function loadPromptSuggestions() {
       game_mode: suggestion.game_mode as GameMode,
       image_style: suggestion.image_style,
       submitted_by: suggestion.submitted_by,
+      rating: ratePrompt(suggestion.prompt, suggestion.game_mode as GameMode),
       vote_count: voteCounts.get(suggestion.id) || 0,
       has_voted: votedByCurrentPlayer.has(suggestion.id),
     }))
@@ -1524,6 +1554,7 @@ if (isPageLoading) {
     promptSuggestions={promptSuggestions}
     promptSuggestionText={promptSuggestionText}
     promptSuggestionMode={promptSuggestionMode}
+    promptSuggestionRating={promptSuggestionRating}
     promptApprovalVotesNeeded={promptApprovalVotesNeeded}
     isSubmittingPromptSuggestion={isSubmittingPromptSuggestion}
     onGameModeChange={setSelectedGameMode}

@@ -1,5 +1,6 @@
 export type GameMode = "classic" | "cards";
 export type RoundDuration = number | "unlimited";
+export type PromptRating = "good" | "ehhh" | "bad";
 
 export type Player = {
   name: string;
@@ -30,6 +31,7 @@ export type PromptSuggestion = {
   game_mode: GameMode;
   image_style: string | null;
   submitted_by: string;
+  rating: PromptRating;
   vote_count: number;
   has_voted: boolean;
 };
