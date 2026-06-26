@@ -26,6 +26,10 @@ type WinnerScreenProps = {
   onReturnToLobby: () => void;
 };
 
+function normalizeName(playerName?: string | null) {
+  return (playerName || "").trim().toLowerCase();
+}
+
 export function WinnerScreen({
   confettiPieces,
   winnerImages,
@@ -44,10 +48,6 @@ export function WinnerScreen({
   onNextRound,
   onReturnToLobby,
 }: WinnerScreenProps) {
-  function normalizeName(playerName?: string | null) {
-    return (playerName || "").trim().toLowerCase();
-  }
-
   function findPlayerAvatar(playerName?: string | null) {
     const normalizedName = normalizeName(playerName);
     if (!normalizedName) return null;
@@ -125,7 +125,9 @@ export function WinnerScreen({
           <p className="mt-1 text-sm text-gray-500">
             {winnerImages.length > 1 ? "tied for the round" : "won the round"}
           </p>
-          <p className="mt-4 text-lg font-semibold">“{winnerPrompt || winner}”</p>
+          <p className="mt-4 text-lg font-semibold">
+            {`“${winnerPrompt || winner}”`}
+          </p>
         </div>
       </div>
 
@@ -202,7 +204,9 @@ export function WinnerScreen({
                       )}
                       <span>👑 {roundWinnerName}</span>
                     </div>
-                    <p className="text-sm text-gray-600">"{round.winner_prompt}"</p>
+                    <p className="text-sm text-gray-600">
+                      {`"${round.winner_prompt}"`}
+                    </p>
                   </div>
                 );
               })}
@@ -215,7 +219,7 @@ export function WinnerScreen({
         <div className="w-full max-w-md rounded-3xl border border-green-200 bg-white p-5 text-center shadow-xl">
           <h3 className="text-2xl font-black">Start a fresh game?</h3>
           <p className="mt-2 text-sm font-bold text-gray-500">
-            This keeps the same room and players, but resets everyone’s score.
+            This keeps the same room and players, but resets everyone&apos;s score.
           </p>
           <button
             type="button"

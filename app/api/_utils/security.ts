@@ -16,8 +16,15 @@ export function checkSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return null;
 
-  const requestHost = new URL(request.url).host;
-  const originHost = new URL(origin).host;
+  let requestHost: string;
+  let originHost: string;
+
+  try {
+    requestHost = new URL(request.url).host;
+    originHost = new URL(origin).host;
+  } catch {
+    return Response.json({ error: "Invalid request origin" }, { status: 403 });
+  }
 
   if (originHost !== requestHost) {
     return Response.json({ error: "Invalid request origin" }, { status: 403 });

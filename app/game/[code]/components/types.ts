@@ -3,6 +3,7 @@ export type RoundDuration = number | "unlimited";
 export type PromptRating = "good" | "ehhh" | "bad";
 
 export type Player = {
+  id: number;
   name: string;
   points: number;
   avatar_url: string | null;

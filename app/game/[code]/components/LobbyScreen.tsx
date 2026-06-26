@@ -36,6 +36,7 @@ type LobbyScreenProps = {
   onPromptSuggestionModeChange: (mode: GameMode) => void;
   onSubmitPromptSuggestion: () => void;
   onVotePromptSuggestion: (suggestionId: number) => void;
+  onRemovePlayer: (player: Player) => void;
 };
 
 export function LobbyScreen({
@@ -72,6 +73,7 @@ export function LobbyScreen({
   onPromptSuggestionModeChange,
   onSubmitPromptSuggestion,
   onVotePromptSuggestion,
+  onRemovePlayer,
 }: LobbyScreenProps) {
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
   const openSlots = maxPlayers - players.length;
@@ -185,13 +187,23 @@ export function LobbyScreen({
                   </div>
                 )}
 
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="truncate font-bold">
                     {player.name}
                     {player.is_host && <span className="ml-2 text-yellow-500">👑 Host</span>}
                   </div>
                   <div className="text-sm text-gray-500">{player.points} pts</div>
                 </div>
+                {isHost && !player.is_host && (
+                  <button
+                    type="button"
+                    onClick={() => onRemovePlayer(player)}
+                    className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-extrabold text-red-700"
+                    aria-label={`Remove ${player.name}`}
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -297,7 +309,7 @@ export function LobbyScreen({
                         onChange={(event) => onImageStyleChange(event.target.value)}
                         className="w-full rounded-xl border bg-white p-3"
                       >
-                        <option value="prompt">Prompt's style</option>
+                        <option value="prompt">Prompt&apos;s style</option>
                         <option value="cartoon">Colorful Cartoon</option>
                         <option value="comic_book">Comic Book</option>
                         <option value="clay_animation">Clay Animation</option>

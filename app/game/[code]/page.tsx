@@ -12,8 +12,10 @@ import { RoundPromptCard } from "./components/RoundPromptCard";
 import { SubmissionForm } from "./components/SubmissionForm";
 import { VotingScreen } from "./components/VotingScreen";
 import { WinnerScreen } from "./components/WinnerScreen";
+import { useRoundCountdowns } from "./hooks/useRoundCountdowns";
+import { useRoundReadiness } from "./hooks/useRoundReadiness";
+import { useRotatingPastImages } from "./hooks/useRotatingPastImages";
 import { ratePrompt } from "./components/promptQuality";
-import { parseSubmission } from "./components/submissions";
 import type {
   GameMode,
   Player,
@@ -22,109 +24,21 @@ import type {
   RoundHistoryItem,
   ScoreboardPlayer,
 } from "./components/types";
+import {
+  arePlayerNamesEqual,
+  confettiPieces,
+  formatCountdown,
+  getImageStyleLabel,
+  getPromptRatingTable,
+  MAX_PLAYERS,
+  normalizePlayerName,
+  pickBestRatedPromptDeck,
+  resolveImageStyle,
+  type PromptOption,
+  type PromptSource,
+} from "./utils/gameRoomUtils";
 
 type GameStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
-type PromptSource = GameMode | `custom_${GameMode}`;
-type PromptOption = {
-  id: number;
-  prompt: string;
-  image_style: string | null;
-  prompt_rating?: PromptRating | null;
-  source: PromptSource;
-  rating: PromptRating;
-};
-
-const imageStyleInstructions: Record<string, string> = {
-  cartoon: "Bright, colorful cartoon illustration with big expressive faces",
-  comic_book: "Dynamic comic-book art with bold ink outlines and dramatic color",
-  clay_animation: "Playful handcrafted clay-animation style with soft studio lighting",
-  storybook: "Whimsical illustrated storybook art with rich, charming detail",
-  pixel_art: "Detailed retro pixel-art scene with expressive characters",
-};
-const MAX_PLAYERS = 8;
-
-function getImageStyleInstruction(style: string | null) {
-  return imageStyleInstructions[style || "cartoon"] || imageStyleInstructions.cartoon;
-}
-
-function resolveImageStyle(promptStyle: string | null, selectedStyle: string) {
-  return selectedStyle === "prompt" ? promptStyle || "cartoon" : selectedStyle;
-}
-
-function formatCountdown(seconds: number) {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = String(seconds % 60).padStart(2, "0");
-  return `${minutes}:${remainingSeconds}`;
-}
-
-function getImageStyleLabel(style: string) {
-  return style.split("_").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function doesTextMentionName(text: string, playerName: string) {
-  const trimmedName = playerName.trim();
-  if (trimmedName.length < 2) return false;
-
-  const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegExp(trimmedName.toLowerCase())}([^a-z0-9]|$)`, "i");
-  return pattern.test(text.toLowerCase());
-}
-
-function buildPlayerAppearanceContext(players: Player[], currentPlayerName: string, answer: string) {
-  const trimmedAnswer = answer.trim();
-  const currentPlayer = players.find((player) => player.name === currentPlayerName);
-  const namedPlayers = players.filter((player) => doesTextMentionName(trimmedAnswer, player.name));
-  const mentionsSelf = /\b(i|me|my|mine|myself)\b/i.test(trimmedAnswer);
-  const relevantPlayers = [...namedPlayers];
-
-  if (mentionsSelf && currentPlayer && !relevantPlayers.some((player) => player.name === currentPlayer.name)) {
-    relevantPlayers.push(currentPlayer);
-  }
-
-  const playersToDescribe = relevantPlayers.length > 0 ? relevantPlayers : currentPlayer ? [currentPlayer] : [];
-
-  if (playersToDescribe.length === 0) {
-    return "No specific player appearance is available. Use a generic funny character.";
-  }
-
-  return playersToDescribe
-    .map((player) => `${player.name}: ${player.avatar_description || "Generic person"}`)
-    .join("\n");
-}
-
-function pickBestRatedPromptDeck(prompts: PromptOption[]) {
-  const goodPrompts = prompts.filter((prompt) => prompt.rating === "good");
-  if (goodPrompts.length > 0) return goodPrompts;
-
-  const okayPrompts = prompts.filter((prompt) => prompt.rating === "ehhh");
-  if (okayPrompts.length > 0) return okayPrompts;
-
-  return prompts;
-}
-
-function getPromptRatingTable(promptSource: PromptSource | null) {
-  if (promptSource === "classic") return "prompts";
-  if (promptSource === "cards") return "cah_prompts";
-  return null;
-}
-
-function normalizePlayerName(playerName: string) {
-  return playerName.trim().replace(/\s+/g, " ");
-}
-
-function arePlayerNamesEqual(firstName: string, secondName: string) {
-  return normalizePlayerName(firstName).toLowerCase() === normalizePlayerName(secondName).toLowerCase();
-}
-
-const confettiPieces = Array.from({ length: 28 }, (_, index) => ({
-  color: ["#9810fa", "#facc15", "#ec4899", "#22c55e", "#38bdf8"][index % 5],
-  delay: `${(index % 7) * 0.14}s`,
-  left: `${(index * 37) % 100}%`,
-  rotation: `${(index * 53) % 360}deg`,
-}));
 
 export default function GameRoom() {
   const params = useParams();
@@ -145,7 +59,6 @@ export default function GameRoom() {
   const [submission, setSubmission] = useState("");
   const [submissions, setSubmissions] = useState<string[]>([]);
   const [winner, setWinner] = useState("");
-  const [pointsAwarded, setPointsAwarded] = useState(false);
   const [scoreboardPlayers, setScoreboardPlayers] = useState<ScoreboardPlayer[]>([]);
   const [finalWinner, setFinalWinner] = useState("");
   const [loadingMessage, setLoadingMessage] = useState("Generating chaos...");
@@ -159,7 +72,6 @@ export default function GameRoom() {
   const [showRoundIntro, setShowRoundIntro] = useState(false);
   const [roundDeadline, setRoundDeadline] = useState<string | null>(null);
   const [votingDeadline, setVotingDeadline] = useState<string | null>(null);
-  const [currentTime, setCurrentTime] = useState(Date.now());
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [isPlayingAgain, setIsPlayingAgain] = useState(false);
   const [isForcingStage, setIsForcingStage] = useState(false);
@@ -176,50 +88,44 @@ export default function GameRoom() {
   const [hasVoted, setHasVoted] = useState(false);
   const [votedPlayerNames, setVotedPlayerNames] = useState<string[]>([]);
   const [voteMessage, setVoteMessage] = useState("");
-  const [winnerImageUrl, setWinnerImageUrl] = useState("");
   const [winnerName, setWinnerName] = useState("");
   const [winnerPrompt, setWinnerPrompt] = useState("");
   const [winnerImages, setWinnerImages] = useState<string[]>([]);
+  const [roundPrompt, setRoundPrompt] = useState("");
+  const [roundImageStyle, setRoundImageStyle] = useState("cartoon");
   const hostName = players.find((player) => player.is_host)?.name;
   const isHost = joined && name === hostName;
   const [roundHistory, setRoundHistory] = useState<RoundHistoryItem[]>([]);
   const [pastImages, setPastImages] = useState<string[]>([]);
-  const [galleryImageIndex, setGalleryImageIndex] = useState(0);
-  const [isGalleryImageVisible, setIsGalleryImageVisible] = useState(true);
-  const hasSubmitted = submissions.some((item) => {
-  return parseSubmission(item).playerName === name;
-});
-  const hasCurrentRoundImage = submissions.some((item) =>
-    Boolean(parseSubmission(item).imageUrl)
-  );
-  const submittedPlayerNames = new Set(submissions.map((item) => parseSubmission(item).playerName));
-  const imageReadyPlayerNames = new Set(
-    submissions
-      .map((item) => parseSubmission(item))
-      .filter((submission) => Boolean(submission.imageUrl))
-      .map((submission) => submission.playerName)
-  );
-  const votedPlayerNameSet = new Set(votedPlayerNames);
-  const waitingOnSubmissionNames = players
-    .filter((player) => !submittedPlayerNames.has(player.name))
-    .map((player) => player.name);
-  const waitingOnImageNames = players
-    .filter((player) => submittedPlayerNames.has(player.name) && !imageReadyPlayerNames.has(player.name))
-    .map((player) => player.name);
-  const waitingOnVoteNames = players
-    .filter((player) => submittedPlayerNames.has(player.name) && !votedPlayerNameSet.has(player.name))
-    .map((player) => player.name);
-  const currentGalleryImage = pastImages[galleryImageIndex % pastImages.length];
+  const {
+    hasCurrentRoundImage,
+    hasSubmitted,
+    waitingOnImageNames,
+    waitingOnSubmissionNames,
+    waitingOnVoteNames,
+  } = useRoundReadiness({
+    currentPlayerName: name,
+    players,
+    submissions,
+    votedPlayerNames,
+  });
+  const { currentGalleryImage, isGalleryImageVisible } = useRotatingPastImages({
+    hasCurrentRoundImage,
+    isSubmitting,
+    pastImages,
+  });
   const currentPromptKey = currentPromptId && currentPromptSource ? `${currentPromptSource}:${currentPromptId}` : null;
   const hasRatedCurrentPrompt = Boolean(currentPromptKey && ratedPromptKey === currentPromptKey);
-  const timeRemainingSeconds = roundDeadline
-    ? Math.max(0, Math.ceil((new Date(roundDeadline).getTime() - currentTime) / 1000))
-    : null;
-  const isSubmissionTimeExpired = timeRemainingSeconds === 0;
-  const votingTimeRemainingSeconds = votingDeadline
-    ? Math.max(0, Math.ceil((new Date(votingDeadline).getTime() - currentTime) / 1000))
-    : null;
-  const isVotingTimeExpired = votingTimeRemainingSeconds === 0;
+  const {
+    isSubmissionTimeExpired,
+    isVotingTimeExpired,
+    timeRemainingSeconds,
+    votingTimeRemainingSeconds,
+  } = useRoundCountdowns({
+    roundDeadline,
+    stage,
+    votingDeadline,
+  });
   const currentRoundNumber = roundHistory.reduce(
     (highestRound, round) => Math.max(highestRound, round.round_number || 0),
     0
@@ -230,9 +136,13 @@ export default function GameRoom() {
   useEffect(() => {
     if (stage !== "submitting" || !currentGameId) return;
 
-    setShowRoundIntro(true);
-    const timeout = window.setTimeout(() => setShowRoundIntro(false), 1400);
-    return () => window.clearTimeout(timeout);
+    const introTimeout = window.setTimeout(() => setShowRoundIntro(true), 0);
+    const hideTimeout = window.setTimeout(() => setShowRoundIntro(false), 1400);
+
+    return () => {
+      window.clearTimeout(introTimeout);
+      window.clearTimeout(hideTimeout);
+    };
   }, [currentGameId, stage]);
 
   useEffect(() => {
@@ -241,37 +151,6 @@ export default function GameRoom() {
     const timeout = window.setTimeout(() => setReconnectMessage(""), 3500);
     return () => window.clearTimeout(timeout);
   }, [reconnectMessage]);
-
-  useEffect(() => {
-    const activeDeadline = stage === "submitting" ? roundDeadline : stage === "reveal" ? votingDeadline : null;
-    if (!activeDeadline) return;
-
-    setCurrentTime(Date.now());
-    const interval = window.setInterval(() => setCurrentTime(Date.now()), 1000);
-
-    return () => window.clearInterval(interval);
-  }, [roundDeadline, stage, votingDeadline]);
-
-  useEffect(() => {
-    const shouldShowGallery =
-      isSubmitting && !hasCurrentRoundImage && pastImages.length > 0;
-
-    if (!shouldShowGallery || pastImages.length < 2) return;
-
-    let fadeTimeout: number | undefined;
-    const interval = window.setInterval(() => {
-      setIsGalleryImageVisible(false);
-      fadeTimeout = window.setTimeout(() => {
-        setGalleryImageIndex((index) => (index + 1) % pastImages.length);
-        setIsGalleryImageVisible(true);
-      }, 450);
-    }, 4500);
-
-    return () => {
-      window.clearInterval(interval);
-      if (fadeTimeout) window.clearTimeout(fadeTimeout);
-    };
-  }, [hasCurrentRoundImage, isSubmitting, pastImages.length]);
 
   useEffect(() => {
     if (!joined || !name) return;
@@ -286,9 +165,6 @@ export default function GameRoom() {
   "Searching for maximum chaos...",
   "Making the image 37% funnier...",
 ];
-
-  const [roundPrompt, setRoundPrompt] = useState("");
-  const [roundImageStyle, setRoundImageStyle] = useState("cartoon");
 
 async function pickRoundPrompt(): Promise<PromptOption | null> {
   let promptQuery;
@@ -391,7 +267,7 @@ async function loadRandomPrompt() {
   async function loadPlayers() {
   const { data, error } = await supabase
     .from("players")
-    .select("name, points, avatar_url, avatar_description, is_host")
+    .select("id, name, points, avatar_url, avatar_description, is_host")
     .eq("room_code", code)
     .order("is_host", { ascending: false })
     .order("points", { ascending: false })
@@ -403,6 +279,61 @@ async function loadRandomPrompt() {
   }
 
   setPlayers(data);
+}
+
+async function removePlayer(player: Player) {
+  if (!isHost || player.is_host) return;
+
+  const shouldRemove = window.confirm(
+    `Remove ${player.name} from this room? Their submissions and votes in this room will also be removed.`
+  );
+
+  if (!shouldRemove) return;
+
+  try {
+    const { error: submissionsError } = await supabase
+      .from("submissions")
+      .delete()
+      .eq("room_code", code)
+      .eq("player_name", player.name);
+
+    if (submissionsError) throw submissionsError;
+
+    const { error: votesError } = await supabase
+      .from("votes")
+      .delete()
+      .eq("room_code", code)
+      .eq("voter_name", player.name);
+
+    if (votesError) throw votesError;
+
+    const { error: votedForError } = await supabase
+      .from("votes")
+      .delete()
+      .eq("room_code", code)
+      .like("voted_for", `${player.name}: %`);
+
+    if (votedForError) throw votedForError;
+
+    const { error: playerError } = await supabase
+      .from("players")
+      .delete()
+      .eq("id", player.id)
+      .eq("room_code", code)
+      .eq("is_host", false);
+
+    if (playerError) throw playerError;
+
+    await Promise.all([
+      loadPlayers(),
+      loadSubmissions(),
+      loadVotes(),
+      loadScoreboard(),
+    ]);
+  } catch (error) {
+    console.error("Failed to remove player:", error);
+    alert("Could not remove that player.");
+  }
 }
 
 async function loadRoundHistory() {
@@ -714,28 +645,29 @@ async function restoreJoinedPlayer() {
 }
 
 useEffect(() => {
-  if (stage === "winner") {
-    loadWinner();
-    loadRoundHistory();
-  }
+  if (stage !== "winner") return;
+
+  const timeout = window.setTimeout(() => {
+    void loadWinner();
+    void loadRoundHistory();
+  }, 0);
+
+  return () => window.clearTimeout(timeout);
 }, [stage]);
 
 useEffect(() => {
-  if (stage === "submitting") {
+  if (stage !== "submitting") return;
+
+  const timeout = window.setTimeout(() => {
     setHasVoted(false);
     setVotedPlayerNames([]);
     setVoteMessage("");
     setSubmission("");
     setWinner("");
-    setPointsAwarded(false);
     setVotedPlayerNames([]);
-  }
-}, [stage]);
+  }, 0);
 
-useEffect(() => {
-  if (stage === "winner") {
-    loadWinner();
-  }
+  return () => window.clearTimeout(timeout);
 }, [stage]);
 
 useEffect(() => {
@@ -1045,7 +977,6 @@ async function grantImageRetryTime() {
     return;
   }
   const submittedAnswer = submission.trim();
-  const playerAppearanceContext = buildPlayerAppearanceContext(players, name, submittedAnswer);
 
   setIsSubmitting(true);
 
@@ -1074,85 +1005,27 @@ async function grantImageRetryTime() {
 
     await loadSubmissions(currentGameId);
 
-    const imagePrompt = `
-Create one hilarious party game image.
-
-Default text rule: do not put readable or fake text in the image.
-
-Exception: if the player's punchline clearly asks for visible words, a sign, a note, a label, a shirt slogan, a banner, or a speech bubble, you may include one short piece of readable text because it is part of the joke.
-
-If text is included:
-- Use only the exact words needed for the joke.
-- Keep it very short, ideally 1-5 words.
-- Put it on one obvious object like a sign, shirt, note, banner, or single speech bubble.
-- Make the letters clean and readable.
-- Do not add any extra text.
-
-Scene context, for inspiration only. Do not render this as text:
-The round prompt is "${roundPrompt}".
-The player's punchline is "${submittedAnswer}".
-
-Relevant Player Appearances:
-${playerAppearanceContext}
-
-If a player name is mentioned in the answer, use that named player's appearance for that character.
-Only use the submitting player's appearance when the answer refers to them directly or no other player is named.
-
-Turn the scene context into a single funny visual moment.
-
-The image should clearly show the connection between the question and answer.
-The answer should be the main punchline, but the joke should be understandable without reading the answer.
-Do not simply show the answer by itself.
-
-Style rules:
-
-The image should:
-- Make players laugh within 3 seconds.
-- Show one clear visual joke.
-- Be immediately understandable.
-- Use bright, colorful cartoon styling.
-- Have big expressive faces and exaggerated reactions.
-- Focus on one main subject and one funny moment.
-- Show the consequences of the joke whenever possible.
-- Prefer literal interpretations of metaphors and expressions.
-- Add small background reactions only if they support the main joke.
-- Communicate all humor visually through characters, props, expressions, and action.
-
-Never include:
-- Captions
-- Extra labels
-- Extra signs
-- Posters
-- Logos
-- Fake letters, gibberish, subtitles, UI text, or random background writing.
-- Speech bubbles unless the player's punchline specifically asks for someone to say something.
-
-Avoid:
-- Crowded scenes
-- Complex stories
-- Multiple unrelated jokes
-- Realistic photography
-- Empty backgrounds
-- Confusing compositions
-
-The final image should feel like a frame from an animated comedy movie.
-
-${getImageStyleInstruction(roundImageStyle)}
-Create a hilarious cartoon image based on the player's answer.
-
-`;
-
     setLoadingMessage(
       loadingMessages[Math.floor(Math.random() * loadingMessages.length)]
     );
+
+    const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+
+    if (!savedPlayerId) {
+      alert("Your player session was lost. Please rejoin the room.");
+      await supabase.from("submissions").delete().eq("id", pendingSubmission.id);
+      await loadSubmissions(currentGameId);
+      return;
+    }
 
     const imageResponse = await fetch("/api/generate-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        prompt: imagePrompt,
-        answer: submittedAnswer,
-        roundPrompt,
+        roomCode: code,
+        gameId: currentGameId,
+        playerId: savedPlayerId,
+        submissionId: pendingSubmission.id,
       }),
     });
 
@@ -1170,23 +1043,6 @@ Create a hilarious cartoon image based on the player's answer.
       } else {
         alert("The image machine tripped over its own shoelaces. Try submitting again.");
       }
-      await supabase.from("submissions").delete().eq("id", pendingSubmission.id);
-      await loadSubmissions(currentGameId);
-      return;
-    }
-
-    const { error } = await supabase
-      .from("submissions")
-      .update({
-        image_url: imageData.imageUrl,
-        gallery_thumbnail_url: imageData.thumbnailUrl || null,
-        image_caption: imageData.caption || "Untitled Masterpiece",
-      })
-      .eq("id", pendingSubmission.id);
-
-    if (error) {
-      console.error(error);
-      alert("Failed to submit prompt");
       await supabase.from("submissions").delete().eq("id", pendingSubmission.id);
       await loadSubmissions(currentGameId);
       return;
@@ -1330,6 +1186,14 @@ async function forceReveal() {
       return;
     }
 
+    const { error: pendingDeleteError } = await supabase
+      .from("submissions")
+      .delete()
+      .eq("game_id", currentGameId)
+      .is("image_url", null);
+
+    if (pendingDeleteError) throw pendingDeleteError;
+
     const nextVotingDeadline = new Date(
       Date.now() + selectedVotingDuration * 1000
     ).toISOString();
@@ -1343,6 +1207,7 @@ async function forceReveal() {
 
     setStage("reveal");
     setVotingDeadline(nextVotingDeadline);
+    await loadSubmissions(currentGameId);
   } catch (error) {
     console.error("Failed to reveal submitted images:", error);
     alert("Could not reveal the submitted images.");
@@ -1592,7 +1457,6 @@ if (!gameData.winner_awarded) {
   }
 }
 
-setPointsAwarded(true);
 
 await loadPlayers();
 await loadScoreboard();
@@ -1655,7 +1519,6 @@ async function nextRound() {
     setSubmission("");
     setSubmissions([]);
     setWinner("");
-    setPointsAwarded(false);
   } catch (error) {
     console.error("Failed to start next round:", error);
     alert("Could not start the next round. Check the browser console.");
@@ -1819,6 +1682,7 @@ if (isPageLoading) {
     onPromptSuggestionModeChange={setPromptSuggestionMode}
     onSubmitPromptSuggestion={submitPromptSuggestion}
     onVotePromptSuggestion={voteForPromptSuggestion}
+    onRemovePlayer={removePlayer}
   />
 ) : stage === "submitting" ? (
   <>

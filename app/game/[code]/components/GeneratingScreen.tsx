@@ -163,7 +163,7 @@ export function GeneratingScreen({
                 disabled={isForcingStage}
                 className="rounded-2xl bg-white px-6 py-3 font-extrabold text-purple-700 disabled:opacity-50"
               >
-                {isForcingStage ? "Opening Reveal..." : "Reveal Ready Images"}
+                {isForcingStage ? "Opening Reveal..." : "Skip Pending + Reveal"}
               </button>
             )}
             <button
