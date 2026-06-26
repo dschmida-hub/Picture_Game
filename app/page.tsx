@@ -1,19 +1,53 @@
 "use client";
 
 import { useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export default function Home() {
   const [roomCode, setRoomCode] = useState("");
+  const [joinError, setJoinError] = useState("");
+  const [isJoining, setIsJoining] = useState(false);
 
   function createGame() {
     const code = Math.random().toString(36).substring(2, 7).toUpperCase();
-    window.location.href = `/game/${code}`;
+    window.location.href = `/game/${code}?create=1`;
   }
 
-  function joinGame() {
+  async function joinGame() {
     const cleanCode = roomCode.trim().toUpperCase();
     if (!cleanCode) return;
+
+    setJoinError("");
+    setIsJoining(true);
+
+    try {
+      const [{ count: playerCount, error: playerError }, { count: gameCount, error: gameError }] =
+        await Promise.all([
+          supabase
+            .from("players")
+            .select("id", { count: "exact", head: true })
+            .eq("room_code", cleanCode),
+          supabase
+            .from("games")
+            .select("id", { count: "exact", head: true })
+            .eq("room_code", cleanCode),
+        ]);
+
+      if (playerError || gameError) {
+        console.error(playerError || gameError);
+        setJoinError("Could not check that room. Try again.");
+        return;
+      }
+
+      if ((playerCount || 0) === 0 && (gameCount || 0) === 0) {
+        setJoinError("Game not found. Check the code and try again.");
+        return;
+      }
+
     window.location.href = `/game/${cleanCode}`;
+    } finally {
+      setIsJoining(false);
+    }
   }
 
   return (
@@ -69,11 +103,16 @@ export default function Home() {
             />
             <button
               onClick={joinGame}
-              disabled={!roomCode.trim()}
+              disabled={!roomCode.trim() || isJoining}
               className="mt-4 w-full rounded-2xl bg-black px-6 py-4 text-lg font-extrabold text-white disabled:opacity-50"
             >
-              Join Game
+              {isJoining ? "Checking Room..." : "Join Game"}
             </button>
+            {joinError && (
+              <p className="mt-3 text-center text-sm font-extrabold text-red-600">
+                {joinError}
+              </p>
+            )}
           </div>
         </section>
 

@@ -35,11 +35,3 @@ export type PromptSuggestion = {
   vote_count: number;
   has_voted: boolean;
 };
-
-export type PromptLibraryItem = {
-  id: number;
-  prompt: string;
-  game_mode: GameMode;
-  source_table: "prompts" | "cah_prompts";
-  prompt_rating: PromptRating | null;
-};

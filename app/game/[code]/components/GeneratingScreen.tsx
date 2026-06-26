@@ -1,6 +1,6 @@
-import { PromptLibraryRater } from "./PromptLibraryRater";
+import { CurrentPromptRater } from "./CurrentPromptRater";
 import { parseSubmission } from "./submissions";
-import type { Player, PromptLibraryItem, PromptRating } from "./types";
+import type { Player, PromptRating } from "./types";
 import { WaitingOnList } from "./WaitingOnList";
 
 type GeneratingScreenProps = {
@@ -14,11 +14,13 @@ type GeneratingScreenProps = {
   isForcingStage: boolean;
   waitingOnSubmissionNames: string[];
   waitingOnImageNames: string[];
-  promptToRate: PromptLibraryItem | null;
-  isRatingPrompt: boolean;
+  roundPrompt: string;
+  currentPromptRating: PromptRating | null;
+  hasRatedCurrentPrompt: boolean;
+  isRatingCurrentPrompt: boolean;
+  canRateCurrentPrompt: boolean;
   onForceReveal: () => void;
-  onRatePrompt: (rating: PromptRating) => void;
-  onSkipPromptRating: () => void;
+  onRateCurrentPrompt: (rating: PromptRating) => void;
 };
 
 export function GeneratingScreen({
@@ -32,11 +34,13 @@ export function GeneratingScreen({
   isForcingStage,
   waitingOnSubmissionNames,
   waitingOnImageNames,
-  promptToRate,
-  isRatingPrompt,
+  roundPrompt,
+  currentPromptRating,
+  hasRatedCurrentPrompt,
+  isRatingCurrentPrompt,
+  canRateCurrentPrompt,
   onForceReveal,
-  onRatePrompt,
-  onSkipPromptRating,
+  onRateCurrentPrompt,
 }: GeneratingScreenProps) {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-purple-700 text-white">
@@ -52,15 +56,8 @@ export function GeneratingScreen({
         </div>
       )}
 
-      <div className="relative z-50 flex min-h-full w-full flex-col items-center justify-center gap-4 p-4 py-8">
-        <PromptLibraryRater
-          prompt={promptToRate}
-          isSaving={isRatingPrompt}
-          onRate={onRatePrompt}
-          onSkip={onSkipPromptRating}
-        />
-
-        <div className="animate-bounce text-5xl">🎨</div>
+      <div className="relative z-50 flex min-h-full w-full flex-col items-center justify-center gap-5 p-6 pb-28 pt-10">
+        <div className="animate-bounce text-6xl">🎨</div>
         <h2 className="text-3xl font-extrabold">Generating Images...</h2>
         <p className="max-w-md text-center text-lg">
           {loadingMessage || "Adding maximum chaos..."}
@@ -133,6 +130,15 @@ export function GeneratingScreen({
           </button>
         )}
       </div>
+
+      <CurrentPromptRater
+        prompt={roundPrompt}
+        currentRating={currentPromptRating}
+        hasRated={hasRatedCurrentPrompt}
+        isSaving={isRatingCurrentPrompt}
+        canRate={canRateCurrentPrompt}
+        onRate={onRateCurrentPrompt}
+      />
     </div>
   );
 }

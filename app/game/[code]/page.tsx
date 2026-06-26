@@ -17,7 +17,6 @@ import { parseSubmission } from "./components/submissions";
 import type {
   GameMode,
   Player,
-  PromptLibraryItem,
   PromptRating,
   PromptSuggestion,
   RoundHistoryItem,
@@ -106,6 +105,20 @@ function pickBestRatedPromptDeck(prompts: PromptOption[]) {
   return prompts;
 }
 
+function getPromptRatingTable(promptSource: PromptSource | null) {
+  if (promptSource === "classic") return "prompts";
+  if (promptSource === "cards") return "cah_prompts";
+  return null;
+}
+
+function normalizePlayerName(playerName: string) {
+  return playerName.trim().replace(/\s+/g, " ");
+}
+
+function arePlayerNamesEqual(firstName: string, secondName: string) {
+  return normalizePlayerName(firstName).toLowerCase() === normalizePlayerName(secondName).toLowerCase();
+}
+
 const confettiPieces = Array.from({ length: 28 }, (_, index) => ({
   color: ["#9810fa", "#facc15", "#ec4899", "#22c55e", "#38bdf8"][index % 5],
   delay: `${(index % 7) * 0.14}s`,
@@ -124,6 +137,11 @@ export default function GameRoom() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [stage, setStage] = useState<GameStage>("lobby");
   const [currentGameId, setCurrentGameId] = useState<number | null>(null);
+  const [currentPromptId, setCurrentPromptId] = useState<number | null>(null);
+  const [currentPromptSource, setCurrentPromptSource] = useState<PromptSource | null>(null);
+  const [currentPromptRating, setCurrentPromptRating] = useState<PromptRating | null>(null);
+  const [ratedPromptKey, setRatedPromptKey] = useState<string | null>(null);
+  const [isRatingCurrentPrompt, setIsRatingCurrentPrompt] = useState(false);
   const [submission, setSubmission] = useState("");
   const [submissions, setSubmissions] = useState<string[]>([]);
   const [winner, setWinner] = useState("");
@@ -167,9 +185,6 @@ export default function GameRoom() {
   const [pastImages, setPastImages] = useState<string[]>([]);
   const [galleryImageIndex, setGalleryImageIndex] = useState(0);
   const [isGalleryImageVisible, setIsGalleryImageVisible] = useState(true);
-  const [promptLibraryItems, setPromptLibraryItems] = useState<PromptLibraryItem[]>([]);
-  const [promptLibraryIndex, setPromptLibraryIndex] = useState(0);
-  const [isRatingPrompt, setIsRatingPrompt] = useState(false);
   const hasSubmitted = submissions.some((item) => {
   return parseSubmission(item).playerName === name;
 });
@@ -194,7 +209,8 @@ export default function GameRoom() {
     .filter((player) => submittedPlayerNames.has(player.name) && !votedPlayerNameSet.has(player.name))
     .map((player) => player.name);
   const currentGalleryImage = pastImages[galleryImageIndex % pastImages.length];
-  const currentPromptToRate = promptLibraryItems[promptLibraryIndex] || null;
+  const currentPromptKey = currentPromptId && currentPromptSource ? `${currentPromptSource}:${currentPromptId}` : null;
+  const hasRatedCurrentPrompt = Boolean(currentPromptKey && ratedPromptKey === currentPromptKey);
   const timeRemainingSeconds = roundDeadline
     ? Math.max(0, Math.ceil((new Date(roundDeadline).getTime() - currentTime) / 1000))
     : null;
@@ -420,82 +436,6 @@ async function loadPastImages() {
   setPastImages(images.sort(() => Math.random() - 0.5).slice(0, 4));
 }
 
-async function loadPromptLibraryItems() {
-  const [classicResult, cardsResult] = await Promise.all([
-    supabase
-      .from("prompts")
-      .select("id, prompt, prompt_rating")
-      .eq("active", true)
-      .limit(60),
-    supabase
-      .from("cah_prompts")
-      .select("id, prompt, prompt_rating")
-      .eq("active", true)
-      .limit(60),
-  ]);
-
-  if (classicResult.error) {
-    console.error("Failed to load classic prompts for rating:", classicResult.error);
-  }
-
-  if (cardsResult.error) {
-    console.error("Failed to load card prompts for rating:", cardsResult.error);
-  }
-
-  const classicPrompts: PromptLibraryItem[] = (classicResult.data || []).map((prompt) => ({
-    id: prompt.id,
-    prompt: prompt.prompt,
-    game_mode: "classic",
-    source_table: "prompts",
-    prompt_rating: prompt.prompt_rating,
-  }));
-
-  const cardPrompts: PromptLibraryItem[] = (cardsResult.data || []).map((prompt) => ({
-    id: prompt.id,
-    prompt: prompt.prompt,
-    game_mode: "cards",
-    source_table: "cah_prompts",
-    prompt_rating: prompt.prompt_rating,
-  }));
-
-  setPromptLibraryItems([...classicPrompts, ...cardPrompts].sort(() => Math.random() - 0.5));
-  setPromptLibraryIndex(0);
-}
-
-function skipPromptRating() {
-  if (promptLibraryItems.length === 0) return;
-  setPromptLibraryIndex((index) => (index + 1) % promptLibraryItems.length);
-}
-
-async function rateLibraryPrompt(rating: PromptRating) {
-  if (!currentPromptToRate || isRatingPrompt) return;
-
-  setIsRatingPrompt(true);
-
-  try {
-    const { error } = await supabase
-      .from(currentPromptToRate.source_table)
-      .update({ prompt_rating: rating })
-      .eq("id", currentPromptToRate.id);
-
-    if (error) throw error;
-
-    setPromptLibraryItems((items) =>
-      items.map((item) =>
-        item.source_table === currentPromptToRate.source_table && item.id === currentPromptToRate.id
-          ? { ...item, prompt_rating: rating }
-          : item
-      )
-    );
-    skipPromptRating();
-  } catch (error) {
-    console.error("Failed to rate prompt:", error);
-    alert("Could not save that prompt rating.");
-  } finally {
-    setIsRatingPrompt(false);
-  }
-}
-
 async function loadPromptSuggestions() {
   const { data: suggestions, error: suggestionsError } = await supabase
     .from("room_prompt_suggestions")
@@ -653,11 +593,64 @@ async function loadVotes(gameId = currentGameId) {
   setVotedPlayerNames(Array.from(new Set((data || []).map((vote) => vote.voter_name))));
 }
 
+async function loadCurrentPromptRating(
+  promptId: number | null,
+  promptSource: PromptSource | null,
+  promptText: string,
+  gameMode: GameMode
+) {
+  const tableName = getPromptRatingTable(promptSource);
+
+  if (!promptId || !tableName) {
+    setCurrentPromptRating(null);
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from(tableName)
+    .select("prompt_rating")
+    .eq("id", promptId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Failed to load current prompt rating:", error);
+    setCurrentPromptRating(ratePrompt(promptText, gameMode));
+    return;
+  }
+
+  setCurrentPromptRating(data?.prompt_rating || ratePrompt(promptText, gameMode));
+}
+
+async function rateCurrentPrompt(rating: PromptRating) {
+  const tableName = getPromptRatingTable(currentPromptSource);
+
+  if (!currentPromptId || !tableName || isRatingCurrentPrompt) return;
+
+  setIsRatingCurrentPrompt(true);
+
+  try {
+    const { error } = await supabase
+      .from(tableName)
+      .update({ prompt_rating: rating })
+      .eq("id", currentPromptId);
+
+    if (error) throw error;
+
+    setCurrentPromptRating(rating);
+    setRatedPromptKey(`${currentPromptSource}:${currentPromptId}`);
+  } catch (error) {
+    console.error("Failed to rate current prompt:", error);
+    alert("Could not save that prompt rating.");
+  } finally {
+    setIsRatingCurrentPrompt(false);
+  }
+}
+
 async function loadGame() {
   
   const { data, error } = await supabase
     .from("games")
-    .select("id, stage, prompt, game_mode, image_style, submission_deadline, voting_deadline, voting_duration_seconds")
+    .select("id, stage, prompt, prompt_id, prompt_source, game_mode, image_style, submission_deadline, voting_deadline, voting_duration_seconds")
     .eq("room_code", code)
     .order("id", { ascending: false })
     .limit(1)
@@ -670,6 +663,8 @@ async function loadGame() {
 
  if (data) {
   setCurrentGameId(data.id);
+  setCurrentPromptId(data.prompt_id);
+  setCurrentPromptSource(data.prompt_source as PromptSource | null);
   setStage(data.stage as GameStage);
   setRoundPrompt(data.prompt);
   setSelectedGameMode(data.game_mode as "classic" | "cards");
@@ -677,6 +672,7 @@ async function loadGame() {
   setRoundDeadline(data.submission_deadline);
   setVotingDeadline(data.voting_deadline);
   setSelectedVotingDuration(data.voting_duration_seconds || 45);
+  await loadCurrentPromptRating(data.prompt_id, data.prompt_source as PromptSource | null, data.prompt, data.game_mode as GameMode);
   await loadSubmissions(data.id);
   await loadVotes(data.id);
 }
@@ -746,7 +742,6 @@ useEffect(() => {
     loadPastImages(),
     loadRoundHistory(),
     loadPromptSuggestions(),
-    loadPromptLibraryItems(),
 
     ]);
 
@@ -777,25 +772,46 @@ async function joinGame() {
 
   try {
 
-  const cleanName = name.trim();
+  const cleanName = normalizePlayerName(name);
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
 
-  const { data: existingPlayer, error: existingPlayerError } = await supabase
+  if (savedPlayerId) {
+    const { data: savedPlayer, error: savedPlayerError } = await supabase
+      .from("players")
+      .select("id, name")
+      .eq("id", savedPlayerId)
+      .eq("room_code", code)
+      .maybeSingle();
+
+    if (savedPlayerError) {
+      console.error(savedPlayerError);
+      alert("Failed to check your saved player.");
+      return;
+    }
+
+    if (savedPlayer && arePlayerNamesEqual(savedPlayer.name, cleanName)) {
+      setName(savedPlayer.name);
+      await loadPlayers();
+      setJoined(true);
+      return;
+    }
+  }
+
+  const { data: roomPlayers, error: roomPlayersError } = await supabase
     .from("players")
     .select("id, name")
-    .eq("room_code", code)
-    .eq("name", cleanName)
-    .maybeSingle();
+    .eq("room_code", code);
 
-  if (existingPlayerError) {
-    console.error(existingPlayerError);
+  if (roomPlayersError) {
+    console.error(roomPlayersError);
     alert("Failed to check the room");
     return;
   }
 
-  if (existingPlayer) {
-    window.localStorage.setItem(playerStorageKey, String(existingPlayer.id));
-    await loadPlayers();
-    setJoined(true);
+  const nameAlreadyTaken = (roomPlayers || []).some((player) => arePlayerNamesEqual(player.name, cleanName));
+
+  if (nameAlreadyTaken) {
+    alert("That name is already taken in this room. Pick another name, or rejoin from the same device you used before.");
     return;
   }
 
@@ -838,23 +854,20 @@ const descData = await descResponse.json();
   console.error("Avatar description failed:", error);
    }}
 
-    const { count: playerCount, error: roomPlayersError } = await supabase
-      .from("players")
-      .select("id", { count: "exact", head: true })
-      .eq("room_code", code);
+    const playerCount = roomPlayers?.length || 0;
+    const cameFromCreateGame = new URLSearchParams(window.location.search).get("create") === "1";
 
-    if (roomPlayersError) {
-      console.error(roomPlayersError);
-      alert("Failed to check the room host");
+    if (playerCount === 0 && !cameFromCreateGame) {
+      alert("Game not found. Check the room code and try again.");
       return;
     }
 
-    if ((playerCount || 0) >= MAX_PLAYERS) {
+    if (playerCount >= MAX_PLAYERS) {
       alert("This room is full (8 players max).");
       return;
     }
 
-    const isFirstPlayer = (playerCount || 0) === 0;
+    const isFirstPlayer = playerCount === 0;
 
     const { data: newPlayer, error } = await supabase.from("players").insert([
       {
@@ -869,6 +882,10 @@ const descData = await descResponse.json();
 
     if (error) {
       console.error(error);
+      if (error.code === "23505") {
+        alert("That name was just taken in this room. Pick another name.");
+        return;
+      }
       alert("Failed to join room");
       return;
     }
@@ -973,6 +990,9 @@ async function startGame() {
     }
 
     setCurrentGameId(newGame.id);
+    setCurrentPromptId(randomPrompt.id);
+    setCurrentPromptSource(randomPrompt.source);
+    setCurrentPromptRating(randomPrompt.rating);
     setRoundPrompt(randomPrompt.prompt);
     setRoundImageStyle(activeImageStyle);
     setRoundDeadline(submissionDeadline);
@@ -1542,6 +1562,9 @@ async function nextRound() {
     if (gameError) throw gameError;
 
     setCurrentGameId(newGame.id);
+    setCurrentPromptId(newPrompt.id);
+    setCurrentPromptSource(newPrompt.source);
+    setCurrentPromptRating(newPrompt.rating);
     setRoundPrompt(newPrompt.prompt);
     setRoundImageStyle(activeImageStyle);
     setRoundDeadline(submissionDeadline);
@@ -1744,11 +1767,13 @@ if (isPageLoading) {
         isForcingStage={isForcingStage}
         waitingOnSubmissionNames={waitingOnSubmissionNames}
         waitingOnImageNames={waitingOnImageNames}
-        promptToRate={currentPromptToRate}
-        isRatingPrompt={isRatingPrompt}
+        roundPrompt={roundPrompt}
+        currentPromptRating={currentPromptRating}
+        hasRatedCurrentPrompt={hasRatedCurrentPrompt}
+        isRatingCurrentPrompt={isRatingCurrentPrompt}
+        canRateCurrentPrompt={Boolean(getPromptRatingTable(currentPromptSource))}
         onForceReveal={forceReveal}
-        onRatePrompt={rateLibraryPrompt}
-        onSkipPromptRating={skipPromptRating}
+        onRateCurrentPrompt={rateCurrentPrompt}
       />
     ) : (
   <SubmissionForm
