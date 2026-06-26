@@ -1077,7 +1077,16 @@ async function grantImageRetryTime() {
     const imagePrompt = `
 Create one hilarious party game image.
 
-Important: do not put any readable or fake text in the image. No captions, no labels, no signs, no cards, no posters, no written words, no speech bubbles, no UI, no logos.
+Default text rule: do not put readable or fake text in the image.
+
+Exception: if the player's punchline clearly asks for visible words, a sign, a note, a label, a shirt slogan, a banner, or a speech bubble, you may include one short piece of readable text because it is part of the joke.
+
+If text is included:
+- Use only the exact words needed for the joke.
+- Keep it very short, ideally 1-5 words.
+- Put it on one obvious object like a sign, shirt, note, banner, or single speech bubble.
+- Make the letters clean and readable.
+- Do not add any extra text.
 
 Scene context, for inspiration only. Do not render this as text:
 The round prompt is "${roundPrompt}".
@@ -1095,18 +1104,7 @@ The image should clearly show the connection between the question and answer.
 The answer should be the main punchline, but the joke should be understandable without reading the answer.
 Do not simply show the answer by itself.
 
-Build the scene around the joke:
-- Show what is happening
-- Show why it is funny
-- Add background chaos or small visual gags
-- Exaggerate facial expressions and reactions
-- Make the situation instantly understandable
-
-
 Style rules:
-
-${getImageStyleInstruction(roundImageStyle)}
-Create a hilarious cartoon image based on the player's answer.
 
 The image should:
 - Make players laugh within 3 seconds.
@@ -1122,11 +1120,12 @@ The image should:
 
 Never include:
 - Captions
-- Labels
-- Signs
+- Extra labels
+- Extra signs
 - Posters
 - Logos
-- Text of any kind, including fake letters, gibberish, handwriting, printed words, subtitles, or speech bubbles.
+- Fake letters, gibberish, subtitles, UI text, or random background writing.
+- Speech bubbles unless the player's punchline specifically asks for someone to say something.
 
 Avoid:
 - Crowded scenes
@@ -1137,6 +1136,10 @@ Avoid:
 - Confusing compositions
 
 The final image should feel like a frame from an animated comedy movie.
+
+${getImageStyleInstruction(roundImageStyle)}
+Create a hilarious cartoon image based on the player's answer.
+
 `;
 
     setLoadingMessage(

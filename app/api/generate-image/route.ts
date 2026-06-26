@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
+import { imageConfig } from "@/app/lib/imageConfig";
+import { generateImageBuffer } from "@/app/lib/imageProviders";
 import {
   checkRateLimit,
   checkSameOrigin,
@@ -17,119 +19,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const imageProvider = process.env.IMAGE_PROVIDER || "openai";
-const openaiImageModel = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1-mini";
-const openaiImageSize = process.env.OPENAI_IMAGE_SIZE || "1024x1024";
-const openaiImageQuality = process.env.OPENAI_IMAGE_QUALITY || "medium";
-const replicateImageModel = process.env.REPLICATE_IMAGE_MODEL || "black-forest-labs/flux-schnell";
-
 function wasImageRejected(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   return /(safety|moderation|policy|rejected|blocked)/.test(message);
-}
-
-async function generateWithOpenAI(prompt: string) {
-  const result = await openai.images.generate({
-    model: openaiImageModel,
-    prompt,
-    size: openaiImageSize as "1024x1024",
-    quality: openaiImageQuality as "low" | "medium" | "high" | "auto",
-  });
-
-  const imageBase64 = result.data?.[0]?.b64_json;
-
-  if (!imageBase64) {
-    throw new Error("Image generation returned no image");
-  }
-
-  return Buffer.from(imageBase64, "base64");
-}
-
-async function generateWithReplicate(prompt: string) {
-  const replicateApiToken = process.env.REPLICATE_API_TOKEN;
-
-  if (!replicateApiToken) {
-    throw new Error("Missing REPLICATE_API_TOKEN");
-  }
-
-  const response = await fetch("https://api.replicate.com/v1/predictions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${replicateApiToken}`,
-      "Content-Type": "application/json",
-      Prefer: "wait=60",
-      "Cancel-After": "90s",
-    },
-    body: JSON.stringify({
-      version: replicateImageModel,
-      input: {
-        prompt,
-        go_fast: true,
-        num_outputs: 1,
-        aspect_ratio: "1:1",
-        output_format: "png",
-      },
-    }),
-  });
-
-  let data = await response.json();
-
-  if (!response.ok) {
-    console.error("Replicate image generation failed:", data);
-    throw new Error(data?.detail || data?.error || "Replicate image generation failed");
-  }
-
-  const getUrl = data?.urls?.get;
-
-  for (let attempt = 0; data.status === "starting" || data.status === "processing"; attempt += 1) {
-    if (!getUrl || attempt >= 12) break;
-
-    await new Promise((resolve) => setTimeout(resolve, 2500));
-
-    const statusResponse = await fetch(getUrl, {
-      headers: {
-        Authorization: `Bearer ${replicateApiToken}`,
-      },
-    });
-
-    data = await statusResponse.json();
-
-    if (!statusResponse.ok) {
-      console.error("Failed to poll Replicate prediction:", data);
-      throw new Error(data?.detail || data?.error || "Failed to poll Replicate prediction");
-    }
-  }
-
-  if (data.status !== "succeeded") {
-    console.error("Replicate prediction did not succeed:", data);
-    throw new Error(data?.error || `Replicate image generation did not finish: ${data.status}`);
-  }
-
-  const imageUrl = Array.isArray(data.output) ? data.output[0] : data.output;
-
-  if (!imageUrl) {
-    throw new Error("Replicate returned no image");
-  }
-
-  const imageResponse = await fetch(imageUrl, {
-    headers: {
-      Authorization: `Bearer ${replicateApiToken}`,
-    },
-  });
-
-  if (!imageResponse.ok) {
-    throw new Error(`Failed to download Replicate image: ${imageResponse.status}`);
-  }
-
-  return Buffer.from(await imageResponse.arrayBuffer());
-}
-
-async function generateImageBuffer(prompt: string) {
-  if (imageProvider === "replicate") {
-    return generateWithReplicate(prompt);
-  }
-
-  return generateWithOpenAI(prompt);
 }
 
 async function generateGalleryCaption(answer: string, roundPrompt: string) {
@@ -260,7 +152,7 @@ return Response.json({
           : "Image generation failed",
         rejected,
         details: process.env.NODE_ENV === "development" ? detail : undefined,
-        provider: imageProvider,
+        provider: imageConfig.provider,
       },
       { status: rejected ? 422 : 500 }
     );
