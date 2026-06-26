@@ -1106,35 +1106,116 @@ Build the scene around the joke:
 Style rules:
 
 ${getImageStyleInstruction(roundImageStyle)}
-Absurd comedy
-Big expressive faces
-Clear main subject
-Focus on visual comedy
-Make the joke immediately understandable
-Make players laugh within 3 seconds
+Turn this into a single funny visual scene.
 
-Speech and reactions:
+The image should clearly show the connection between the question and answer.
 
-Characters may be speaking, yelling, whispering, singing, arguing, reacting, or giving speeches
-If the answer involves something being said, make it obvious through facial expressions, body language, mouth position, gestures, and the reactions of other characters
-Treat spoken phrases as an important part of the joke
-Build the scene around the impact of what was said
+The answer should be the main punchline, but the joke should still work even if all text is removed.
 
-Text restrictions:
+Do not simply show the answer by itself.
 
-No captions
-No labels
-No signs
-No posters
-No logos
+Build the scene around the joke:
 
-Comedy rules:
+Show what is happening.
+Show why it is funny.
+Add background reactions or small visual gags when they support the joke.
+Exaggerate facial expressions and reactions.
+Make the situation immediately understandable.
 
-Exaggerate reactions
-Exaggerate consequences
-Make the answer the center of the joke
-Show the funniest possible visual interpretation of the answer
-Prefer visual comedy over realistic scenes
+STYLE
+
+Bright colorful cartoon style.
+Absurd comedy.
+Big expressive faces.
+Clear main subject.
+Focus on visual comedy.
+Make players laugh within 3 seconds.
+
+COMPOSITION RULES
+
+Show only the funniest moment of the joke.
+Use 1-3 main characters whenever possible.
+Avoid crowded scenes.
+Avoid tiny details that are hard to see on a phone screen.
+The funniest thing should be immediately obvious.
+Put the main joke near the center of the image.
+Create a scene, not a portrait.
+Prefer one strong joke over many small jokes.
+
+COMEDY RULES
+
+Exaggerate reactions.
+Exaggerate consequences.
+Prefer visual comedy over realistic scenes.
+Turn metaphors and expressions into literal scenes whenever possible.
+Show the immediate aftermath of something ridiculous.
+If someone says something shocking, show everyone reacting.
+If an object is mentioned, make it oversized, ridiculous, or used in an unexpected way.
+If the joke can be interpreted literally, choose the funniest literal interpretation.
+Make the answer the center of the joke.
+
+REACTIONS AND SPEECH
+
+Characters may be speaking, yelling, whispering, singing, arguing, reacting, or giving speeches.
+Use facial expressions, body language, and gestures to make emotions obvious.
+If a character is speaking, a speech bubble may be included.
+
+SPEECH BUBBLE RULES
+Speech bubbles are optional.
+
+Only include a speech bubble if it makes the image funnier.
+
+Speech bubbles should:
+
+Be short (1-8 words).
+Add personality or reaction.
+Feel like dialogue from a cartoon.
+Support the joke instead of explaining it.
+
+Speech bubbles should NOT:
+
+Explain the answer.
+Describe what is happening.
+Repeat the player's answer.
+Act as captions.
+
+Good examples:
+
+"YOU DID WHAT?!"
+"I REGRET EVERYTHING."
+"THIS WAS YOUR IDEA!"
+"NOT AGAIN."
+"HE'S BEHIND ME, ISN'T HE?"
+
+Bad examples:
+
+"I AM LATE FOR WORK."
+"THIS MAN STOLE MY PIZZA."
+"HE IS TURNING INTO A PIG."
+"THE ANSWER IS MICHELOBS."
+
+The image should still be funny if all speech bubbles are removed.
+
+TEXT RESTRICTIONS
+
+No captions.
+No labels.
+No signs.
+No posters.
+No logos.
+No text that explains the joke.
+
+AVOID
+
+Abstract concepts.
+Complicated stories.
+Confusing compositions.
+Multiple unrelated jokes.
+Empty backgrounds.
+Realistic photography.
+Images that require reading text to understand the joke.
+
+The final image should feel like a single frame from an animated comedy movie.
 `;
 
     setLoadingMessage(

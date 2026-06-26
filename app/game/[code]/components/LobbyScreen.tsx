@@ -74,18 +74,22 @@ export function LobbyScreen({
   onVotePromptSuggestion,
 }: LobbyScreenProps) {
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
+  const openSlots = maxPlayers - players.length;
 
   return (
     <>
-      <div className="text-center">
-        <h2 className="text-3xl font-black">Waiting for Players</h2>
-        <p className="mt-1 text-sm font-bold text-purple-600">
+      <div className="w-full max-w-6xl text-center">
+        <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-purple-600">
+          Room {code}
+        </p>
+        <h2 className="mt-1 text-3xl font-black md:text-5xl">Waiting for Players</h2>
+        <p className="mt-2 text-sm font-bold text-purple-600">
           {players.length} / {maxPlayers} players in the room
         </p>
         <button
           type="button"
           onClick={() => setIsHowToPlayOpen(true)}
-          className="mt-3 rounded-full border border-purple-200 bg-white px-4 py-2 text-sm font-extrabold text-purple-700 shadow-sm"
+          className="mt-4 rounded-full border border-purple-200 bg-white px-5 py-2.5 text-sm font-extrabold text-purple-700 shadow-sm"
         >
           How to play
         </button>
@@ -93,7 +97,7 @@ export function LobbyScreen({
 
       {isHowToPlayOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-lg rounded-[2rem] border-4 border-black bg-white p-6 text-black shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[2rem] border-4 border-black bg-white p-5 text-black shadow-2xl md:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-purple-600">
@@ -141,20 +145,18 @@ export function LobbyScreen({
         </div>
       )}
 
-      <div className="grid w-full max-w-5xl grid-cols-1 items-start gap-6 md:grid-cols-2">
-        <div className="rounded-3xl border border-purple-200 bg-white p-5 shadow-lg">
+      <div className="grid w-full max-w-6xl grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:gap-6">
+        <div className="order-2 rounded-3xl border border-purple-200 bg-white p-4 shadow-lg md:order-1 md:p-5">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-extrabold">Players</h3>
               <p className="text-sm text-gray-500">
-                {players.length === maxPlayers
+                {openSlots === 0
                   ? "The room is full!"
-                  : `Waiting for ${maxPlayers - players.length} more player${
-                      maxPlayers - players.length === 1 ? "" : "s"
-                    }.`}
+                  : `Waiting for ${openSlots} more player${openSlots === 1 ? "" : "s"}.`}
               </p>
             </div>
-            <span className="rounded-full bg-purple-100 px-3 py-1 text-sm font-extrabold text-purple-700">
+            <span className="shrink-0 rounded-full bg-purple-100 px-3 py-1 text-sm font-extrabold text-purple-700">
               {players.length} / {maxPlayers}
             </span>
           </div>
@@ -168,23 +170,23 @@ export function LobbyScreen({
             ))}
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-1">
             {players.map((player) => (
-              <div key={player.name} className="flex items-center gap-3 rounded-xl border p-3">
+              <div key={player.name} className="flex items-center gap-3 rounded-2xl border p-3">
                 {player.avatar_url ? (
                   <img
                     src={player.avatar_url}
                     alt={player.name}
-                    className="h-16 w-16 rounded-full border-2 border-purple-500 object-cover"
+                    className="h-12 w-12 rounded-full border-2 border-purple-500 object-cover md:h-14 md:w-14"
                   />
                 ) : (
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-300">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-200 text-xl">
                     👤
                   </div>
                 )}
 
-                <div>
-                  <div className="font-bold">
+                <div className="min-w-0">
+                  <div className="truncate font-bold">
                     {player.name}
                     {player.is_host && <span className="ml-2 text-yellow-500">👑 Host</span>}
                   </div>
@@ -195,70 +197,73 @@ export function LobbyScreen({
           </div>
         </div>
 
-        <div className="flex w-full flex-col gap-4">
+        <div className="order-1 flex w-full flex-col gap-4 md:order-2">
           {isHost ? (
             <>
-              <div className="w-full max-w-xl rounded-2xl border border-purple-200 bg-purple-50 p-4">
+              <div className="rounded-3xl border border-purple-200 bg-white p-4 shadow-lg md:p-5">
                 <p className="mb-3 text-sm font-extrabold uppercase tracking-wider text-purple-700">
                   Choose game mode
                 </p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <button
                     type="button"
                     onClick={() => onGameModeChange("classic")}
-                    className={`rounded-xl border-2 p-3 text-left transition ${
+                    className={`rounded-2xl border-2 p-4 text-left transition ${
                       selectedGameMode === "classic"
-                        ? "border-purple-600 bg-white shadow-sm"
-                        : "border-transparent bg-white/60 hover:border-purple-200"
+                        ? "border-purple-600 bg-purple-50 shadow-sm"
+                        : "border-gray-100 bg-gray-50 hover:border-purple-200"
                     }`}
                   >
-                    <span className="block font-extrabold">Classic</span>
-                    <span className="text-xs text-gray-500">Write a funny answer</span>
+                    <span className="block text-lg font-extrabold">Classic</span>
+                    <span className="text-sm text-gray-500">Write a funny answer</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => onGameModeChange("cards")}
-                    className={`rounded-xl border-2 p-3 text-left transition ${
+                    className={`rounded-2xl border-2 p-4 text-left transition ${
                       selectedGameMode === "cards"
                         ? "border-black bg-black text-white shadow-sm"
-                        : "border-transparent bg-white/60 hover:border-purple-200"
+                        : "border-gray-100 bg-gray-50 hover:border-purple-200"
                     }`}
                   >
-                    <span className="block font-extrabold">Fill in the Blank</span>
-                    <span className={`text-xs ${selectedGameMode === "cards" ? "text-gray-300" : "text-gray-500"}`}>
+                    <span className="block text-lg font-extrabold">Fill in the Blank</span>
+                    <span className={`text-sm ${selectedGameMode === "cards" ? "text-gray-300" : "text-gray-500"}`}>
                       Complete a prompt card
                     </span>
                   </button>
                 </div>
               </div>
 
-              <button
-                onClick={onStartGame}
-                disabled={isStarting || players.length < 2}
-                className="w-full max-w-xl rounded-2xl bg-green-600 px-6 py-4 font-extrabold text-white shadow-lg disabled:opacity-50"
-              >
-                {isStarting ? "Starting..." : "Start Game"}
-              </button>
+              <div className="rounded-3xl border border-green-200 bg-white p-4 text-center shadow-lg">
+                <button
+                  onClick={onStartGame}
+                  disabled={isStarting || players.length < 2}
+                  className="w-full rounded-2xl bg-green-600 px-6 py-4 text-lg font-extrabold text-white shadow-lg disabled:opacity-50"
+                >
+                  {isStarting ? "Starting..." : "Start Game"}
+                </button>
 
-              {players.length < 2 && (
-                <p className="text-center text-sm font-bold text-purple-700">
-                  Waiting for one more player to join.
-                </p>
-              )}
+                {players.length < 2 && (
+                  <p className="mt-3 text-sm font-bold text-purple-700">
+                    Waiting for one more player to join.
+                  </p>
+                )}
+              </div>
 
-              <div className="w-full max-w-xl">
+              <div className="rounded-3xl border border-purple-200 bg-white p-4 shadow-lg">
                 <button
                   type="button"
                   onClick={onToggleRoundCustomization}
                   aria-expanded={isRoundCustomizationOpen}
-                  className="w-full rounded-xl border border-purple-200 px-4 py-3 font-bold text-purple-700"
+                  className="flex w-full items-center justify-between rounded-2xl border border-purple-100 bg-purple-50 px-4 py-3 font-extrabold text-purple-700"
                 >
-                  {isRoundCustomizationOpen ? "Hide Round Settings" : "Customize Round"}
+                  <span>{isRoundCustomizationOpen ? "Hide Round Settings" : "Customize Round"}</span>
+                  <span aria-hidden="true">{isRoundCustomizationOpen ? "−" : "+"}</span>
                 </button>
 
                 {isRoundCustomizationOpen && (
-                  <div className="mt-3 grid grid-cols-1 gap-4 rounded-2xl border border-purple-200 bg-purple-50 p-4 md:grid-cols-3">
+                  <div className="mt-3 grid grid-cols-1 gap-4 rounded-2xl bg-purple-50 p-4 sm:grid-cols-2">
                     {selectedGameMode === "classic" && (
                       <div>
                         <label className="mb-2 block text-sm font-bold text-purple-600">
@@ -267,7 +272,7 @@ export function LobbyScreen({
                         <select
                           value={selectedCategory}
                           onChange={(event) => onCategoryChange(event.target.value)}
-                          className="w-full rounded-xl border p-3"
+                          className="w-full rounded-xl border bg-white p-3"
                         >
                           <option value="Random">🎲 Random</option>
                           <option value="personal">👥 Personal</option>
@@ -283,14 +288,14 @@ export function LobbyScreen({
                       </div>
                     )}
 
-                    <div className="w-full max-w-xl">
+                    <div>
                       <label className="mb-2 block text-sm font-bold text-purple-600">
                         Image style
                       </label>
                       <select
                         value={selectedImageStyle}
                         onChange={(event) => onImageStyleChange(event.target.value)}
-                        className="w-full rounded-xl border p-3"
+                        className="w-full rounded-xl border bg-white p-3"
                       >
                         <option value="prompt">Prompt's style</option>
                         <option value="cartoon">Colorful Cartoon</option>
@@ -301,7 +306,7 @@ export function LobbyScreen({
                       </select>
                     </div>
 
-                    <div className="w-full max-w-xl">
+                    <div>
                       <label className="mb-2 block text-sm font-bold text-purple-600">
                         Answer timer
                       </label>
@@ -312,7 +317,7 @@ export function LobbyScreen({
                             event.target.value === "unlimited" ? "unlimited" : Number(event.target.value)
                           )
                         }
-                        className="w-full rounded-xl border p-3"
+                        className="w-full rounded-xl border bg-white p-3"
                       >
                         <option value="unlimited">Unlimited</option>
                         <option value={60}>1 minute</option>
@@ -323,14 +328,14 @@ export function LobbyScreen({
                       </select>
                     </div>
 
-                    <div className="w-full max-w-xl">
+                    <div>
                       <label className="mb-2 block text-sm font-bold text-purple-600">
                         Voting timer
                       </label>
                       <select
                         value={selectedVotingDuration}
                         onChange={(event) => onVotingDurationChange(Number(event.target.value))}
-                        className="w-full rounded-xl border p-3"
+                        className="w-full rounded-xl border bg-white p-3"
                       >
                         <option value={30}>30 seconds</option>
                         <option value={45}>45 seconds</option>
@@ -342,14 +347,14 @@ export function LobbyScreen({
                 )}
               </div>
 
-              <div className="w-full max-w-xl rounded-2xl border border-purple-200 bg-white p-4 text-center shadow-sm">
+              <div className="rounded-3xl border border-purple-200 bg-white p-4 text-center shadow-lg">
                 <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
                   Invite your friends
                 </p>
-                <p className="mt-1 text-3xl font-black tracking-widest text-purple-700">
+                <p className="mt-1 text-4xl font-black tracking-widest text-purple-700">
                   {code}
                 </p>
-                <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <button
                     type="button"
                     onClick={onCopyRoomCode}
@@ -371,11 +376,14 @@ export function LobbyScreen({
               </div>
             </>
           ) : (
-            <div className="w-full max-w-xl rounded-2xl border border-purple-200 bg-purple-50 p-4 text-center">
-              <p className="font-bold">
-                Game mode: {selectedGameMode === "cards" ? "Fill in the Blank" : "Classic"}
+            <div className="rounded-3xl border border-purple-200 bg-white p-5 text-center shadow-lg">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-purple-600">
+                You’re in
               </p>
-              <p className="mt-2 text-sm text-gray-500">
+              <p className="mt-2 text-xl font-black">
+                {selectedGameMode === "cards" ? "Fill in the Blank" : "Classic"} mode
+              </p>
+              <p className="mt-2 text-sm font-bold text-gray-500">
                 Waiting for {hostName || "the host"} to start the game...
               </p>
             </div>
