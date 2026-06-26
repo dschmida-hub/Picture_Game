@@ -1712,11 +1712,12 @@ if (isPageLoading) {
 
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-6 p-6">
+    <main className="min-h-screen flex flex-col items-center justify-center gap-6 bg-purple-50 p-6">
       <GameLogo />
 
       {!joined ? (
   <JoinRoomForm
+    code={code}
     name={name}
     isJoining={isJoining}
     onNameChange={setName}
