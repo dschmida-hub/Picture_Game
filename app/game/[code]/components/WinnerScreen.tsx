@@ -1,4 +1,4 @@
-import type { RoundHistoryItem, ScoreboardPlayer } from "./types";
+import type { Player, RoundHistoryItem, ScoreboardPlayer } from "./types";
 
 type ConfettiPiece = {
   color: string;
@@ -13,6 +13,7 @@ type WinnerScreenProps = {
   winnerName: string;
   winnerPrompt: string;
   winner: string;
+  players: Player[];
   scoreboardPlayers: ScoreboardPlayer[];
   finalWinner: string;
   roundHistory: RoundHistoryItem[];
@@ -31,6 +32,7 @@ export function WinnerScreen({
   winnerName,
   winnerPrompt,
   winner,
+  players,
   scoreboardPlayers,
   finalWinner,
   roundHistory,
@@ -42,6 +44,27 @@ export function WinnerScreen({
   onNextRound,
   onReturnToLobby,
 }: WinnerScreenProps) {
+  function normalizeName(playerName?: string | null) {
+    return (playerName || "").trim().toLowerCase();
+  }
+
+  function findPlayerAvatar(playerName?: string | null) {
+    const normalizedName = normalizeName(playerName);
+    if (!normalizedName) return null;
+
+    return players.find((player) => normalizeName(player.name) === normalizedName)?.avatar_url || null;
+  }
+
+  const safeWinnerName = winnerName || "";
+  const winnerNames = safeWinnerName.startsWith("Tie: ")
+    ? safeWinnerName.replace("Tie: ", "").split(" and ").map((name) => name.trim()).filter(Boolean)
+    : safeWinnerName
+      ? [safeWinnerName]
+      : [];
+  const winnerAvatars = winnerNames
+    .map((name) => ({ name, avatarUrl: findPlayerAvatar(name) }))
+    .filter((winnerAvatar) => winnerAvatar.avatarUrl);
+
   return (
     <>
       <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden" aria-hidden="true">
@@ -82,6 +105,22 @@ export function WinnerScreen({
         <div className="relative rounded-2xl bg-white p-4 text-black">
           <div className="absolute -top-10 left-1/2 -translate-x-1/2 text-5xl">👑</div>
 
+          {winnerAvatars.length > 0 && (
+            <div className="-mt-1 mb-3 flex justify-center">
+              <div className="flex -space-x-3">
+                {winnerAvatars.map((winnerAvatar) => (
+                  <img
+                    key={winnerAvatar.name}
+                    src={winnerAvatar.avatarUrl || ""}
+                    alt={winnerAvatar.name}
+                    title={winnerAvatar.name}
+                    className="h-16 w-16 rounded-full border-4 border-white object-cover shadow-lg"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           <p className="mt-4 text-3xl font-extrabold">{winnerName || "Calculating..."}</p>
           <p className="mt-1 text-sm text-gray-500">
             {winnerImages.length > 1 ? "tied for the round" : "won the round"}
@@ -104,12 +143,16 @@ export function WinnerScreen({
               }`}
             >
               <div className="flex items-center gap-3">
-                {player.avatar_url && (
+                {player.avatar_url ? (
                   <img
                     src={player.avatar_url}
                     alt={player.name}
                     className="h-10 w-10 rounded-full border-2 border-white object-cover"
                   />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/70">
+                    👤
+                  </div>
                 )}
 
                 <span>
@@ -133,22 +176,36 @@ export function WinnerScreen({
             <h4 className="mb-4 text-2xl font-extrabold">🏆 Round History</h4>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {roundHistory.map((round) => (
-                <div key={round.id} className="rounded-2xl bg-white p-3 text-black shadow">
-                  <p className="mb-2 font-bold">Round {round.round_number}</p>
+              {roundHistory.map((round) => {
+                const roundWinnerName = round.winner_name || "Unknown winner";
+                const roundWinnerAvatar = findPlayerAvatar(round.winner_name);
 
-                  {round.winner_image_url && (
-                    <img
-                      src={round.winner_image_url}
-                      alt={round.winner_prompt}
-                      className="mb-2 w-full rounded-xl"
-                    />
-                  )}
+                return (
+                  <div key={round.id} className="rounded-2xl bg-white p-3 text-black shadow">
+                    <p className="mb-2 font-bold">Round {round.round_number}</p>
 
-                  <p className="font-bold">👑 {round.winner_name}</p>
-                  <p className="text-sm text-gray-600">"{round.winner_prompt}"</p>
-                </div>
-              ))}
+                    {round.winner_image_url && (
+                      <img
+                        src={round.winner_image_url}
+                        alt={round.winner_prompt}
+                        className="mb-2 w-full rounded-xl"
+                      />
+                    )}
+
+                    <div className="flex items-center justify-center gap-2 font-bold">
+                      {roundWinnerAvatar && (
+                        <img
+                          src={roundWinnerAvatar}
+                          alt={roundWinnerName}
+                          className="h-8 w-8 rounded-full border-2 border-yellow-300 object-cover"
+                        />
+                      )}
+                      <span>👑 {roundWinnerName}</span>
+                    </div>
+                    <p className="text-sm text-gray-600">"{round.winner_prompt}"</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

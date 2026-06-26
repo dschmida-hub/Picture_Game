@@ -2006,6 +2006,7 @@ if (isPageLoading) {
     winnerName={winnerName}
     winnerPrompt={winnerPrompt}
     winner={winner}
+    players={players}
     scoreboardPlayers={scoreboardPlayers}
     finalWinner={finalWinner}
     roundHistory={roundHistory}
