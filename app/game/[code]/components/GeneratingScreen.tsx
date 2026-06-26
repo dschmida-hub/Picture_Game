@@ -82,7 +82,7 @@ export function GeneratingScreen({
 
         {(hasCurrentRoundImage || !currentGalleryImage) && (
           <div className="grid w-full max-w-3xl grid-cols-1 gap-6 md:grid-cols-2">
-            {players.map((player) => {
+            {players.map((player, index) => {
               const playerSubmission = submissions.find((item) => {
                 return parseSubmission(item).playerName === player.name;
               });
@@ -102,7 +102,9 @@ export function GeneratingScreen({
                         alt={text}
                         className="mb-2 aspect-square w-full rounded-xl object-cover"
                       />
-                      <p className="truncate text-sm font-bold">{player.name} ✅</p>
+                      <p className="truncate text-sm font-bold">
+                        Image {index + 1} ready ✅
+                      </p>
                     </>
                   ) : (
                     <>
@@ -110,7 +112,7 @@ export function GeneratingScreen({
                         <div className="animate-pulse text-4xl">⏳</div>
                         <p className="mt-2 text-xs opacity-80">Generating...</p>
                       </div>
-                      <p className="text-sm font-bold">{player.name}</p>
+                      <p className="text-sm font-bold">Image {index + 1} pending</p>
                     </>
                   )}
                 </div>

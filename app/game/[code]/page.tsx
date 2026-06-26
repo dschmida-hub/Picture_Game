@@ -567,7 +567,7 @@ async function loadSubmissions(gameId = currentGameId) {
   setSubmissions(
   data.map(
     (item) =>
-      `${item.prompt}|||${item.image_url}|||${item.player_name}|||${
+      `${item.prompt}|||${item.image_url || ""}|||${item.player_name}|||${
         item.image_caption || "Untitled Masterpiece"
       }`
     )
@@ -1034,11 +1034,36 @@ async function grantImageRetryTime() {
     alert("The round is still loading. Please try again.");
     return;
   }
-  const playerAppearanceContext = buildPlayerAppearanceContext(players, name, submission);
+  const submittedAnswer = submission.trim();
+  const playerAppearanceContext = buildPlayerAppearanceContext(players, name, submittedAnswer);
 
   setIsSubmitting(true);
 
   try {
+    const { data: pendingSubmission, error: pendingSubmissionError } = await supabase
+      .from("submissions")
+      .insert([
+        {
+          room_code: code,
+          game_id: currentGameId,
+          player_name: name,
+          prompt: submittedAnswer,
+          image_url: null,
+          gallery_thumbnail_url: null,
+          image_caption: null,
+        },
+      ])
+      .select("id")
+      .single();
+
+    if (pendingSubmissionError) {
+      console.error(pendingSubmissionError);
+      alert("Failed to submit prompt");
+      return;
+    }
+
+    await loadSubmissions(currentGameId);
+
     const imagePrompt = `
 You are creating a hilarious party game image.
 
@@ -1046,7 +1071,7 @@ Question:
 ${roundPrompt}
 
 Player Answer:
-${submission.trim()}
+${submittedAnswer}
 
 Relevant Player Appearances:
 ${playerAppearanceContext}
@@ -1111,7 +1136,7 @@ Prefer visual comedy over realistic scenes
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         prompt: imagePrompt,
-        answer: submission.trim(),
+        answer: submittedAnswer,
         roundPrompt,
       }),
     });
@@ -1130,24 +1155,25 @@ Prefer visual comedy over realistic scenes
       } else {
         alert("Image generation failed");
       }
+      await supabase.from("submissions").delete().eq("id", pendingSubmission.id);
+      await loadSubmissions(currentGameId);
       return;
     }
 
-    const { error } = await supabase.from("submissions").insert([
-      {
-        room_code: code,
-        game_id: currentGameId,
-        player_name: name,
-        prompt: submission.trim(),
+    const { error } = await supabase
+      .from("submissions")
+      .update({
         image_url: imageData.imageUrl,
         gallery_thumbnail_url: imageData.thumbnailUrl || null,
         image_caption: imageData.caption || "Untitled Masterpiece",
-      },
-    ]);
+      })
+      .eq("id", pendingSubmission.id);
 
     if (error) {
       console.error(error);
       alert("Failed to submit prompt");
+      await supabase.from("submissions").delete().eq("id", pendingSubmission.id);
+      await loadSubmissions(currentGameId);
       return;
     }
 
