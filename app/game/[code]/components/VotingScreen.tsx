@@ -22,9 +22,11 @@ type VotingScreenProps = {
   onReturnToLobby: () => void;
   onVote: (answerText: string, submissionPlayerName: string) => void;
   onSaveImage: (imageUrl: string, imageCaption: string) => void;
+  onShareImage: (imageUrl: string, imageCaption: string) => void;
   onDeleteSubmission: (submissionId: number, submissionPlayerName: string) => void;
   onRateImage: (submissionId: number, rating: "funny" | "meh" | "bad") => void;
   onReportImage: (submissionId: number) => void;
+  onRegenerateImage: (submissionId: number, submissionPlayerName: string) => void;
   formatCountdown: (seconds: number) => string;
   getImageStyleLabel: (style: string) => string;
 };
@@ -48,9 +50,11 @@ export function VotingScreen({
   onReturnToLobby,
   onVote,
   onSaveImage,
+  onShareImage,
   onDeleteSubmission,
   onRateImage,
   onReportImage,
+  onRegenerateImage,
   formatCountdown,
   getImageStyleLabel,
 }: VotingScreenProps) {
@@ -177,7 +181,17 @@ export function VotingScreen({
                 )}
 
                 {imageUrl && (
-                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className={`mt-3 grid grid-cols-1 gap-2 ${id ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onShareImage(imageUrl, imageCaption || "Untitled Masterpiece");
+                      }}
+                      className="rounded-2xl bg-black px-4 py-3 text-sm font-extrabold text-white"
+                    >
+                      Share
+                    </button>
                     <button
                       type="button"
                       onClick={(event) => {
@@ -186,7 +200,7 @@ export function VotingScreen({
                       }}
                       className="rounded-2xl bg-purple-600 px-4 py-3 text-sm font-extrabold text-white"
                     >
-                      Save Image
+                      Save
                     </button>
                     {id && (
                       <button
@@ -231,17 +245,30 @@ export function VotingScreen({
                 )}
 
                 {isHost && id && (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onDeleteSubmission(id, submissionPlayerName);
-                    }}
-                    disabled={isForcingStage}
-                    className="mt-3 w-full rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-extrabold text-red-700 disabled:opacity-50"
-                  >
-                    Delete Submission
-                  </button>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRegenerateImage(id, submissionPlayerName);
+                      }}
+                      disabled={isForcingStage}
+                      className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-extrabold text-blue-700 disabled:opacity-50"
+                    >
+                      Regenerate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDeleteSubmission(id, submissionPlayerName);
+                      }}
+                      disabled={isForcingStage}
+                      className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-extrabold text-red-700 disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

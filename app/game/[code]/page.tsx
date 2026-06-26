@@ -543,7 +543,7 @@ async function loadHostDebugStats(gameId = currentGameId) {
   const { data: submissionStats, error: submissionStatsError } = await supabase
     .from("submissions")
     .select("estimated_image_cost_cents, image_model, image_provider, image_url")
-    .eq("game_id", String(gameId))
+    .eq("game_id", gameId)
     .not("image_url", "is", null);
 
   if (submissionStatsError) {
@@ -1313,6 +1313,57 @@ async function reportImage(submissionId: number) {
   }
 }
 
+async function regenerateImage(submissionId: number, submissionPlayerName: string) {
+  if (!isHost || !currentGameId || isForcingStage) return;
+
+  const shouldRegenerate = window.confirm(
+    `Regenerate ${submissionPlayerName}'s image? This uses another image generation.`
+  );
+
+  if (!shouldRegenerate) return;
+
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+
+  if (!savedPlayerId) {
+    alert("Your host session was lost. Please rejoin the room.");
+    return;
+  }
+
+  setIsForcingStage(true);
+
+  try {
+    const response = await fetch("/api/regenerate-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        gameId: currentGameId,
+        playerId: savedPlayerId,
+        roomCode: code,
+        submissionId,
+      }),
+    });
+
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      console.error(data);
+      alert(data?.error || "Could not regenerate that image.");
+      return;
+    }
+
+    await Promise.all([
+      loadSubmissions(currentGameId),
+      loadHostDebugStats(currentGameId),
+    ]);
+    setVoteMessage("Image regenerated.");
+  } catch (error) {
+    console.error("Failed to regenerate image:", error);
+    alert("Could not regenerate that image.");
+  } finally {
+    setIsForcingStage(false);
+  }
+}
+
 async function deleteSubmission(submissionId: number, submissionPlayerName: string) {
   if (!isHost || !currentGameId || isForcingStage) return;
 
@@ -1756,16 +1807,28 @@ async function playAgain() {
 }
 
 
-async function saveImage(imageUrl: string, answerText: string) {
+function getSafeImageFileName(imageCaption: string) {
+  const safeName = imageCaption
+    .slice(0, 30)
+    .replace(/[^a-z0-9]/gi, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
+
+  return `${safeName || "picture_this"}.png`;
+}
+
+async function saveImage(imageUrl: string, imageCaption: string) {
   try {
     const response = await fetch(imageUrl);
+    if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+
     const blob = await response.blob();
 
     const url = window.URL.createObjectURL(blob);
 
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${answerText.slice(0, 30).replace(/[^a-z0-9]/gi, "_")}.png`;
+    link.download = getSafeImageFileName(imageCaption);
 
     document.body.appendChild(link);
     link.click();
@@ -1775,6 +1838,41 @@ async function saveImage(imageUrl: string, answerText: string) {
   } catch (error) {
     console.error(error);
     alert("Could not save image");
+  }
+}
+
+async function shareImage(imageUrl: string, imageCaption: string) {
+  try {
+    const response = await fetch(imageUrl);
+    if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+
+    const blob = await response.blob();
+    const file = new File([blob], getSafeImageFileName(imageCaption), {
+      type: blob.type || "image/png",
+    });
+
+    const canShareFile =
+      typeof navigator.share === "function" &&
+      typeof navigator.canShare === "function" &&
+      navigator.canShare({ files: [file] });
+
+    if (canShareFile) {
+      await navigator.share({
+        files: [file],
+        text: imageCaption,
+        title: "Picture This",
+      });
+      return;
+    }
+
+    await saveImage(imageUrl, imageCaption);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return;
+    }
+
+    console.error(error);
+    alert("Could not share image");
   }
 }
 
@@ -1981,9 +2079,11 @@ if (isPageLoading) {
       onReturnToLobby={returnToLobby}
       onVote={voteForSubmission}
       onSaveImage={saveImage}
+      onShareImage={shareImage}
       onDeleteSubmission={deleteSubmission}
       onRateImage={rateImage}
       onReportImage={reportImage}
+      onRegenerateImage={regenerateImage}
       formatCountdown={formatCountdown}
       getImageStyleLabel={getImageStyleLabel}
     />
