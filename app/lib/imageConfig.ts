@@ -19,6 +19,7 @@ function getOpenAIImageQuality(value: string | undefined): OpenAIImageQuality {
 
 export const imageConfig = {
   provider: getImageProvider(process.env.IMAGE_PROVIDER),
+  estimatedCostCents: Number(process.env.ESTIMATED_IMAGE_COST_CENTS || "1"),
   openai: {
     model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1-mini",
     size: process.env.OPENAI_IMAGE_SIZE || "1024x1024",
@@ -28,3 +29,15 @@ export const imageConfig = {
     model: process.env.REPLICATE_IMAGE_MODEL || "black-forest-labs/flux-schnell",
   },
 };
+
+export function getActiveImageModel() {
+  return imageConfig.provider === "replicate"
+    ? imageConfig.replicate.model
+    : imageConfig.openai.model;
+}
+
+export function getEstimatedImageCostCents() {
+  return Number.isFinite(imageConfig.estimatedCostCents) && imageConfig.estimatedCostCents >= 0
+    ? imageConfig.estimatedCostCents
+    : 1;
+}

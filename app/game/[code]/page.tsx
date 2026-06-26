@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { GeneratingScreen } from "./components/GeneratingScreen";
 import { GameLogo } from "./components/GameLogo";
+import { HostDebugPanel } from "./components/HostDebugPanel";
 import { JoinRoomForm } from "./components/JoinRoomForm";
 import { LobbyScreen } from "./components/LobbyScreen";
 import { LoadingScreen } from "./components/LoadingScreen";
@@ -28,6 +29,7 @@ import {
   arePlayerNamesEqual,
   confettiPieces,
   formatCountdown,
+  formatRoomExpiration,
   getImageStyleLabel,
   getPromptRatingTable,
   MAX_PLAYERS,
@@ -39,6 +41,22 @@ import {
 } from "./utils/gameRoomUtils";
 
 type GameStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
+
+type HostDebugStats = {
+  estimatedCostCents: number;
+  generatedImages: number;
+  imageModel: string | null;
+  imageProvider: string | null;
+  reportCount: number | null;
+};
+
+const emptyHostDebugStats: HostDebugStats = {
+  estimatedCostCents: 0,
+  generatedImages: 0,
+  imageModel: null,
+  imageProvider: null,
+  reportCount: null,
+};
 
 export default function GameRoom() {
   const params = useParams();
@@ -80,6 +98,7 @@ export default function GameRoom() {
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [roomShareMessage, setRoomShareMessage] = useState("");
+  const [roomCreatedAt, setRoomCreatedAt] = useState<string | null>(null);
   const [reconnectMessage, setReconnectMessage] = useState("");
   const [promptSuggestions, setPromptSuggestions] = useState<PromptSuggestion[]>([]);
   const [promptSuggestionText, setPromptSuggestionText] = useState("");
@@ -93,6 +112,7 @@ export default function GameRoom() {
   const [winnerImages, setWinnerImages] = useState<string[]>([]);
   const [roundPrompt, setRoundPrompt] = useState("");
   const [roundImageStyle, setRoundImageStyle] = useState("cartoon");
+  const [hostDebugStats, setHostDebugStats] = useState<HostDebugStats>(emptyHostDebugStats);
   const hostName = players.find((player) => player.is_host)?.name;
   const isHost = joined && name === hostName;
   const [roundHistory, setRoundHistory] = useState<RoundHistoryItem[]>([]);
@@ -132,6 +152,7 @@ export default function GameRoom() {
   ) + 1;
   const promptApprovalVotesNeeded = Math.max(2, Math.ceil(players.length / 2));
   const promptSuggestionRating = ratePrompt(promptSuggestionText, promptSuggestionMode);
+  const roomExpirationMessage = formatRoomExpiration(roomCreatedAt);
 
   useEffect(() => {
     if (stage !== "submitting" || !currentGameId) return;
@@ -493,7 +514,7 @@ async function loadSubmissions(gameId = currentGameId) {
 
   const { data, error } = await supabase
     .from("submissions")
-    .select("player_name, prompt, image_url, image_caption")
+    .select("id, player_name, prompt, image_url, gallery_thumbnail_url, image_caption")
     .eq("room_code", code)
     .eq("game_id", gameId)
     .order("id", { ascending: true });
@@ -506,11 +527,53 @@ async function loadSubmissions(gameId = currentGameId) {
   setSubmissions(
   data.map(
     (item) =>
-      `${item.prompt}|||${item.image_url || ""}|||${item.player_name}|||${
+      `${item.id}|||${item.prompt}|||${item.image_url || ""}|||${item.player_name}|||${
         item.image_caption || "Untitled Masterpiece"
-      }`
+      }|||${item.gallery_thumbnail_url || ""}`
     )
   );
+}
+
+async function loadHostDebugStats(gameId = currentGameId) {
+  if (!gameId) {
+    setHostDebugStats(emptyHostDebugStats);
+    return;
+  }
+
+  const { data: submissionStats, error: submissionStatsError } = await supabase
+    .from("submissions")
+    .select("estimated_image_cost_cents, image_model, image_provider, image_url")
+    .eq("game_id", String(gameId))
+    .not("image_url", "is", null);
+
+  if (submissionStatsError) {
+    console.error("Failed to load host debug submission stats:", submissionStatsError);
+    return;
+  }
+
+  const generatedSubmissions = submissionStats || [];
+  const latestGeneratedSubmission = generatedSubmissions[generatedSubmissions.length - 1];
+  const estimatedCostCents = generatedSubmissions.reduce(
+    (sum, item) => sum + Number(item.estimated_image_cost_cents || 0),
+    0
+  );
+
+  const { count: reportCount, error: reportCountError } = await supabase
+    .from("image_reports")
+    .select("id", { count: "exact", head: true })
+    .eq("game_id", gameId);
+
+  if (reportCountError) {
+    console.error("Failed to load host debug report count:", reportCountError);
+  }
+
+  setHostDebugStats({
+    estimatedCostCents,
+    generatedImages: generatedSubmissions.length,
+    imageModel: latestGeneratedSubmission?.image_model || null,
+    imageProvider: latestGeneratedSubmission?.image_provider || null,
+    reportCount: reportCountError ? null : reportCount || 0,
+  });
 }
 
 async function loadVotes(gameId = currentGameId) {
@@ -589,7 +652,7 @@ async function loadGame() {
   
   const { data, error } = await supabase
     .from("games")
-    .select("id, stage, prompt, prompt_id, prompt_source, game_mode, image_style, submission_deadline, voting_deadline, voting_duration_seconds")
+    .select("id, created_at, stage, prompt, prompt_id, prompt_source, game_mode, image_style, submission_deadline, voting_deadline, voting_duration_seconds")
     .eq("room_code", code)
     .order("id", { ascending: false })
     .limit(1)
@@ -602,6 +665,7 @@ async function loadGame() {
 
  if (data) {
   setCurrentGameId(data.id);
+  setRoomCreatedAt(data.created_at || null);
   setCurrentPromptId(data.prompt_id);
   setCurrentPromptSource(data.prompt_source as PromptSource | null);
   setStage(data.stage as GameStage);
@@ -614,6 +678,7 @@ async function loadGame() {
   await loadCurrentPromptRating(data.prompt_id, data.prompt_source as PromptSource | null, data.prompt, data.game_mode as GameMode);
   await loadSubmissions(data.id);
   await loadVotes(data.id);
+  await loadHostDebugStats(data.id);
 }
 }
 
@@ -1050,6 +1115,7 @@ async function grantImageRetryTime() {
 
     setSubmission("");
     await loadSubmissions(currentGameId);
+    await loadHostDebugStats(currentGameId);
 
     const { data: allPlayers } = await supabase
       .from("players")
@@ -1167,6 +1233,127 @@ await loadGame();
 
 }
 
+async function rateImage(submissionId: number, rating: "funny" | "meh" | "bad") {
+  if (!currentGameId) return;
+
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+
+  if (!savedPlayerId) {
+    alert("Your player session was lost. Please rejoin the room.");
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/image-feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        gameId: currentGameId,
+        playerId: savedPlayerId,
+        rating,
+        roomCode: code,
+        submissionId,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      console.error(data);
+      alert("Could not save that image rating.");
+      return;
+    }
+
+    setVoteMessage("Image feedback saved. Thanks!");
+  } catch (error) {
+    console.error("Failed to rate image:", error);
+    alert("Could not save that image rating.");
+  }
+}
+
+async function reportImage(submissionId: number) {
+  if (!currentGameId) return;
+
+  const shouldReport = window.confirm(
+    "Report this image/prompt for review? Use this for gross, unsafe, or game-ruining content."
+  );
+
+  if (!shouldReport) return;
+
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+
+  if (!savedPlayerId) {
+    alert("Your player session was lost. Please rejoin the room.");
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/image-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        gameId: currentGameId,
+        playerId: savedPlayerId,
+        roomCode: code,
+        submissionId,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      console.error(data);
+      alert("Could not report that image.");
+      return;
+    }
+
+    setVoteMessage("Report saved. Thanks for keeping the game playable.");
+    await loadHostDebugStats(currentGameId);
+  } catch (error) {
+    console.error("Failed to report image:", error);
+    alert("Could not report that image.");
+  }
+}
+
+async function deleteSubmission(submissionId: number, submissionPlayerName: string) {
+  if (!isHost || !currentGameId || isForcingStage) return;
+
+  const shouldDelete = window.confirm(
+    `Delete ${submissionPlayerName}'s submission from this round? Existing votes for it will be removed.`
+  );
+
+  if (!shouldDelete) return;
+
+  setIsForcingStage(true);
+
+  try {
+    const { error: votesError } = await supabase
+      .from("votes")
+      .delete()
+      .eq("game_id", currentGameId)
+      .like("voted_for", `${submissionPlayerName}: %`);
+
+    if (votesError) throw votesError;
+
+    const { error: submissionError } = await supabase
+      .from("submissions")
+      .delete()
+      .eq("id", submissionId)
+      .eq("game_id", currentGameId);
+
+    if (submissionError) throw submissionError;
+
+    await Promise.all([
+      loadSubmissions(currentGameId),
+      loadVotes(currentGameId),
+      loadHostDebugStats(currentGameId),
+    ]);
+  } catch (error) {
+    console.error("Failed to delete submission:", error);
+    alert("Could not delete that submission.");
+  } finally {
+    setIsForcingStage(false);
+  }
+}
+
 async function forceReveal() {
   if (!isHost || !currentGameId || isForcingStage) return;
 
@@ -1208,6 +1395,7 @@ async function forceReveal() {
     setStage("reveal");
     setVotingDeadline(nextVotingDeadline);
     await loadSubmissions(currentGameId);
+    await loadHostDebugStats(currentGameId);
   } catch (error) {
     console.error("Failed to reveal submitted images:", error);
     alert("Could not reveal the submitted images.");
@@ -1638,6 +1826,17 @@ if (isPageLoading) {
         </div>
       )}
 
+      {isHost && (
+        <HostDebugPanel
+          currentGameId={currentGameId}
+          playersCount={players.length}
+          stage={stage}
+          submissionsCount={submissions.length}
+          votesCount={votedPlayerNames.length}
+          stats={hostDebugStats}
+        />
+      )}
+
       {!joined ? (
   <JoinRoomForm
     code={code}
@@ -1663,6 +1862,7 @@ if (isPageLoading) {
     isStarting={isStarting}
     isRoundCustomizationOpen={isRoundCustomizationOpen}
     roomShareMessage={roomShareMessage}
+    roomExpirationMessage={roomExpirationMessage}
     promptSuggestions={promptSuggestions}
     promptSuggestionText={promptSuggestionText}
     promptSuggestionMode={promptSuggestionMode}
@@ -1781,6 +1981,9 @@ if (isPageLoading) {
       onReturnToLobby={returnToLobby}
       onVote={voteForSubmission}
       onSaveImage={saveImage}
+      onDeleteSubmission={deleteSubmission}
+      onRateImage={rateImage}
+      onReportImage={reportImage}
       formatCountdown={formatCountdown}
       getImageStyleLabel={getImageStyleLabel}
     />
@@ -1789,6 +1992,7 @@ if (isPageLoading) {
 ======================================= */
 ) : stage === "winner" ? (
  <WinnerScreen
+  code={code}
   confettiPieces={confettiPieces}
   winnerImages={winnerImages}
   winnerName={winnerName}

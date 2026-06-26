@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
-import { imageConfig } from "@/app/lib/imageConfig";
+import { getActiveImageModel, getEstimatedImageCostCents, imageConfig } from "@/app/lib/imageConfig";
 import { buildImagePrompt } from "@/app/lib/imagePrompt";
 import { generateImageBuffer } from "@/app/lib/imageProviders";
 import {
@@ -282,22 +282,49 @@ async function updateGeneratedSubmission({
   imageUrl,
   thumbnailUrl,
   caption,
+  costCents,
 }: {
   submissionId: number;
   imageUrl: string;
   thumbnailUrl: string | null;
   caption: string;
+  costCents: number;
 }) {
   const { error } = await supabase
     .from("submissions")
     .update({
+      estimated_image_cost_cents: costCents,
       image_url: imageUrl,
       gallery_thumbnail_url: thumbnailUrl,
       image_caption: caption,
+      image_model: getActiveImageModel(),
+      image_provider: imageConfig.provider,
     })
     .eq("id", submissionId);
 
   if (error) throw error;
+}
+
+async function updateGameEstimatedCost(gameId: number) {
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("estimated_image_cost_cents")
+    .eq("game_id", gameId)
+    .not("image_url", "is", null);
+
+  if (error) throw error;
+
+  const totalCostCents = (data || []).reduce(
+    (sum, submission) => sum + Number(submission.estimated_image_cost_cents || 0),
+    0
+  );
+
+  const { error: gameUpdateError } = await supabase
+    .from("games")
+    .update({ estimated_image_cost_cents: totalCostCents })
+    .eq("id", gameId);
+
+  if (gameUpdateError) throw gameUpdateError;
 }
 
 export async function POST(request: Request) {
@@ -353,18 +380,22 @@ export async function POST(request: Request) {
 
     const { imageId, imageUrl } = await uploadGeneratedImage(imageBuffer);
     const thumbnailUrl = await uploadGalleryThumbnail(imageId, imageBuffer);
+    const estimatedCostCents = getEstimatedImageCostCents();
 
     await updateGeneratedSubmission({
       submissionId: submission.id,
       imageUrl,
       thumbnailUrl,
       caption,
+      costCents: estimatedCostCents,
     });
+    await updateGameEstimatedCost(gameId);
 
     return Response.json({
       imageUrl,
       thumbnailUrl,
       caption,
+      estimatedCostCents,
     });
   } catch (error) {
     console.error(error);

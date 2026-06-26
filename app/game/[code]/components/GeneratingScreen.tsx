@@ -78,6 +78,8 @@ export function GeneratingScreen({
           <img
             src={currentGalleryImage}
             alt="A past winning image"
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-contain transition-opacity duration-500"
             style={{ opacity: isGalleryImageVisible ? 1 : 0 }}
           />
@@ -121,20 +123,23 @@ export function GeneratingScreen({
               const playerSubmission = submissions.find((item) => {
                 return parseSubmission(item).playerName === player.name;
               });
-              const { text, imageUrl } = playerSubmission
+              const { text, imageUrl, thumbnailUrl } = playerSubmission
                 ? parseSubmission(playerSubmission)
-                : { text: "", imageUrl: "" };
+                : { text: "", imageUrl: "", thumbnailUrl: "" };
+              const displayImageUrl = thumbnailUrl || imageUrl;
 
               return (
                 <div
                   key={player.name}
                   className="rounded-2xl border border-white/20 bg-purple-900/60 p-3 text-center"
                 >
-                  {imageUrl ? (
+                  {displayImageUrl ? (
                     <>
                       <img
-                        src={imageUrl}
+                        src={displayImageUrl}
                         alt={text}
+                        loading="lazy"
+                        decoding="async"
                         className="mb-2 aspect-square w-full rounded-xl object-cover"
                       />
                       <p className="truncate text-sm font-bold">Image {index + 1} ready ✅</p>

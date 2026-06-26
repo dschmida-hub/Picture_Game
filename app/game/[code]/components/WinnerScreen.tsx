@@ -8,6 +8,7 @@ type ConfettiPiece = {
 };
 
 type WinnerScreenProps = {
+  code: string;
   confettiPieces: ConfettiPiece[];
   winnerImages: string[];
   winnerName: string;
@@ -31,6 +32,7 @@ function normalizeName(playerName?: string | null) {
 }
 
 export function WinnerScreen({
+  code,
   confettiPieces,
   winnerImages,
   winnerName,
@@ -64,6 +66,7 @@ export function WinnerScreen({
   const winnerAvatars = winnerNames
     .map((name) => ({ name, avatarUrl: findPlayerAvatar(name) }))
     .filter((winnerAvatar) => winnerAvatar.avatarUrl);
+  const galleryUrl = `/game/${code}/gallery`;
 
   return (
     <>
@@ -169,6 +172,21 @@ export function WinnerScreen({
         </div>
       </div>
 
+      {roundHistory.length > 0 && (
+        <div className="w-full max-w-md rounded-3xl border border-purple-200 bg-white p-5 text-center shadow-xl">
+          <h3 className="text-2xl font-black">Share the chaos</h3>
+          <p className="mt-2 text-sm font-bold text-gray-500">
+            Send friends the recap gallery for this room.
+          </p>
+          <a
+            href={galleryUrl}
+            className="mt-4 block rounded-2xl bg-black px-6 py-4 font-extrabold text-white"
+          >
+            Open Share Gallery
+          </a>
+        </div>
+      )}
+
       {finalWinner && (
         <div className="max-w-4xl rounded-3xl border-4 border-yellow-400 bg-yellow-100 p-5 text-center shadow-xl">
           <h3 className="text-3xl font-extrabold">🎉 Final Winner</h3>
@@ -181,16 +199,17 @@ export function WinnerScreen({
               {roundHistory.map((round) => {
                 const roundWinnerName = round.winner_name || "Unknown winner";
                 const roundWinnerAvatar = findPlayerAvatar(round.winner_name);
+                const displayImage = round.gallery_thumbnail_url || round.winner_image_url;
 
                 return (
                   <div key={round.id} className="rounded-2xl bg-white p-3 text-black shadow">
                     <p className="mb-2 font-bold">Round {round.round_number}</p>
 
-                    {round.winner_image_url && (
+                    {displayImage && (
                       <img
-                        src={round.winner_image_url}
+                        src={displayImage}
                         alt={round.winner_prompt}
-                        className="mb-2 w-full rounded-xl"
+                        className="mb-2 aspect-square w-full rounded-xl object-cover"
                       />
                     )}
 

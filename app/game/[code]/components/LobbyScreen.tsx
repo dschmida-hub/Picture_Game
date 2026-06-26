@@ -17,6 +17,7 @@ type LobbyScreenProps = {
   isStarting: boolean;
   isRoundCustomizationOpen: boolean;
   roomShareMessage: string;
+  roomExpirationMessage: string;
   promptSuggestions: PromptSuggestion[];
   promptSuggestionText: string;
   promptSuggestionMode: GameMode;
@@ -54,6 +55,7 @@ export function LobbyScreen({
   isStarting,
   isRoundCustomizationOpen,
   roomShareMessage,
+  roomExpirationMessage,
   promptSuggestions,
   promptSuggestionText,
   promptSuggestionMode,
@@ -87,6 +89,9 @@ export function LobbyScreen({
         <h2 className="mt-1 text-3xl font-black md:text-5xl">Waiting for Players</h2>
         <p className="mt-2 text-sm font-bold text-purple-600">
           {players.length} / {maxPlayers} players in the room
+        </p>
+        <p className="mt-2 text-xs font-bold uppercase tracking-wider text-gray-500">
+          {roomExpirationMessage}
         </p>
         <button
           type="button"

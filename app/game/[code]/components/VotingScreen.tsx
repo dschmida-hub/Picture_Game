@@ -22,6 +22,9 @@ type VotingScreenProps = {
   onReturnToLobby: () => void;
   onVote: (answerText: string, submissionPlayerName: string) => void;
   onSaveImage: (imageUrl: string, imageCaption: string) => void;
+  onDeleteSubmission: (submissionId: number, submissionPlayerName: string) => void;
+  onRateImage: (submissionId: number, rating: "funny" | "meh" | "bad") => void;
+  onReportImage: (submissionId: number) => void;
   formatCountdown: (seconds: number) => string;
   getImageStyleLabel: (style: string) => string;
 };
@@ -45,6 +48,9 @@ export function VotingScreen({
   onReturnToLobby,
   onVote,
   onSaveImage,
+  onDeleteSubmission,
+  onRateImage,
+  onReportImage,
   formatCountdown,
   getImageStyleLabel,
 }: VotingScreenProps) {
@@ -103,14 +109,17 @@ export function VotingScreen({
       <div className="grid w-full max-w-6xl grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
         {submissions.map((item, index) => {
           const {
+            id,
             text,
             imageUrl,
+            thumbnailUrl,
             playerName: submissionPlayerName,
             imageCaption,
           } = parseSubmission(item);
           const isOwnSubmission = submissionPlayerName === playerName;
           const isSelfVoteBlocked = isOwnSubmission && !allowSelfVoting;
           const isVoteUnavailable = hasVoted || isVotingTimeExpired || isSelfVoteBlocked;
+          const displayImageUrl = thumbnailUrl || imageUrl;
 
           return (
             <div
@@ -125,10 +134,12 @@ export function VotingScreen({
               }`}
             >
               <div className="relative">
-                {imageUrl && (
+                {displayImageUrl && (
                   <img
-                    src={imageUrl}
+                    src={displayImageUrl}
                     alt={imageCaption || "A player submission"}
+                    loading="lazy"
+                    decoding="async"
                     className="aspect-square w-full bg-gray-100 object-cover"
                   />
                 )}
@@ -166,15 +177,70 @@ export function VotingScreen({
                 )}
 
                 {imageUrl && (
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSaveImage(imageUrl, imageCaption || "Untitled Masterpiece");
+                      }}
+                      className="rounded-2xl bg-purple-600 px-4 py-3 text-sm font-extrabold text-white"
+                    >
+                      Save Image
+                    </button>
+                    {id && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onReportImage(id);
+                        }}
+                        className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-extrabold text-orange-700"
+                      >
+                        Report
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {id && (
+                  <div className="mt-3 rounded-2xl bg-gray-50 p-3">
+                    <p className="mb-2 text-center text-xs font-extrabold uppercase tracking-wider text-gray-500">
+                      Rate this image
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        ["funny", "Funny"],
+                        ["meh", "Meh"],
+                        ["bad", "Bad"],
+                      ].map(([rating, label]) => (
+                        <button
+                          key={rating}
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onRateImage(id, rating as "funny" | "meh" | "bad");
+                          }}
+                          className="rounded-xl border border-purple-100 bg-white px-2 py-2 text-xs font-extrabold text-purple-700"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {isHost && id && (
                   <button
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
-                      onSaveImage(imageUrl, imageCaption || "Untitled Masterpiece");
+                      onDeleteSubmission(id, submissionPlayerName);
                     }}
-                    className="mt-3 w-full rounded-2xl bg-purple-600 px-4 py-3 text-sm font-extrabold text-white"
+                    disabled={isForcingStage}
+                    className="mt-3 w-full rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-extrabold text-red-700 disabled:opacity-50"
                   >
-                    Save Image
+                    Delete Submission
                   </button>
                 )}
               </div>
