@@ -8,14 +8,28 @@ export default function Home() {
   const [joinError, setJoinError] = useState("");
   const [isJoining, setIsJoining] = useState(false);
 
+  function formatRoomCode(value: string) {
+    return value.replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 5);
+  }
+
+  function handleRoomCodeChange(value: string) {
+    setRoomCode(formatRoomCode(value));
+    setJoinError("");
+  }
+
   function createGame() {
     const code = Math.random().toString(36).substring(2, 7).toUpperCase();
     window.location.href = `/game/${code}?create=1`;
   }
 
   async function joinGame() {
-    const cleanCode = roomCode.trim().toUpperCase();
+    const cleanCode = formatRoomCode(roomCode);
     if (!cleanCode) return;
+
+    if (cleanCode.length !== 5) {
+      setJoinError("Room codes are 5 letters or numbers.");
+      return;
+    }
 
     setJoinError("");
     setIsJoining(true);
@@ -44,7 +58,7 @@ export default function Home() {
         return;
       }
 
-    window.location.href = `/game/${cleanCode}`;
+      window.location.href = `/game/${cleanCode}`;
     } finally {
       setIsJoining(false);
     }
@@ -93,17 +107,23 @@ export default function Home() {
             <input
               id="room-code"
               value={roomCode}
-              onChange={(event) => setRoomCode(event.target.value.toUpperCase())}
+              onChange={(event) => handleRoomCodeChange(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") joinGame();
               }}
               placeholder="ABCDE"
+              inputMode="text"
+              autoComplete="off"
+              spellCheck={false}
               maxLength={5}
               className="mt-2 w-full rounded-2xl border-2 border-purple-200 p-4 text-center text-2xl font-black tracking-[0.3em] uppercase focus:border-purple-600 focus:outline-none"
             />
+            <p className="mt-2 text-center text-xs font-bold text-gray-500">
+              Codes are 5 characters. We’ll clean up spaces or dashes automatically.
+            </p>
             <button
               onClick={joinGame}
-              disabled={!roomCode.trim() || isJoining}
+              disabled={roomCode.length !== 5 || isJoining}
               className="mt-4 w-full rounded-2xl bg-black px-6 py-4 text-lg font-extrabold text-white disabled:opacity-50"
             >
               {isJoining ? "Checking Room..." : "Join Game"}

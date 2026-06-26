@@ -168,6 +168,7 @@ export default function GameRoom() {
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [roomShareMessage, setRoomShareMessage] = useState("");
+  const [reconnectMessage, setReconnectMessage] = useState("");
   const [promptSuggestions, setPromptSuggestions] = useState<PromptSuggestion[]>([]);
   const [promptSuggestionText, setPromptSuggestionText] = useState("");
   const [promptSuggestionMode, setPromptSuggestionMode] = useState<GameMode>("classic");
@@ -233,6 +234,13 @@ export default function GameRoom() {
     const timeout = window.setTimeout(() => setShowRoundIntro(false), 1400);
     return () => window.clearTimeout(timeout);
   }, [currentGameId, stage]);
+
+  useEffect(() => {
+    if (!reconnectMessage) return;
+
+    const timeout = window.setTimeout(() => setReconnectMessage(""), 3500);
+    return () => window.clearTimeout(timeout);
+  }, [reconnectMessage]);
 
   useEffect(() => {
     const activeDeadline = stage === "submitting" ? roundDeadline : stage === "reveal" ? votingDeadline : null;
@@ -702,6 +710,7 @@ async function restoreJoinedPlayer() {
 
   setName(data.name);
   setJoined(true);
+  setReconnectMessage(`Welcome back, ${data.name}!`);
 }
 
 useEffect(() => {
@@ -793,6 +802,7 @@ async function joinGame() {
       setName(savedPlayer.name);
       await loadPlayers();
       setJoined(true);
+      setReconnectMessage(`Welcome back, ${savedPlayer.name}!`);
       return;
     }
   }
@@ -1149,11 +1159,11 @@ Prefer visual comedy over realistic scenes
         const wasExtended = await grantImageRetryTime();
         alert(
           wasExtended
-            ? "The AI couldn't create that one. You have an extra minute to adjust your answer and try again."
-            : "The AI couldn't create that one. Please adjust your answer and try again."
+            ? "The AI got weird about that one. You have an extra minute to tweak your answer and try again."
+            : "The AI got weird about that one. Try a slightly different version."
         );
       } else {
-        alert("Image generation failed");
+        alert("The image machine tripped over its own shoelaces. Try submitting again.");
       }
       await supabase.from("submissions").delete().eq("id", pendingSubmission.id);
       await loadSubmissions(currentGameId);
@@ -1304,8 +1314,9 @@ async function forceReveal() {
   try {
     const { data: readySubmissions, error: submissionsError } = await supabase
       .from("submissions")
-      .select("id")
-      .eq("game_id", currentGameId);
+      .select("id, image_url")
+      .eq("game_id", currentGameId)
+      .not("image_url", "is", null);
 
     if (submissionsError) throw submissionsError;
 
@@ -1330,6 +1341,44 @@ async function forceReveal() {
   } catch (error) {
     console.error("Failed to reveal submitted images:", error);
     alert("Could not reveal the submitted images.");
+  } finally {
+    setIsForcingStage(false);
+  }
+}
+
+async function returnToLobby() {
+  if (!isHost || !currentGameId || isForcingStage) return;
+
+  const shouldReturn = window.confirm(
+    "Return everyone to the lobby? Scores stay the same, but the current round will stop."
+  );
+
+  if (!shouldReturn) return;
+
+  setIsForcingStage(true);
+
+  try {
+    const { error } = await supabase
+      .from("games")
+      .update({ stage: "lobby" })
+      .eq("id", currentGameId);
+
+    if (error) throw error;
+
+    setStage("lobby");
+    setSubmission("");
+    setSubmissions([]);
+    setWinner("");
+    setWinnerName("");
+    setWinnerPrompt("");
+    setWinnerImages([]);
+    setHasVoted(false);
+    setVoteMessage("");
+    setRoundDeadline(null);
+    setVotingDeadline(null);
+  } catch (error) {
+    console.error("Failed to return to lobby:", error);
+    alert("Could not return to the lobby.");
   } finally {
     setIsForcingStage(false);
   }
@@ -1715,6 +1764,12 @@ if (isPageLoading) {
     <main className="min-h-screen flex flex-col items-center justify-center gap-6 bg-purple-50 p-6">
       <GameLogo />
 
+      {reconnectMessage && (
+        <div className="rounded-full border border-green-200 bg-green-50 px-5 py-2 text-sm font-extrabold text-green-700 shadow-sm">
+          {reconnectMessage}
+        </div>
+      )}
+
       {!joined ? (
   <JoinRoomForm
     code={code}
@@ -1800,6 +1855,7 @@ if (isPageLoading) {
         isRatingCurrentPrompt={isRatingCurrentPrompt}
         canRateCurrentPrompt={Boolean(getPromptRatingTable(currentPromptSource))}
         onForceReveal={forceReveal}
+        onReturnToLobby={returnToLobby}
         onRateCurrentPrompt={rateCurrentPrompt}
       />
     ) : (
@@ -1817,6 +1873,7 @@ if (isPageLoading) {
     onSubmit={submitPrompt}
     onForceReveal={forceReveal}
     onSkipRound={nextRound}
+    onReturnToLobby={returnToLobby}
   />
 )}
   </>
@@ -1852,6 +1909,7 @@ if (isPageLoading) {
       submissions={submissions}
       waitingOnVoteNames={waitingOnVoteNames}
       onEndVotingEarly={endVotingEarly}
+      onReturnToLobby={returnToLobby}
       onVote={voteForSubmission}
       onSaveImage={saveImage}
       formatCountdown={formatCountdown}
@@ -1876,6 +1934,7 @@ if (isPageLoading) {
     isAdvancing={isAdvancing}
     onPlayAgain={playAgain}
     onNextRound={nextRound}
+    onReturnToLobby={returnToLobby}
   />
 ) : (
   <p>Unknown game stage.</p>

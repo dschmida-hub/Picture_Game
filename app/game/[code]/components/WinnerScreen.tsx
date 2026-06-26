@@ -22,6 +22,7 @@ type WinnerScreenProps = {
   isAdvancing: boolean;
   onPlayAgain: () => void;
   onNextRound: () => void;
+  onReturnToLobby: () => void;
 };
 
 export function WinnerScreen({
@@ -39,6 +40,7 @@ export function WinnerScreen({
   isAdvancing,
   onPlayAgain,
   onNextRound,
+  onReturnToLobby,
 }: WinnerScreenProps) {
   return (
     <>
@@ -153,14 +155,20 @@ export function WinnerScreen({
       )}
 
       {finalWinner && isHost && (
-        <button
-          type="button"
-          onClick={onPlayAgain}
-          disabled={isPlayingAgain}
-          className="rounded-2xl bg-green-600 px-8 py-4 font-extrabold text-white shadow-lg disabled:opacity-50"
-        >
-          {isPlayingAgain ? "Resetting Game..." : "Play Again"}
-        </button>
+        <div className="w-full max-w-md rounded-3xl border border-green-200 bg-white p-5 text-center shadow-xl">
+          <h3 className="text-2xl font-black">Start a fresh game?</h3>
+          <p className="mt-2 text-sm font-bold text-gray-500">
+            This keeps the same room and players, but resets everyone’s score.
+          </p>
+          <button
+            type="button"
+            onClick={onPlayAgain}
+            disabled={isPlayingAgain}
+            className="mt-4 w-full rounded-2xl bg-green-600 px-8 py-4 font-extrabold text-white shadow-lg disabled:opacity-50"
+          >
+            {isPlayingAgain ? "Resetting Game..." : "Rematch in This Room"}
+          </button>
+        </div>
       )}
 
       {finalWinner && !isHost && (
@@ -170,13 +178,29 @@ export function WinnerScreen({
       )}
 
       {!finalWinner && isHost && (
-        <button
-          onClick={onNextRound}
-          disabled={isAdvancing}
-          className="rounded-2xl bg-purple-600 px-8 py-4 font-extrabold text-white shadow-lg disabled:opacity-50"
-        >
-          {isAdvancing ? "Starting..." : "Next Round"}
-        </button>
+        <div className="w-full max-w-md rounded-3xl border border-purple-200 bg-white p-5 text-center shadow-xl">
+          <h3 className="text-2xl font-black">Keep the game moving</h3>
+          <p className="mt-2 text-sm font-bold text-gray-500">
+            Start another round, or return to the lobby to change settings.
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button
+              onClick={onNextRound}
+              disabled={isAdvancing}
+              className="rounded-2xl bg-purple-600 px-6 py-4 font-extrabold text-white shadow-lg disabled:opacity-50"
+            >
+              {isAdvancing ? "Starting..." : "Next Round"}
+            </button>
+            <button
+              type="button"
+              onClick={onReturnToLobby}
+              disabled={isAdvancing}
+              className="rounded-2xl border border-purple-200 bg-purple-50 px-6 py-4 font-extrabold text-purple-700 disabled:opacity-50"
+            >
+              Back to Lobby
+            </button>
+          </div>
+        </div>
       )}
 
       {!finalWinner && !isHost && (

@@ -19,6 +19,7 @@ type VotingScreenProps = {
   submissions: string[];
   waitingOnVoteNames: string[];
   onEndVotingEarly: () => void;
+  onReturnToLobby: () => void;
   onVote: (answerText: string, submissionPlayerName: string) => void;
   onSaveImage: (imageUrl: string, imageCaption: string) => void;
   formatCountdown: (seconds: number) => string;
@@ -41,6 +42,7 @@ export function VotingScreen({
   submissions,
   waitingOnVoteNames,
   onEndVotingEarly,
+  onReturnToLobby,
   onVote,
   onSaveImage,
   formatCountdown,
@@ -74,14 +76,24 @@ export function VotingScreen({
           />
 
           {isHost && (
-            <button
-              type="button"
-              onClick={onEndVotingEarly}
-              disabled={isForcingStage}
-              className="rounded-2xl bg-purple-700 px-6 py-3 font-extrabold text-white disabled:opacity-50"
-            >
-              {isForcingStage ? "Calculating Winner..." : "End Voting & Reveal Winner"}
-            </button>
+            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={onEndVotingEarly}
+                disabled={isForcingStage}
+                className="rounded-2xl bg-purple-700 px-6 py-3 font-extrabold text-white disabled:opacity-50"
+              >
+                {isForcingStage ? "Calculating Winner..." : "End Voting & Reveal Winner"}
+              </button>
+              <button
+                type="button"
+                onClick={onReturnToLobby}
+                disabled={isForcingStage}
+                className="rounded-2xl border border-purple-200 bg-white px-5 py-3 font-extrabold text-purple-700 disabled:opacity-50"
+              >
+                Back to Lobby
+              </button>
+            </div>
           )}
         </div>
       )}

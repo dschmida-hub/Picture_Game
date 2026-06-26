@@ -14,6 +14,7 @@ type SubmissionFormProps = {
   onSubmit: () => void;
   onForceReveal: () => void;
   onSkipRound: () => void;
+  onReturnToLobby: () => void;
 };
 
 export function SubmissionForm({
@@ -30,6 +31,7 @@ export function SubmissionForm({
   onSubmit,
   onForceReveal,
   onSkipRound,
+  onReturnToLobby,
 }: SubmissionFormProps) {
   const isCards = gameMode === "cards";
 
@@ -107,6 +109,17 @@ export function SubmissionForm({
           className="font-bold text-purple-700 underline disabled:opacity-50"
         >
           {isAdvancing ? "Skipping..." : "Skip Empty Round"}
+        </button>
+      )}
+
+      {isHost && (
+        <button
+          type="button"
+          onClick={onReturnToLobby}
+          disabled={isForcingStage}
+          className="text-sm font-bold text-gray-500 underline disabled:opacity-50"
+        >
+          Back to Lobby
         </button>
       )}
     </>

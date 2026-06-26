@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { PromptSuggestionPanel } from "./PromptSuggestionPanel";
 import type { GameMode, Player, PromptRating, PromptSuggestion, RoundDuration } from "./types";
 
@@ -72,6 +73,8 @@ export function LobbyScreen({
   onSubmitPromptSuggestion,
   onVotePromptSuggestion,
 }: LobbyScreenProps) {
+  const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
+
   return (
     <>
       <div className="text-center">
@@ -79,7 +82,64 @@ export function LobbyScreen({
         <p className="mt-1 text-sm font-bold text-purple-600">
           {players.length} / {maxPlayers} players in the room
         </p>
+        <button
+          type="button"
+          onClick={() => setIsHowToPlayOpen(true)}
+          className="mt-3 rounded-full border border-purple-200 bg-white px-4 py-2 text-sm font-extrabold text-purple-700 shadow-sm"
+        >
+          How to play
+        </button>
       </div>
+
+      {isHowToPlayOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-[2rem] border-4 border-black bg-white p-6 text-black shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-purple-600">
+                  Quick rules
+                </p>
+                <h3 className="mt-2 text-3xl font-black">How to play</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHowToPlayOpen(false)}
+                className="rounded-full bg-gray-100 px-3 py-2 text-sm font-black"
+                aria-label="Close how to play"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {[
+                ["1", "Answer the prompt", "Write something short, specific, and funny."],
+                ["2", "AI draws the chaos", "Your answer turns into an anonymous image."],
+                ["3", "Vote for funniest", "Pick the image that gets the biggest laugh."],
+                ["4", "First to 3 wins", "Keep playing rounds until someone takes the crown."],
+              ].map(([number, title, description]) => (
+                <div key={number} className="flex gap-3 rounded-2xl bg-purple-50 p-4">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-600 font-black text-white">
+                    {number}
+                  </div>
+                  <div>
+                    <p className="font-black">{title}</p>
+                    <p className="text-sm font-bold text-gray-600">{description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsHowToPlayOpen(false)}
+              className="mt-5 w-full rounded-2xl bg-black px-5 py-3 font-extrabold text-white"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid w-full max-w-5xl grid-cols-1 items-start gap-6 md:grid-cols-2">
         <div className="rounded-3xl border border-purple-200 bg-white p-5 shadow-lg">

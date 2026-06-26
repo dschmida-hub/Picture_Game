@@ -1,7 +1,6 @@
 import { CurrentPromptRater } from "./CurrentPromptRater";
 import { parseSubmission } from "./submissions";
 import type { Player, PromptRating } from "./types";
-import { WaitingOnList } from "./WaitingOnList";
 
 type GeneratingScreenProps = {
   players: Player[];
@@ -20,8 +19,32 @@ type GeneratingScreenProps = {
   isRatingCurrentPrompt: boolean;
   canRateCurrentPrompt: boolean;
   onForceReveal: () => void;
+  onReturnToLobby: () => void;
   onRateCurrentPrompt: (rating: PromptRating) => void;
 };
+
+function AnonymousProgressCard({
+  title,
+  waitingCount,
+  readyMessage,
+  waitingMessage,
+}: {
+  title: string;
+  waitingCount: number;
+  readyMessage: string;
+  waitingMessage: string;
+}) {
+  return (
+    <div className="w-full max-w-xl rounded-2xl border border-white/20 bg-white/10 p-4 text-center text-white">
+      <p className="text-xs font-extrabold uppercase tracking-wider opacity-80">{title}</p>
+      {waitingCount > 0 ? (
+        <p className="mt-2 text-lg font-black">{waitingMessage}</p>
+      ) : (
+        <p className="mt-2 text-sm font-bold opacity-90">{readyMessage}</p>
+      )}
+    </div>
+  );
+}
 
 export function GeneratingScreen({
   players,
@@ -40,8 +63,14 @@ export function GeneratingScreen({
   isRatingCurrentPrompt,
   canRateCurrentPrompt,
   onForceReveal,
+  onReturnToLobby,
   onRateCurrentPrompt,
 }: GeneratingScreenProps) {
+  const waitingForAnswersCount = waitingOnSubmissionNames.length;
+  const waitingForImagesCount = waitingOnImageNames.length;
+  const submittedCount = submissions.length;
+  const readyImageCount = submissions.filter((item) => Boolean(parseSubmission(item).imageUrl)).length;
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-purple-700 text-white">
       {!hasCurrentRoundImage && currentGalleryImage && (
@@ -63,20 +92,26 @@ export function GeneratingScreen({
           {loadingMessage || "Adding maximum chaos..."}
         </p>
         <p className="text-sm font-bold opacity-80">
-          {submissions.length} / {players.length} ready
+          {submittedCount} / {players.length} answers submitted · {readyImageCount} images ready
         </p>
 
-        {waitingOnSubmissionNames.length > 0 ? (
-          <WaitingOnList
+        {waitingForAnswersCount > 0 ? (
+          <AnonymousProgressCard
             title="Waiting for answers"
-            names={waitingOnSubmissionNames}
-            emptyMessage="Everyone answered!"
+            waitingCount={waitingForAnswersCount}
+            readyMessage="Everyone answered!"
+            waitingMessage={`${waitingForAnswersCount} answer${
+              waitingForAnswersCount === 1 ? "" : "s"
+            } still missing`}
           />
         ) : (
-          <WaitingOnList
+          <AnonymousProgressCard
             title="Still generating"
-            names={waitingOnImageNames}
-            emptyMessage="All images are ready!"
+            waitingCount={waitingForImagesCount}
+            readyMessage="All images are ready!"
+            waitingMessage={`${waitingForImagesCount} image${
+              waitingForImagesCount === 1 ? "" : "s"
+            } still cooking`}
           />
         )}
 
@@ -102,9 +137,7 @@ export function GeneratingScreen({
                         alt={text}
                         className="mb-2 aspect-square w-full rounded-xl object-cover"
                       />
-                      <p className="truncate text-sm font-bold">
-                        Image {index + 1} ready ✅
-                      </p>
+                      <p className="truncate text-sm font-bold">Image {index + 1} ready ✅</p>
                     </>
                   ) : (
                     <>
@@ -121,15 +154,27 @@ export function GeneratingScreen({
           </div>
         )}
 
-        {isHost && submissions.length > 0 && (
-          <button
-            type="button"
-            onClick={onForceReveal}
-            disabled={isForcingStage}
-            className="rounded-2xl bg-white px-6 py-3 font-extrabold text-purple-700 disabled:opacity-50"
-          >
-            {isForcingStage ? "Opening Reveal..." : "Reveal Submitted Images"}
-          </button>
+        {isHost && (
+          <div className="flex flex-col items-center gap-3 sm:flex-row">
+            {submissions.length > 0 && (
+              <button
+                type="button"
+                onClick={onForceReveal}
+                disabled={isForcingStage}
+                className="rounded-2xl bg-white px-6 py-3 font-extrabold text-purple-700 disabled:opacity-50"
+              >
+                {isForcingStage ? "Opening Reveal..." : "Reveal Ready Images"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onReturnToLobby}
+              disabled={isForcingStage}
+              className="rounded-2xl border border-white/30 bg-white/10 px-6 py-3 font-extrabold text-white disabled:opacity-50"
+            >
+              Back to Lobby
+            </button>
+          </div>
         )}
       </div>
 
