@@ -1075,13 +1075,13 @@ async function grantImageRetryTime() {
     await loadSubmissions(currentGameId);
 
     const imagePrompt = `
-You are creating a hilarious party game image.
+Create one hilarious party game image.
 
-Question:
-${roundPrompt}
+Important: do not put any readable or fake text in the image. No captions, no labels, no signs, no cards, no posters, no written words, no speech bubbles, no UI, no logos.
 
-Player Answer:
-${submittedAnswer}
+Scene context, for inspiration only. Do not render this as text:
+The round prompt is "${roundPrompt}".
+The player's punchline is "${submittedAnswer}".
 
 Relevant Player Appearances:
 ${playerAppearanceContext}
@@ -1089,7 +1089,7 @@ ${playerAppearanceContext}
 If a player name is mentioned in the answer, use that named player's appearance for that character.
 Only use the submitting player's appearance when the answer refers to them directly or no other player is named.
 
-Turn this into a single funny visual scene.
+Turn the scene context into a single funny visual moment.
 
 The image should clearly show the connection between the question and answer.
 The answer should be the main punchline, but the joke should be understandable without reading the answer.
@@ -1106,116 +1106,37 @@ Build the scene around the joke:
 Style rules:
 
 ${getImageStyleInstruction(roundImageStyle)}
-Turn this into a single funny visual scene.
+Create a hilarious cartoon image based on the player's answer.
 
-The image should clearly show the connection between the question and answer.
+The image should:
+- Make players laugh within 3 seconds.
+- Show one clear visual joke.
+- Be immediately understandable.
+- Use bright, colorful cartoon styling.
+- Have big expressive faces and exaggerated reactions.
+- Focus on one main subject and one funny moment.
+- Show the consequences of the joke whenever possible.
+- Prefer literal interpretations of metaphors and expressions.
+- Add small background reactions only if they support the main joke.
+- Communicate all humor visually through characters, props, expressions, and action.
 
-The answer should be the main punchline, but the joke should still work even if all text is removed.
+Never include:
+- Captions
+- Labels
+- Signs
+- Posters
+- Logos
+- Text of any kind, including fake letters, gibberish, handwriting, printed words, subtitles, or speech bubbles.
 
-Do not simply show the answer by itself.
+Avoid:
+- Crowded scenes
+- Complex stories
+- Multiple unrelated jokes
+- Realistic photography
+- Empty backgrounds
+- Confusing compositions
 
-Build the scene around the joke:
-
-Show what is happening.
-Show why it is funny.
-Add background reactions or small visual gags when they support the joke.
-Exaggerate facial expressions and reactions.
-Make the situation immediately understandable.
-
-STYLE
-
-Bright colorful cartoon style.
-Absurd comedy.
-Big expressive faces.
-Clear main subject.
-Focus on visual comedy.
-Make players laugh within 3 seconds.
-
-COMPOSITION RULES
-
-Show only the funniest moment of the joke.
-Use 1-3 main characters whenever possible.
-Avoid crowded scenes.
-Avoid tiny details that are hard to see on a phone screen.
-The funniest thing should be immediately obvious.
-Put the main joke near the center of the image.
-Create a scene, not a portrait.
-Prefer one strong joke over many small jokes.
-
-COMEDY RULES
-
-Exaggerate reactions.
-Exaggerate consequences.
-Prefer visual comedy over realistic scenes.
-Turn metaphors and expressions into literal scenes whenever possible.
-Show the immediate aftermath of something ridiculous.
-If someone says something shocking, show everyone reacting.
-If an object is mentioned, make it oversized, ridiculous, or used in an unexpected way.
-If the joke can be interpreted literally, choose the funniest literal interpretation.
-Make the answer the center of the joke.
-
-REACTIONS AND SPEECH
-
-Characters may be speaking, yelling, whispering, singing, arguing, reacting, or giving speeches.
-Use facial expressions, body language, and gestures to make emotions obvious.
-If a character is speaking, a speech bubble may be included.
-
-SPEECH BUBBLE RULES
-Speech bubbles are optional.
-
-Only include a speech bubble if it makes the image funnier.
-
-Speech bubbles should:
-
-Be short (1-8 words).
-Add personality or reaction.
-Feel like dialogue from a cartoon.
-Support the joke instead of explaining it.
-
-Speech bubbles should NOT:
-
-Explain the answer.
-Describe what is happening.
-Repeat the player's answer.
-Act as captions.
-
-Good examples:
-
-"YOU DID WHAT?!"
-"I REGRET EVERYTHING."
-"THIS WAS YOUR IDEA!"
-"NOT AGAIN."
-"HE'S BEHIND ME, ISN'T HE?"
-
-Bad examples:
-
-"I AM LATE FOR WORK."
-"THIS MAN STOLE MY PIZZA."
-"HE IS TURNING INTO A PIG."
-"THE ANSWER IS MICHELOBS."
-
-The image should still be funny if all speech bubbles are removed.
-
-TEXT RESTRICTIONS
-
-No captions.
-No labels.
-No signs.
-No posters.
-No logos.
-No text that explains the joke.
-
-AVOID
-
-Abstract concepts.
-Complicated stories.
-Confusing compositions.
-Multiple unrelated jokes.
-Empty backgrounds.
-Realistic photography.
-Images that require reading text to understand the joke.
-
-The final image should feel like a single frame from an animated comedy movie.
+The final image should feel like a frame from an animated comedy movie.
 `;
 
     setLoadingMessage(
@@ -2000,24 +1921,24 @@ if (isPageLoading) {
    WINNER SCREEN
 ======================================= */
 ) : stage === "winner" ? (
-  <WinnerScreen
-    confettiPieces={confettiPieces}
-    winnerImages={winnerImages}
-    winnerName={winnerName}
-    winnerPrompt={winnerPrompt}
-    winner={winner}
-    players={players}
-    scoreboardPlayers={scoreboardPlayers}
-    finalWinner={finalWinner}
-    roundHistory={roundHistory}
-    isHost={isHost}
-    hostName={hostName}
-    isPlayingAgain={isPlayingAgain}
-    isAdvancing={isAdvancing}
-    onPlayAgain={playAgain}
-    onNextRound={nextRound}
-    onReturnToLobby={returnToLobby}
-  />
+ <WinnerScreen
+  confettiPieces={confettiPieces}
+  winnerImages={winnerImages}
+  winnerName={winnerName}
+  winnerPrompt={winnerPrompt}
+  winner={winner}
+  players={players}
+  scoreboardPlayers={scoreboardPlayers}
+  finalWinner={finalWinner}
+  roundHistory={roundHistory}
+  isHost={isHost}
+  hostName={hostName}
+  isPlayingAgain={isPlayingAgain}
+  isAdvancing={isAdvancing}
+  onPlayAgain={playAgain}
+  onNextRound={nextRound}
+  onReturnToLobby={returnToLobby}
+/>
 ) : (
   <p>Unknown game stage.</p>
 )}
