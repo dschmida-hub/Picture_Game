@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { CurrentPromptRater } from "./CurrentPromptRater";
 import { parseSubmission } from "./submissions";
 import type { Player, PromptRating } from "./types";
@@ -16,6 +17,7 @@ type GeneratingScreenProps = {
   roundPrompt: string;
   currentPromptRating: PromptRating | null;
   hasRatedCurrentPrompt: boolean;
+  hostDebugPanel?: ReactNode;
   isRatingCurrentPrompt: boolean;
   canRateCurrentPrompt: boolean;
   onForceReveal: () => void;
@@ -60,6 +62,7 @@ export function GeneratingScreen({
   roundPrompt,
   currentPromptRating,
   hasRatedCurrentPrompt,
+  hostDebugPanel,
   isRatingCurrentPrompt,
   canRateCurrentPrompt,
   onForceReveal,
@@ -70,6 +73,8 @@ export function GeneratingScreen({
   const waitingForImagesCount = waitingOnImageNames.length;
   const submittedCount = submissions.length;
   const readyImageCount = submissions.filter((item) => Boolean(parseSubmission(item).imageUrl)).length;
+  const allAnswersSubmitted = players.length > 0 && submittedCount >= players.length && waitingForAnswersCount === 0;
+  const allImagesReady = allAnswersSubmitted && readyImageCount >= players.length && waitingForImagesCount === 0;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-purple-700 text-white">
@@ -88,8 +93,12 @@ export function GeneratingScreen({
       )}
 
       <div className="relative z-50 flex min-h-full w-full flex-col items-center justify-center gap-5 p-6 pb-28 pt-10">
+        {isHost && hostDebugPanel && <div className="w-full max-w-6xl">{hostDebugPanel}</div>}
+
         <div className="animate-bounce text-6xl">🎨</div>
-        <h2 className="text-3xl font-extrabold">Generating Images...</h2>
+        <h2 className="text-3xl font-extrabold">
+          {allImagesReady ? "Images Ready!" : "Generating Images..."}
+        </h2>
         <p className="max-w-md text-center text-lg">
           {loadingMessage || "Adding maximum chaos..."}
         </p>
@@ -108,9 +117,13 @@ export function GeneratingScreen({
           />
         ) : (
           <AnonymousProgressCard
-            title="Still generating"
+            title={allImagesReady ? "Ready to reveal" : "Still generating"}
             waitingCount={waitingForImagesCount}
-            readyMessage="All images are ready!"
+            readyMessage={
+              allImagesReady
+                ? "All images are ready. Host can reveal the round."
+                : "All images are ready!"
+            }
             waitingMessage={`${waitingForImagesCount} image${
               waitingForImagesCount === 1 ? "" : "s"
             } still cooking`}
@@ -168,7 +181,11 @@ export function GeneratingScreen({
                 disabled={isForcingStage}
                 className="rounded-2xl bg-white px-6 py-3 font-extrabold text-purple-700 disabled:opacity-50"
               >
-                {isForcingStage ? "Opening Reveal..." : "Skip Pending + Reveal"}
+                {isForcingStage
+                  ? "Opening Reveal..."
+                  : allImagesReady
+                    ? "Reveal Images"
+                    : "Skip Pending + Reveal"}
               </button>
             )}
             <button

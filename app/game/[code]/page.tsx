@@ -2019,6 +2019,16 @@ if (isPageLoading) {
         roundPrompt={roundPrompt}
         currentPromptRating={currentPromptRating}
         hasRatedCurrentPrompt={hasRatedCurrentPrompt}
+        hostDebugPanel={
+          <HostDebugPanel
+            currentGameId={currentGameId}
+            playersCount={players.length}
+            stage={stage}
+            submissionsCount={submissions.length}
+            votesCount={votedPlayerNames.length}
+            stats={hostDebugStats}
+          />
+        }
         isRatingCurrentPrompt={isRatingCurrentPrompt}
         canRateCurrentPrompt={Boolean(getPromptRatingTable(currentPromptSource))}
         onForceReveal={forceReveal}
