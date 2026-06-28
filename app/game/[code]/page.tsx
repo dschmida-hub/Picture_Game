@@ -1916,11 +1916,11 @@ if (isPageLoading) {
 
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-6 bg-purple-50 p-6">
+    <main className="min-h-screen flex flex-col items-center justify-center gap-6 bg-[#fff7ed] p-6 text-zinc-950">
       <GameLogo />
 
       {reconnectMessage && (
-        <div className="rounded-full border border-green-200 bg-green-50 px-5 py-2 text-sm font-extrabold text-green-700 shadow-sm">
+        <div className="rounded-full border-2 border-emerald-300 bg-emerald-50 px-5 py-2 text-sm font-black text-emerald-800 shadow-[4px_4px_0_#111827]">
           {reconnectMessage}
         </div>
       )}
@@ -1986,12 +1986,14 @@ if (isPageLoading) {
 ) : stage === "submitting" ? (
   <>
     {showRoundIntro && (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-purple-700 p-6 text-center text-white">
-        <p className="text-sm font-extrabold uppercase tracking-wider text-purple-200">Get ready</p>
-        <h2 className="mt-2 text-6xl font-black">Round {currentRoundNumber}</h2>
-        <p className="mt-3 text-xl font-bold">
-          {selectedGameMode === "cards" ? "Fill in the blank." : "Write the funniest answer."}
-        </p>
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#fff7ed] p-6 text-center text-zinc-950">
+        <div className="rounded-[2rem] border-2 border-black bg-white p-8 shadow-[8px_8px_0_#111827]">
+          <p className="text-sm font-black uppercase tracking-[0.22em] text-rose-700">Get ready</p>
+          <h2 className="mt-2 text-6xl font-black">Round {currentRoundNumber}</h2>
+          <p className="mt-3 text-xl font-bold text-zinc-600">
+            {selectedGameMode === "cards" ? "Fill in the blank." : "Write the funniest answer."}
+          </p>
+        </div>
       </div>
     )}
     <RoundPromptCard
@@ -2061,18 +2063,18 @@ if (isPageLoading) {
 )}
   </>
       ) : stage === "generating" ? (
-  <div className="min-h-screen w-full bg-purple-700 flex flex-col items-center justify-center text-white">
-    <div className="text-8xl mb-6 animate-bounce">🎨</div>
+  <div className="min-h-screen w-full bg-[#fff7ed] flex flex-col items-center justify-center text-zinc-950">
+    <div className="mb-6 h-16 w-16 animate-spin rounded-full border-8 border-rose-200 border-t-rose-600" />
 
-    <h2 className="text-4xl font-bold mb-4">
+    <h2 className="text-4xl font-black mb-4">
       Creating Chaos...
     </h2>
 
-    <p className="text-xl text-center max-w-md">
+    <p className="text-xl text-center max-w-md font-bold text-zinc-600">
       The AI is cooking up something ridiculous.
     </p>
 
-    <div className="mt-8 animate-pulse text-lg">
+    <div className="mt-8 animate-pulse text-lg font-black text-rose-700">
       Generating masterpiece...
     </div>
   </div>

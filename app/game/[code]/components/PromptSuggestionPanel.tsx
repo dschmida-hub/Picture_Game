@@ -33,10 +33,10 @@ export function PromptSuggestionPanel({
   onVoteSuggestion,
 }: PromptSuggestionPanelProps) {
   return (
-    <div className="w-full max-w-5xl rounded-3xl border border-purple-200 bg-white p-5 shadow-lg">
+    <div className="w-full max-w-5xl rounded-[2rem] border-2 border-black bg-white p-5 shadow-[8px_8px_0_#111827]">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-extrabold uppercase tracking-wider text-purple-600">
+          <p className="text-sm font-black uppercase tracking-[0.22em] text-rose-700">
             Player-made prompts
           </p>
           <h3 className="text-2xl font-black">Pitch a prompt</h3>
@@ -52,13 +52,13 @@ export function PromptSuggestionPanel({
           onChange={(event) => onSuggestionTextChange(event.target.value)}
           placeholder="Example: The worst thing to hear from your dentist is..."
           maxLength={160}
-          className="min-h-24 resize-none rounded-2xl border-2 border-purple-200 p-3 focus:border-purple-600 focus:outline-none"
+          className="min-h-24 resize-none rounded-2xl border-2 border-black p-3 font-bold outline-none focus:border-rose-600 focus:shadow-[0_0_0_4px_rgba(225,29,72,0.16)]"
         />
 
         <select
           value={suggestionMode}
           onChange={(event) => onSuggestionModeChange(event.target.value as GameMode)}
-          className="rounded-2xl border-2 border-purple-200 p-3 font-bold"
+          className="rounded-2xl border-2 border-black p-3 font-bold"
         >
           <option value="classic">Classic</option>
           <option value="cards">Fill in Blank</option>
@@ -68,7 +68,7 @@ export function PromptSuggestionPanel({
           type="button"
           onClick={onSubmitSuggestion}
           disabled={isSubmittingSuggestion || !suggestionText.trim() || !playerName}
-          className="rounded-2xl bg-purple-600 px-5 py-3 font-extrabold text-white disabled:opacity-50"
+          className="rounded-2xl bg-rose-600 px-5 py-3 font-black text-white shadow-[4px_4px_0_#111827] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSubmittingSuggestion ? "Submitting..." : "Submit"}
         </button>
@@ -79,7 +79,7 @@ export function PromptSuggestionPanel({
       </p>
 
       {suggestionText.trim() && (
-        <div className="mt-2 flex flex-col gap-1 rounded-2xl border border-purple-100 bg-purple-50 p-3 md:flex-row md:items-center md:justify-between">
+        <div className="mt-2 flex flex-col gap-1 rounded-2xl border border-rose-200 bg-rose-50 p-3 md:flex-row md:items-center md:justify-between">
           <span
             className={`w-fit rounded-full border px-3 py-1 text-xs font-extrabold ${getPromptRatingClasses(
               suggestionRating
@@ -102,12 +102,12 @@ export function PromptSuggestionPanel({
               <div
                 key={suggestion.id}
                 className={`rounded-2xl border p-4 ${
-                  isApproved ? "border-green-300 bg-green-50" : "border-purple-100 bg-purple-50"
+                  isApproved ? "border-emerald-300 bg-emerald-50" : "border-rose-200 bg-rose-50"
                 }`}
               >
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-extrabold text-purple-700">
+                    <span className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-extrabold text-zinc-800">
                       {suggestion.game_mode === "cards" ? "Fill in Blank" : "Classic"}
                     </span>
                     <span
@@ -118,7 +118,7 @@ export function PromptSuggestionPanel({
                       {getPromptRatingLabel(suggestion.rating)}
                     </span>
                   </div>
-                  <span className={`text-xs font-extrabold ${isApproved ? "text-green-700" : "text-purple-700"}`}>
+                  <span className={`text-xs font-extrabold ${isApproved ? "text-emerald-700" : "text-rose-700"}`}>
                     {isApproved ? "Approved" : `${suggestion.vote_count}/${approvalVotesNeeded} votes`}
                   </span>
                 </div>
@@ -130,7 +130,7 @@ export function PromptSuggestionPanel({
                   type="button"
                   onClick={() => onVoteSuggestion(suggestion.id)}
                   disabled={suggestion.has_voted}
-                  className="mt-3 w-full rounded-xl bg-black px-4 py-2 font-bold text-white disabled:bg-gray-300"
+                  className="mt-3 w-full rounded-xl bg-zinc-950 px-4 py-2 font-black text-white disabled:bg-gray-300"
                 >
                   {suggestion.has_voted ? "Voted" : "Vote this in"}
                 </button>

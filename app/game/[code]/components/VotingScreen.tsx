@@ -74,7 +74,7 @@ export function VotingScreen({
           />
 
           {voteMessage && (
-            <div className="rounded-2xl border border-green-400 bg-green-100 px-4 py-3 text-sm font-extrabold text-green-700 md:text-base">
+            <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-800 shadow-[4px_4px_0_#111827] md:text-base">
               {voteMessage}
             </div>
           )}
@@ -87,12 +87,12 @@ export function VotingScreen({
             />
 
             {isHost && (
-              <div className="flex flex-col gap-2 rounded-2xl border border-purple-200 bg-white p-3 shadow-sm">
+              <div className="flex flex-col gap-2 rounded-3xl border-2 border-black bg-white p-3 shadow-[5px_5px_0_#111827]">
                 <button
                   type="button"
                   onClick={onEndVotingEarly}
                   disabled={isForcingStage}
-                  className="rounded-2xl bg-purple-700 px-5 py-3 text-sm font-extrabold text-white disabled:opacity-50"
+                  className="rounded-2xl bg-rose-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50"
                 >
                   {isForcingStage ? "Calculating..." : "End Voting"}
                 </button>
@@ -100,7 +100,7 @@ export function VotingScreen({
                   type="button"
                   onClick={onReturnToLobby}
                   disabled={isForcingStage}
-                  className="rounded-2xl border border-purple-200 bg-purple-50 px-5 py-3 text-sm font-extrabold text-purple-700 disabled:opacity-50"
+                  className="rounded-2xl border-2 border-black bg-white px-5 py-3 text-sm font-black text-zinc-950 disabled:opacity-50"
                 >
                   Back to Lobby
                 </button>
@@ -131,10 +131,10 @@ export function VotingScreen({
               onClick={() => {
                 if (!isVoteUnavailable) onVote(text, submissionPlayerName);
               }}
-              className={`overflow-hidden rounded-3xl border bg-white shadow-lg transition ${
+              className={`overflow-hidden rounded-[1.7rem] border-2 border-black bg-white shadow-[6px_6px_0_#111827] transition ${
                 isVoteUnavailable
                   ? "cursor-not-allowed opacity-75"
-                  : "cursor-pointer active:scale-[0.99] md:hover:scale-[1.02] md:hover:shadow-2xl"
+                  : "cursor-pointer active:scale-[0.99] md:hover:-translate-y-0.5"
               }`}
             >
               <div className="relative">
@@ -147,7 +147,7 @@ export function VotingScreen({
                     className="aspect-square w-full bg-gray-100 object-cover"
                   />
                 )}
-                <div className="absolute left-3 top-3 rounded-full bg-black/75 px-3 py-1 text-xs font-extrabold text-white">
+                <div className="absolute left-3 top-3 rounded-full border border-white/30 bg-zinc-950/85 px-3 py-1 text-xs font-black text-white">
                   Choice {index + 1}
                 </div>
               </div>
@@ -164,12 +164,12 @@ export function VotingScreen({
                       event.stopPropagation();
                       onVote(text, submissionPlayerName);
                     }}
-                    className="w-full rounded-2xl bg-black px-4 py-4 text-base font-extrabold text-white"
+                    className="w-full rounded-2xl bg-rose-600 px-4 py-4 text-base font-black text-white shadow-[4px_4px_0_#111827]"
                   >
                     Vote for This
                   </button>
                 ) : (
-                  <p className="rounded-2xl bg-gray-100 px-4 py-3 text-center text-sm font-bold text-gray-500">
+                  <p className="rounded-2xl bg-zinc-100 px-4 py-3 text-center text-sm font-bold text-zinc-500">
                     {isOwnSubmission
                       ? allowSelfVoting
                         ? "Vote locked in"
@@ -188,7 +188,7 @@ export function VotingScreen({
                         event.stopPropagation();
                         onShareImage(imageUrl, imageCaption || "Untitled Masterpiece");
                       }}
-                      className="rounded-2xl bg-black px-4 py-3 text-sm font-extrabold text-white"
+                      className="rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-black text-white"
                     >
                       Share
                     </button>
@@ -198,7 +198,7 @@ export function VotingScreen({
                         event.stopPropagation();
                         onSaveImage(imageUrl, imageCaption || "Untitled Masterpiece");
                       }}
-                      className="rounded-2xl bg-purple-600 px-4 py-3 text-sm font-extrabold text-white"
+                      className="rounded-2xl bg-sky-600 px-4 py-3 text-sm font-black text-white"
                     >
                       Save
                     </button>
@@ -209,7 +209,7 @@ export function VotingScreen({
                           event.stopPropagation();
                           onReportImage(id);
                         }}
-                        className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-extrabold text-orange-700"
+                        className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-800"
                       >
                         Report
                       </button>
@@ -218,8 +218,8 @@ export function VotingScreen({
                 )}
 
                 {id && (
-                  <div className="mt-3 rounded-2xl bg-gray-50 p-3">
-                    <p className="mb-2 text-center text-xs font-extrabold uppercase tracking-wider text-gray-500">
+                  <div className="mt-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
+                    <p className="mb-2 text-center text-xs font-black uppercase tracking-wider text-zinc-500">
                       Rate this image
                     </p>
                     <div className="grid grid-cols-3 gap-2">
@@ -235,7 +235,7 @@ export function VotingScreen({
                             event.stopPropagation();
                             onRateImage(id, rating as "funny" | "meh" | "bad");
                           }}
-                          className="rounded-xl border border-purple-100 bg-white px-2 py-2 text-xs font-extrabold text-purple-700"
+                          className="rounded-xl border border-zinc-200 bg-white px-2 py-2 text-xs font-black text-zinc-800 hover:bg-rose-50"
                         >
                           {label}
                         </button>
@@ -253,7 +253,7 @@ export function VotingScreen({
                         onRegenerateImage(id, submissionPlayerName);
                       }}
                       disabled={isForcingStage}
-                      className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-extrabold text-blue-700 disabled:opacity-50"
+                      className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-black text-sky-800 disabled:opacity-50"
                     >
                       Regenerate
                     </button>
@@ -264,7 +264,7 @@ export function VotingScreen({
                         onDeleteSubmission(id, submissionPlayerName);
                       }}
                       disabled={isForcingStage}
-                      className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-extrabold text-red-700 disabled:opacity-50"
+                      className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-700 disabled:opacity-50"
                     >
                       Delete
                     </button>

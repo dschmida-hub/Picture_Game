@@ -31,6 +31,14 @@ function normalizeName(playerName?: string | null) {
   return (playerName || "").trim().toLowerCase();
 }
 
+function EmptyAvatar() {
+  return (
+    <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-black bg-rose-100 text-sm font-black text-rose-800">
+      ?
+    </div>
+  );
+}
+
 export function WinnerScreen({
   code,
   confettiPieces,
@@ -89,8 +97,9 @@ export function WinnerScreen({
         ))}
       </div>
 
-      <div className="w-full max-w-md rounded-3xl border-4 border-yellow-300 bg-gradient-to-b from-purple-700 to-purple-950 p-6 text-center text-white shadow-2xl">
-        <h2 className="mb-4 text-4xl font-extrabold">
+      <div className="w-full max-w-md rounded-[2rem] border-2 border-black bg-white p-6 text-center text-zinc-950 shadow-[8px_8px_0_#111827]">
+        <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-rose-700">Results</p>
+        <h2 className="mb-4 text-4xl font-black">
           {winnerImages.length > 1 ? "Tie Winners" : "Round Winner"}
         </h2>
 
@@ -100,16 +109,18 @@ export function WinnerScreen({
               key={index}
               src={imageUrl}
               alt="Winning image"
-              className="aspect-square w-full rounded-2xl border-4 border-white object-cover shadow-xl"
+              className="aspect-square w-full rounded-2xl border-2 border-black object-cover"
             />
           ))}
         </div>
 
-        <div className="relative rounded-2xl bg-white p-4 text-black">
-          <div className="absolute -top-10 left-1/2 -translate-x-1/2 text-5xl">👑</div>
+        <div className="relative rounded-2xl border-2 border-black bg-rose-50 p-4 text-black">
+          <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full border-2 border-black bg-amber-300 px-3 py-1 text-xs font-black uppercase tracking-wider">
+            Winner
+          </div>
 
           {winnerAvatars.length > 0 && (
-            <div className="-mt-1 mb-3 flex justify-center">
+            <div className="mb-3 mt-4 flex justify-center">
               <div className="flex -space-x-3">
                 {winnerAvatars.map((winnerAvatar) => (
                   <img
@@ -124,27 +135,25 @@ export function WinnerScreen({
             </div>
           )}
 
-          <p className="mt-4 text-3xl font-extrabold">{winnerName || "Calculating..."}</p>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-4 text-3xl font-black">{winnerName || "Calculating..."}</p>
+          <p className="mt-1 text-sm font-bold text-zinc-500">
             {winnerImages.length > 1 ? "tied for the round" : "won the round"}
           </p>
-          <p className="mt-4 text-lg font-semibold">
-            {`“${winnerPrompt || winner}”`}
-          </p>
+          <p className="mt-4 text-lg font-black">{`"${winnerPrompt || winner}"`}</p>
         </div>
       </div>
 
-      <div className="w-full max-w-md rounded-3xl border-4 border-purple-300 bg-white p-5 shadow-xl">
-        <h3 className="mb-4 text-center text-3xl font-extrabold">Scoreboard</h3>
+      <div className="w-full max-w-md rounded-[2rem] border-2 border-black bg-white p-5 shadow-[8px_8px_0_#111827]">
+        <h3 className="mb-4 text-center text-3xl font-black">Scoreboard</h3>
 
         <div className="flex flex-col gap-3">
           {scoreboardPlayers.map((player, index) => (
             <div
               key={player.name}
-              className={`flex items-center justify-between rounded-2xl px-4 py-3 font-bold ${
+              className={`flex items-center justify-between rounded-2xl px-4 py-3 font-black ${
                 index === 0
-                  ? "border-2 border-yellow-400 bg-yellow-100 text-yellow-900"
-                  : "bg-purple-100 text-purple-900"
+                  ? "border-2 border-black bg-amber-100 text-amber-950"
+                  : "bg-sky-100 text-sky-950"
               }`}
             >
               <div className="flex items-center gap-3">
@@ -155,13 +164,11 @@ export function WinnerScreen({
                     className="h-10 w-10 rounded-full border-2 border-white object-cover"
                   />
                 ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/70">
-                    👤
-                  </div>
+                  <EmptyAvatar />
                 )}
 
                 <span>
-                  {index === 0 ? "👑 " : ""}
+                  {index === 0 ? "#1 " : ""}
                   {player.name}
                 </span>
               </div>
@@ -173,14 +180,14 @@ export function WinnerScreen({
       </div>
 
       {roundHistory.length > 0 && (
-        <div className="w-full max-w-md rounded-3xl border border-purple-200 bg-white p-5 text-center shadow-xl">
+        <div className="w-full max-w-md rounded-[2rem] border-2 border-black bg-white p-5 text-center shadow-[8px_8px_0_#111827]">
           <h3 className="text-2xl font-black">Share the chaos</h3>
-          <p className="mt-2 text-sm font-bold text-gray-500">
+          <p className="mt-2 text-sm font-bold text-zinc-500">
             Send friends the recap gallery for this room.
           </p>
           <a
             href={galleryUrl}
-            className="mt-4 block rounded-2xl bg-black px-6 py-4 font-extrabold text-white"
+            className="mt-4 block rounded-2xl bg-zinc-950 px-6 py-4 font-black text-white shadow-[4px_4px_0_#fb7185]"
           >
             Open Share Gallery
           </a>
@@ -188,12 +195,12 @@ export function WinnerScreen({
       )}
 
       {finalWinner && (
-        <div className="max-w-4xl rounded-3xl border-4 border-yellow-400 bg-yellow-100 p-5 text-center shadow-xl">
-          <h3 className="text-3xl font-extrabold">🎉 Final Winner</h3>
-          <p className="mt-2 text-xl font-bold">{finalWinner}</p>
+        <div className="max-w-4xl rounded-[2rem] border-2 border-black bg-amber-100 p-5 text-center shadow-[8px_8px_0_#111827]">
+          <h3 className="text-3xl font-black">Final Winner</h3>
+          <p className="mt-2 text-xl font-black">{finalWinner}</p>
 
           <div className="mt-8">
-            <h4 className="mb-4 text-2xl font-extrabold">🏆 Round History</h4>
+            <h4 className="mb-4 text-2xl font-black">Round History</h4>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {roundHistory.map((round) => {
@@ -202,8 +209,8 @@ export function WinnerScreen({
                 const displayImage = round.gallery_thumbnail_url || round.winner_image_url;
 
                 return (
-                  <div key={round.id} className="rounded-2xl bg-white p-3 text-black shadow">
-                    <p className="mb-2 font-bold">Round {round.round_number}</p>
+                  <div key={round.id} className="rounded-2xl border-2 border-black bg-white p-3 text-black shadow-[4px_4px_0_#111827]">
+                    <p className="mb-2 font-black">Round {round.round_number}</p>
 
                     {displayImage && (
                       <img
@@ -213,19 +220,17 @@ export function WinnerScreen({
                       />
                     )}
 
-                    <div className="flex items-center justify-center gap-2 font-bold">
+                    <div className="flex items-center justify-center gap-2 font-black">
                       {roundWinnerAvatar && (
                         <img
                           src={roundWinnerAvatar}
                           alt={roundWinnerName}
-                          className="h-8 w-8 rounded-full border-2 border-yellow-300 object-cover"
+                          className="h-8 w-8 rounded-full border-2 border-amber-300 object-cover"
                         />
                       )}
-                      <span>👑 {roundWinnerName}</span>
+                      <span>{roundWinnerName}</span>
                     </div>
-                    <p className="text-sm text-gray-600">
-                      {`"${round.winner_prompt}"`}
-                    </p>
+                    <p className="text-sm font-bold text-zinc-600">{`"${round.winner_prompt}"`}</p>
                   </div>
                 );
               })}
@@ -235,16 +240,16 @@ export function WinnerScreen({
       )}
 
       {finalWinner && isHost && (
-        <div className="w-full max-w-md rounded-3xl border border-green-200 bg-white p-5 text-center shadow-xl">
+        <div className="w-full max-w-md rounded-[2rem] border-2 border-black bg-white p-5 text-center shadow-[8px_8px_0_#111827]">
           <h3 className="text-2xl font-black">Start a fresh game?</h3>
-          <p className="mt-2 text-sm font-bold text-gray-500">
+          <p className="mt-2 text-sm font-bold text-zinc-500">
             This keeps the same room and players, but resets everyone&apos;s score.
           </p>
           <button
             type="button"
             onClick={onPlayAgain}
             disabled={isPlayingAgain}
-            className="mt-4 w-full rounded-2xl bg-green-600 px-8 py-4 font-extrabold text-white shadow-lg disabled:opacity-50"
+            className="mt-4 w-full rounded-2xl bg-rose-600 px-8 py-4 font-black text-white shadow-[4px_4px_0_#111827] disabled:opacity-50"
           >
             {isPlayingAgain ? "Resetting Game..." : "Rematch in This Room"}
           </button>
@@ -252,22 +257,22 @@ export function WinnerScreen({
       )}
 
       {finalWinner && !isHost && (
-        <p className="text-center text-gray-500">
+        <p className="text-center font-bold text-zinc-500">
           Waiting for {hostName || "the host"} to start a rematch...
         </p>
       )}
 
       {!finalWinner && isHost && (
-        <div className="w-full max-w-md rounded-3xl border border-purple-200 bg-white p-5 text-center shadow-xl">
+        <div className="w-full max-w-md rounded-[2rem] border-2 border-black bg-white p-5 text-center shadow-[8px_8px_0_#111827]">
           <h3 className="text-2xl font-black">Keep the game moving</h3>
-          <p className="mt-2 text-sm font-bold text-gray-500">
+          <p className="mt-2 text-sm font-bold text-zinc-500">
             Start another round, or return to the lobby to change settings.
           </p>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
               onClick={onNextRound}
               disabled={isAdvancing}
-              className="rounded-2xl bg-purple-600 px-6 py-4 font-extrabold text-white shadow-lg disabled:opacity-50"
+              className="rounded-2xl bg-rose-600 px-6 py-4 font-black text-white shadow-[4px_4px_0_#111827] disabled:opacity-50"
             >
               {isAdvancing ? "Starting..." : "Next Round"}
             </button>
@@ -275,7 +280,7 @@ export function WinnerScreen({
               type="button"
               onClick={onReturnToLobby}
               disabled={isAdvancing}
-              className="rounded-2xl border border-purple-200 bg-purple-50 px-6 py-4 font-extrabold text-purple-700 disabled:opacity-50"
+              className="rounded-2xl border-2 border-black bg-white px-6 py-4 font-black text-zinc-950 disabled:opacity-50"
             >
               Back to Lobby
             </button>
@@ -284,7 +289,7 @@ export function WinnerScreen({
       )}
 
       {!finalWinner && !isHost && (
-        <p className="text-center text-gray-500">
+        <p className="text-center font-bold text-zinc-500">
           Waiting for {hostName || "the host"} to start the next round...
         </p>
       )}
