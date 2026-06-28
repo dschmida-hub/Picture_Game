@@ -1192,7 +1192,13 @@ async function grantImageRetryTime() {
 async function voteForSubmission(answerText: string, playerName: string) {
   if (hasVoted) return;
   if (!currentGameId) return;
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
   const allowSelfVoting = players.length === 2;
+
+  if (!savedPlayerId) {
+    alert("Your player session was lost. Please rejoin the room.");
+    return;
+  }
 
   if (playerName === name && !allowSelfVoting) {
     alert("You can't vote for your own submission.");
@@ -1203,31 +1209,25 @@ async function voteForSubmission(answerText: string, playerName: string) {
     return;
   }
 
-  const voteValue = `${playerName}: ${answerText}`;
-
-  const { data: existingVote } = await supabase
-    .from("votes")
-    .select("id")
-    .eq("game_id", currentGameId)
-    .eq("voter_name", name)
-    .maybeSingle();
-
-  if (existingVote) return;
-
   setHasVoted(true);
 
-  const { error } = await supabase.from("votes").insert([
-    {
-      room_code: code,
-      game_id: currentGameId,
-      voter_name: name,
-      voted_for: voteValue,
-    },
-  ]);
+  const voteResponse = await fetch("/api/vote", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      answerText,
+      gameId: currentGameId,
+      playerId: savedPlayerId,
+      roomCode: code,
+      votedForPlayerName: playerName,
+    }),
+  });
 
-  if (error) {
-    console.error(error);
-    alert("Failed to vote");
+  const voteData = await voteResponse.json();
+
+  if (!voteResponse.ok) {
+    console.error(voteData);
+    alert(voteData.error || "Failed to vote");
     setHasVoted(false);
     return;
   }
@@ -1235,31 +1235,9 @@ async function voteForSubmission(answerText: string, playerName: string) {
   setVoteMessage("✅ Vote recorded! Waiting for other players...");
   await loadVotes(currentGameId);
 
-  const { data: allSubmissions } = await supabase
-    .from("submissions")
-    .select("id")
-    .eq("game_id", currentGameId);
-
-  const { data: allVotes } = await supabase
-    .from("votes")
-    .select("id")
-    .eq("game_id", currentGameId);
-
-  if (allSubmissions && allVotes && allVotes.length >= allSubmissions.length) {
-  const { error: stageError } = await supabase
-  .from("games")
-  .update({ stage: "winner" })
-  .eq("id", currentGameId);
-
-if (stageError) {
-  console.error("Failed to update stage:", stageError);
-  alert("Failed to move to winner screen");
-  return;
-}
-
-console.log("Stage updated to winner");
-setStage("winner");
-await loadGame();
+  if (voteData.stage === "winner") {
+    setStage("winner");
+    await loadGame();
   }
 
 }
