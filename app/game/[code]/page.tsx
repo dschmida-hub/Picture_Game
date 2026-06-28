@@ -830,24 +830,6 @@ async function joinGame() {
     }
   }
 
-  const { data: roomPlayers, error: roomPlayersError } = await supabase
-    .from("players")
-    .select("id, name")
-    .eq("room_code", code);
-
-  if (roomPlayersError) {
-    console.error(roomPlayersError);
-    alert("Failed to check the room");
-    return;
-  }
-
-  const nameAlreadyTaken = (roomPlayers || []).some((player) => arePlayerNamesEqual(player.name, cleanName));
-
-  if (nameAlreadyTaken) {
-    alert("That name is already taken in this room. Pick another name, or rejoin from the same device you used before.");
-    return;
-  }
-
   let avatarUrl = null;
   let avatarDescription = null;
 
@@ -887,43 +869,30 @@ const descData = await descResponse.json();
   console.error("Avatar description failed:", error);
    }}
 
-    const playerCount = roomPlayers?.length || 0;
     const cameFromCreateGame = new URLSearchParams(window.location.search).get("create") === "1";
 
-    if (playerCount === 0 && !cameFromCreateGame) {
-      alert("Game not found. Check the room code and try again.");
-      return;
-    }
-
-    if (playerCount >= MAX_PLAYERS) {
-      alert("This room is full (8 players max).");
-      return;
-    }
-
-    const isFirstPlayer = playerCount === 0;
-
-    const { data: newPlayer, error } = await supabase.from("players").insert([
-      {
+    const joinResponse = await fetch("/api/join-room", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        allowCreateRoom: cameFromCreateGame,
+        avatarDescription,
+        avatarUrl,
         name: cleanName,
-        room_code: code,
-        avatar_url: avatarUrl,
-        avatar_description: avatarDescription,
-        points: 0,
-        is_host: isFirstPlayer,
-      },
-    ]).select("id").single();
+        roomCode: code,
+      }),
+    });
 
-    if (error) {
-      console.error(error);
-      if (error.code === "23505") {
-        alert("That name was just taken in this room. Pick another name.");
-        return;
-      }
-      alert("Failed to join room");
+    const joinData = await joinResponse.json();
+
+    if (!joinResponse.ok) {
+      console.error(joinData);
+      alert(joinData.error || "Failed to join room");
       return;
     }
 
-    window.localStorage.setItem(playerStorageKey, String(newPlayer.id));
+    setName(joinData.playerName || cleanName);
+    window.localStorage.setItem(playerStorageKey, String(joinData.playerId));
 
   await loadPlayers();
   await loadPromptSuggestions();
