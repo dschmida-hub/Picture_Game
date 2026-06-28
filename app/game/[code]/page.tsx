@@ -1068,46 +1068,42 @@ async function grantImageRetryTime() {
     return;
   }
   const submittedAnswer = submission.trim();
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+
+  if (!savedPlayerId) {
+    alert("Your player session was lost. Please rejoin the room.");
+    return;
+  }
 
   setIsSubmitting(true);
 
   try {
-    const { data: pendingSubmission, error: pendingSubmissionError } = await supabase
-      .from("submissions")
-      .insert([
-        {
-          room_code: code,
-          game_id: currentGameId,
-          player_name: name,
-          prompt: submittedAnswer,
-          image_url: null,
-          gallery_thumbnail_url: null,
-          image_caption: null,
-        },
-      ])
-      .select("id")
-      .single();
+    const submitResponse = await fetch("/api/submit-answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        answer: submittedAnswer,
+        gameId: currentGameId,
+        playerId: savedPlayerId,
+        roomCode: code,
+      }),
+    });
 
-    if (pendingSubmissionError) {
-      console.error(pendingSubmissionError);
-      alert("Failed to submit prompt");
+    const submitData = await submitResponse.json();
+
+    if (!submitResponse.ok) {
+      console.error(submitData);
+      alert(submitData.error || "Failed to submit answer");
       return;
     }
+
+    const pendingSubmissionId = submitData.submissionId;
 
     await loadSubmissions(currentGameId);
 
     setLoadingMessage(
       loadingMessages[Math.floor(Math.random() * loadingMessages.length)]
     );
-
-    const savedPlayerId = window.localStorage.getItem(playerStorageKey);
-
-    if (!savedPlayerId) {
-      alert("Your player session was lost. Please rejoin the room.");
-      await supabase.from("submissions").delete().eq("id", pendingSubmission.id);
-      await loadSubmissions(currentGameId);
-      return;
-    }
 
     const imageResponse = await fetch("/api/generate-image", {
       method: "POST",
@@ -1116,7 +1112,7 @@ async function grantImageRetryTime() {
         roomCode: code,
         gameId: currentGameId,
         playerId: savedPlayerId,
-        submissionId: pendingSubmission.id,
+        submissionId: pendingSubmissionId,
       }),
     });
 
@@ -1134,7 +1130,16 @@ async function grantImageRetryTime() {
       } else {
         alert("The image machine tripped over its own shoelaces. Try submitting again.");
       }
-      await supabase.from("submissions").delete().eq("id", pendingSubmission.id);
+      await fetch("/api/submit-answer", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gameId: currentGameId,
+          playerId: savedPlayerId,
+          roomCode: code,
+          submissionId: pendingSubmissionId,
+        }),
+      });
       await loadSubmissions(currentGameId);
       return;
     }
