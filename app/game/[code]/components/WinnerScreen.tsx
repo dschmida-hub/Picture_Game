@@ -153,27 +153,34 @@ export function WinnerScreen({
               className={`flex items-center justify-between rounded-2xl px-4 py-3 font-black ${
                 index === 0
                   ? "border-2 border-black bg-amber-100 text-amber-950"
-                  : "bg-sky-100 text-sky-950"
+                  : "border border-sky-200 bg-sky-100 text-sky-950"
               }`}
             >
               <div className="flex items-center gap-3">
                 {player.avatar_url ? (
-                  <img
-                    src={player.avatar_url}
-                    alt={player.name}
-                    className="h-10 w-10 rounded-full border-2 border-white object-cover"
-                  />
+                  <div className="relative">
+                    <img
+                      src={player.avatar_url}
+                      alt={player.name}
+                      className="h-12 w-12 rounded-full border-2 border-black object-cover"
+                    />
+                    {index === 0 && (
+                      <span className="absolute -right-1 -top-1 rounded-full border border-black bg-amber-300 px-1.5 text-[10px] font-black">
+                        1
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <EmptyAvatar />
                 )}
 
-                <span>
-                  {index === 0 ? "#1 " : ""}
-                  {player.name}
-                </span>
+                <div className="min-w-0 text-left">
+                  <p className="truncate">{player.name}</p>
+                  <p className="text-xs font-bold opacity-70">{index === 0 ? "Current leader" : `Place ${index + 1}`}</p>
+                </div>
               </div>
 
-              <span>{player.points ?? 0}</span>
+              <span className="rounded-full border border-black bg-white px-3 py-1">{player.points ?? 0}</span>
             </div>
           ))}
         </div>

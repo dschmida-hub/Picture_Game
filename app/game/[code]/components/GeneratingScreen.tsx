@@ -52,6 +52,28 @@ function SpinnerIcon() {
   );
 }
 
+function ImageSkeleton({ imageNumber }: { imageNumber: number }) {
+  return (
+    <>
+      <div className="relative flex aspect-square w-full overflow-hidden rounded-[1.15rem] border border-dashed border-rose-300 bg-rose-50">
+        <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-rose-100 via-white to-sky-100" />
+        <div className="absolute inset-x-6 top-8 h-5 rounded-full bg-white/80" />
+        <div className="absolute left-6 top-20 h-24 w-24 rounded-3xl bg-white/70" />
+        <div className="absolute bottom-8 right-6 h-28 w-32 rounded-3xl bg-white/70" />
+        <div className="relative z-10 m-auto flex flex-col items-center rounded-2xl border-2 border-black bg-white/90 px-5 py-4 shadow-[4px_4px_0_#111827]">
+          <SpinnerIcon />
+          <p className="mt-3 text-sm font-black text-zinc-800">Generating</p>
+          <p className="mt-1 text-xs font-bold text-zinc-500">Image {imageNumber}</p>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="h-4 w-24 animate-pulse rounded-full bg-zinc-200" />
+        <div className="h-7 w-20 animate-pulse rounded-full bg-rose-100" />
+      </div>
+    </>
+  );
+}
+
 function AnonymousProgressCard({
   title,
   waitingCount,
@@ -226,14 +248,7 @@ export function GeneratingScreen({
                       </div>
                     </>
                   ) : (
-                    <>
-                      <div className="flex aspect-square w-full flex-col items-center justify-center rounded-[1.15rem] border border-dashed border-rose-300 bg-rose-50">
-                        <SpinnerIcon />
-                        <p className="mt-3 text-sm font-black text-zinc-800">Generating</p>
-                        <p className="mt-1 text-xs font-bold text-zinc-500">Image {index + 1}</p>
-                      </div>
-                      <div className="mt-3 h-9 rounded-full bg-zinc-100" />
-                    </>
+                    <ImageSkeleton imageNumber={index + 1} />
                   )}
                 </div>
               );

@@ -1881,7 +1881,7 @@ async function shareImage(imageUrl: string, imageCaption: string) {
 async function loadScoreboard() {
   const { data, error } = await supabase
     .from("players")
-    .select("name, points,avatar_url")
+    .select("name, points, avatar_url")
     .eq("room_code", code)
     .order("points", { ascending: false });
 
@@ -1891,12 +1891,12 @@ async function loadScoreboard() {
   }
 
   const sortedPlayers = [...data].sort(
-  (a, b) => (b.points ?? 0) - (a.points ?? 0)
-);
+    (a, b) => (b.points ?? 0) - (a.points ?? 0)
+  );
 
-setScoreboardPlayers(sortedPlayers);
+  setScoreboardPlayers(sortedPlayers);
 
-  const leader = data[0];
+  const leader = sortedPlayers[0];
 
   if (leader && leader.points >= 3) {
     setFinalWinner(`${leader.name} wins the game with ${leader.points} points!`);
