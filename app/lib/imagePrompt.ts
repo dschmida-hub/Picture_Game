@@ -38,10 +38,10 @@ function buildPlayerAppearanceContext(players: PromptPlayer[], currentPlayerName
     relevantPlayers.push(currentPlayer);
   }
 
-  const playersToDescribe = relevantPlayers.length > 0 ? relevantPlayers : currentPlayer ? [currentPlayer] : [];
+  const playersToDescribe = relevantPlayers;
 
   if (playersToDescribe.length === 0) {
-    return "No specific player appearance is available. Use a generic funny character.";
+    return "No specific player appearance is requested. Do not use any player's avatar or likeness. Use generic funny characters only.";
   }
 
   return playersToDescribe
@@ -97,7 +97,7 @@ Relevant Player Appearances:
 ${playerAppearanceContext}
 
 If a player name is mentioned in the answer, use that named player's appearance for that character.
-Only use the submitting player's appearance when the answer refers to them directly or no other player is named.
+Only use the submitting player's appearance when the answer explicitly refers to them directly with words like I, me, my, mine, or myself. If no player is named or directly referenced, do not use player avatars; use generic funny characters.
 
 Turn the scene context into a single funny visual moment.
 

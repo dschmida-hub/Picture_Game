@@ -59,6 +59,8 @@ const emptyHostDebugStats: HostDebugStats = {
   reportCount: null,
 };
 
+const PROMPT_SKIP_THRESHOLD = 0.75;
+
 export default function GameRoom() {
   const params = useParams();
   const code = params.code as string;
@@ -75,6 +77,9 @@ export default function GameRoom() {
   const [currentPromptRating, setCurrentPromptRating] = useState<PromptRating | null>(null);
   const [ratedPromptKey, setRatedPromptKey] = useState<string | null>(null);
   const [isRatingCurrentPrompt, setIsRatingCurrentPrompt] = useState(false);
+  const [promptSkipVoteCount, setPromptSkipVoteCount] = useState(0);
+  const [hasVotedToSkipPrompt, setHasVotedToSkipPrompt] = useState(false);
+  const [isVotingToSkipPrompt, setIsVotingToSkipPrompt] = useState(false);
   const [submission, setSubmission] = useState("");
   const [submissions, setSubmissions] = useState<string[]>([]);
   const [winner, setWinner] = useState("");
@@ -151,6 +156,7 @@ export default function GameRoom() {
     (highestRound, round) => Math.max(highestRound, round.round_number || 0),
     0
   ) + 1;
+  const promptSkipVotesNeeded = Math.max(1, Math.ceil(players.length * PROMPT_SKIP_THRESHOLD));
   const promptApprovalVotesNeeded = Math.max(2, Math.ceil(players.length / 2));
   const promptSuggestionRating = ratePrompt(promptSuggestionText, promptSuggestionMode);
   const roomExpirationMessage = formatRoomExpiration(roomCreatedAt);
@@ -565,6 +571,30 @@ async function loadVotes(gameId = currentGameId) {
   setVotedPlayerNames(Array.from(new Set((data || []).map((vote) => vote.voter_name))));
 }
 
+async function loadPromptSkipVotes(gameId = currentGameId) {
+  if (!gameId) {
+    setPromptSkipVoteCount(0);
+    setHasVotedToSkipPrompt(false);
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("prompt_skip_votes")
+    .select("voter_name")
+    .eq("room_code", code)
+    .eq("game_id", gameId);
+
+  if (error) {
+    console.error("Failed to load prompt skip votes:", error);
+    return;
+  }
+
+  const voterNames = Array.from(new Set((data || []).map((vote) => vote.voter_name)));
+
+  setPromptSkipVoteCount(voterNames.length);
+  setHasVotedToSkipPrompt(Boolean(name && voterNames.some((voterName) => arePlayerNamesEqual(voterName, name))));
+}
+
 async function loadCurrentPromptRating(
   promptId: number | null,
   promptSource: PromptSource | null,
@@ -618,6 +648,114 @@ async function rateCurrentPrompt(rating: PromptRating) {
   }
 }
 
+async function voteToSkipPrompt() {
+  if (!joined || !currentGameId || hasVotedToSkipPrompt || isVotingToSkipPrompt) return;
+
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+
+  if (!savedPlayerId) {
+    alert("Your player session was lost. Please rejoin the room.");
+    return;
+  }
+
+  setIsVotingToSkipPrompt(true);
+
+  try {
+    const { data, error } = await supabase.rpc("vote_to_skip_round_prompt", {
+      game_id_input: currentGameId,
+      player_id_input: Number(savedPlayerId),
+      room_code_input: code,
+      threshold_ratio_input: PROMPT_SKIP_THRESHOLD,
+    });
+
+    if (error) throw error;
+
+    const result = Array.isArray(data) ? data[0] : data;
+
+    setHasVotedToSkipPrompt(true);
+    setPromptSkipVoteCount(result?.skip_count ?? promptSkipVoteCount + 1);
+
+    if (result?.skipped) {
+      setCurrentPromptRating("bad");
+      const replacementPrompt = await pickRoundPrompt();
+
+      if (!replacementPrompt) {
+        alert("That prompt was marked bad, but I couldn't find another prompt to replace it yet.");
+        await loadGame();
+        return;
+      }
+
+      const replacementRound = await replaceSkippedRoundWithPrompt(currentGameId, savedPlayerId, replacementPrompt);
+
+      if (!replacementRound) {
+        await loadGame();
+        return;
+      }
+
+      setCurrentGameId(replacementRound.gameId);
+      setCurrentPromptId(replacementPrompt.id);
+      setCurrentPromptSource(replacementPrompt.source);
+      setCurrentPromptRating(replacementPrompt.rating);
+      setRoundPrompt(replacementPrompt.prompt);
+      setRoundImageStyle(replacementRound.activeImageStyle);
+      setRoundDeadline(replacementRound.submissionDeadline);
+      setVotingDeadline(null);
+      setPromptSkipVoteCount(0);
+      setHasVotedToSkipPrompt(false);
+      setSubmission("");
+      setSubmissions([]);
+      setVotedPlayerNames([]);
+      setStage("submitting");
+      return;
+    }
+
+    await loadPromptSkipVotes(currentGameId);
+  } catch (error) {
+    console.error("Failed to vote to skip prompt:", error);
+    alert(`Could not vote to skip: ${error instanceof Error ? error.message : "Unknown database error"}`);
+  } finally {
+    setIsVotingToSkipPrompt(false);
+  }
+}
+
+async function replaceSkippedRoundWithPrompt(
+  skippedGameId: number,
+  playerId: string,
+  prompt: PromptOption
+) {
+  const activeImageStyle = resolveImageStyle(prompt.image_style, selectedImageStyle);
+  const submissionDeadline =
+    selectedRoundDuration === "unlimited"
+      ? null
+      : new Date(Date.now() + selectedRoundDuration * 1000).toISOString();
+
+  const { data: newGameId, error } = await supabase.rpc("replace_skipped_round_prompt", {
+    game_mode_input: selectedGameMode,
+    image_style_input: activeImageStyle,
+    player_id_input: Number(playerId),
+    prompt_id_input: prompt.id,
+    prompt_input: prompt.prompt,
+    prompt_source_input: prompt.source,
+    room_code_input: code,
+    skipped_game_id_input: skippedGameId,
+    submission_deadline_input: submissionDeadline,
+    threshold_ratio_input: PROMPT_SKIP_THRESHOLD,
+    voting_duration_seconds_input: selectedVotingDuration,
+  });
+
+  if (error) {
+    console.error("Failed to replace skipped prompt:", error);
+    alert(`The prompt was skipped, but the replacement failed: ${error.message || "Unknown database error"}`);
+    return null;
+  }
+
+  return {
+    activeImageStyle,
+    gameId: Number(newGameId),
+    submissionDeadline,
+  };
+}
+
 async function loadGame() {
   
   const { data, error } = await supabase
@@ -648,6 +786,7 @@ async function loadGame() {
   await loadCurrentPromptRating(data.prompt_id, data.prompt_source as PromptSource | null, data.prompt, data.game_mode as GameMode);
   await loadSubmissions(data.id);
   await loadVotes(data.id);
+  await loadPromptSkipVotes(data.id);
   await loadHostDebugStats(data.id);
 }
 }
@@ -966,6 +1105,8 @@ async function startGame() {
     setRoundImageStyle(newRound.activeImageStyle);
     setRoundDeadline(newRound.submissionDeadline);
     setVotingDeadline(null);
+    setPromptSkipVoteCount(0);
+    setHasVotedToSkipPrompt(false);
     setStage("submitting");
   } finally {
     setIsStarting(false);
@@ -1612,6 +1753,8 @@ async function nextRound() {
     setVotingDeadline(null);
     setStage("submitting"); // Move this browser immediately.
     setHasVoted(false);
+    setPromptSkipVoteCount(0);
+    setHasVotedToSkipPrompt(false);
     setVoteMessage("");
     setSubmission("");
     setSubmissions([]);
@@ -1858,8 +2001,13 @@ if (isPageLoading) {
       timeRemainingSeconds={timeRemainingSeconds}
       expiredMessage="Time's up — waiting for the host"
       activeTimerLabel="Time remaining"
+      skipVoteCount={promptSkipVoteCount}
+      skipVotesNeeded={promptSkipVotesNeeded}
+      hasVotedToSkip={hasVotedToSkipPrompt}
+      isVotingToSkip={isVotingToSkipPrompt}
       formatCountdown={formatCountdown}
       getImageStyleLabel={getImageStyleLabel}
+      onVoteToSkip={voteToSkipPrompt}
     />
 
     {hasSubmitted || isSubmitting ? (

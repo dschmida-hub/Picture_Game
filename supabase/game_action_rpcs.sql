@@ -1,6 +1,28 @@
 -- Batched/atomic game action RPCs for Picture This.
 -- Run this in Supabase SQL Editor.
 
+create table if not exists public.prompt_skip_votes (
+  id bigserial primary key,
+  room_code text not null,
+  game_id bigint not null,
+  voter_name text not null,
+  created_at timestamptz not null default now(),
+  unique (game_id, voter_name)
+);
+
+alter table public.prompt_skip_votes enable row level security;
+
+grant select on public.prompt_skip_votes to anon, authenticated;
+grant select, insert, update, delete on public.prompt_skip_votes to service_role;
+grant usage, select on sequence public.prompt_skip_votes_id_seq to service_role;
+
+drop policy if exists "Public can read prompt skip votes" on public.prompt_skip_votes;
+create policy "Public can read prompt skip votes"
+on public.prompt_skip_votes
+for select
+to anon, authenticated
+using (room_code ~ '^[A-Z0-9]{4,12}$');
+
 create or replace function public.submit_room_prompt_suggestion(
   room_code_input text,
   prompt_input text,
@@ -439,6 +461,212 @@ begin
 end;
 $$;
 
+create or replace function public.vote_to_skip_round_prompt(
+  room_code_input text,
+  game_id_input bigint,
+  player_id_input bigint,
+  threshold_ratio_input numeric default 0.75
+)
+returns table (
+  skip_count integer,
+  player_count integer,
+  votes_needed integer,
+  skipped boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  voter_name_value text;
+  prompt_id_value bigint;
+  prompt_source_value text;
+  game_stage_value text;
+begin
+  if room_code_input !~ '^[A-Z0-9]{4,12}$' then
+    raise exception 'Invalid room code';
+  end if;
+
+  select name into voter_name_value
+  from public.players
+  where id = player_id_input
+    and room_code = room_code_input;
+
+  if voter_name_value is null then
+    raise exception 'Player not found in this room';
+  end if;
+
+  select prompt_id, prompt_source, stage
+    into prompt_id_value, prompt_source_value, game_stage_value
+  from public.games
+  where id = game_id_input
+    and room_code = room_code_input;
+
+  if prompt_id_value is null then
+    raise exception 'Prompt not found for this round';
+  end if;
+
+  if game_stage_value <> 'submitting' then
+    raise exception 'Prompt skip voting is only available while submitting';
+  end if;
+
+  insert into public.prompt_skip_votes (
+    room_code,
+    game_id,
+    voter_name
+  )
+  values (
+    room_code_input,
+    game_id_input,
+    voter_name_value
+  )
+  on conflict do nothing;
+
+  select count(*)::integer into player_count
+  from public.players
+  where room_code = room_code_input;
+
+  select count(*)::integer into skip_count
+  from public.prompt_skip_votes
+  where room_code = room_code_input
+    and game_id = game_id_input;
+
+  votes_needed := greatest(1, ceiling(player_count * coalesce(threshold_ratio_input, 0.75))::integer);
+  skipped := skip_count >= votes_needed;
+
+  if skipped then
+    if prompt_source_value = 'classic' then
+      update public.prompts
+      set prompt_rating = 'bad'
+      where id = prompt_id_value;
+    elsif prompt_source_value = 'cards' then
+      update public.cah_prompts
+      set prompt_rating = 'bad'
+      where id = prompt_id_value;
+    end if;
+
+  end if;
+
+  return next;
+end;
+$$;
+
+create or replace function public.replace_skipped_round_prompt(
+  room_code_input text,
+  skipped_game_id_input bigint,
+  player_id_input bigint,
+  prompt_input text,
+  prompt_id_input bigint,
+  prompt_source_input text,
+  game_mode_input text,
+  image_style_input text,
+  submission_deadline_input timestamptz,
+  voting_duration_seconds_input integer,
+  threshold_ratio_input numeric default 0.75
+)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_game_id bigint;
+  player_count_value integer;
+  skip_count_value integer;
+  votes_needed_value integer;
+begin
+  if room_code_input !~ '^[A-Z0-9]{4,12}$' then
+    raise exception 'Invalid room code';
+  end if;
+
+  if not exists (
+    select 1
+    from public.players
+    where id = player_id_input
+      and room_code = room_code_input
+  ) then
+    raise exception 'Player not found in this room';
+  end if;
+
+  if not exists (
+    select 1
+    from public.games
+    where id = skipped_game_id_input
+      and room_code = room_code_input
+      and stage = 'submitting'
+  ) then
+    raise exception 'Skipped round not found';
+  end if;
+
+  select count(*)::integer into player_count_value
+  from public.players
+  where room_code = room_code_input;
+
+  if player_count_value < 2 then
+    raise exception 'At least two players are required';
+  end if;
+
+  select count(*)::integer into skip_count_value
+  from public.prompt_skip_votes
+  where room_code = room_code_input
+    and game_id = skipped_game_id_input;
+
+  votes_needed_value := greatest(1, ceiling(player_count_value * coalesce(threshold_ratio_input, 0.75))::integer);
+
+  if skip_count_value < votes_needed_value then
+    raise exception 'Not enough skip votes yet';
+  end if;
+
+  if length(btrim(prompt_input)) < 1 or length(btrim(prompt_input)) > 300 then
+    raise exception 'Invalid prompt';
+  end if;
+
+  delete from public.votes
+  where room_code = room_code_input
+    and game_id = skipped_game_id_input;
+
+  delete from public.submissions
+  where room_code = room_code_input
+    and game_id = skipped_game_id_input;
+
+  update public.games
+  set
+    stage = 'lobby',
+    submission_deadline = null,
+    voting_deadline = null
+  where id = skipped_game_id_input
+    and room_code = room_code_input;
+
+  insert into public.games (
+    room_code,
+    stage,
+    prompt,
+    prompt_id,
+    prompt_source,
+    game_mode,
+    image_style,
+    submission_deadline,
+    voting_duration_seconds,
+    winner_awarded
+  )
+  values (
+    room_code_input,
+    'submitting',
+    btrim(prompt_input),
+    prompt_id_input,
+    prompt_source_input,
+    game_mode_input,
+    image_style_input,
+    submission_deadline_input,
+    voting_duration_seconds_input,
+    false
+  )
+  returning id into new_game_id;
+
+  return new_game_id;
+end;
+$$;
+
 grant execute on function public.submit_room_prompt_suggestion(text, text, text, text, text) to anon, authenticated, service_role;
 grant execute on function public.vote_for_room_prompt_suggestion(text, bigint, text) to anon, authenticated, service_role;
 grant execute on function public.remove_player_from_room(text, bigint, bigint) to anon, authenticated, service_role;
@@ -449,3 +677,5 @@ grant execute on function public.delete_round_submission(text, bigint, bigint, b
 grant execute on function public.force_reveal_round(text, bigint, bigint, timestamptz) to anon, authenticated, service_role;
 grant execute on function public.return_round_to_lobby(text, bigint, bigint) to anon, authenticated, service_role;
 grant execute on function public.end_voting_now(text, bigint, bigint) to anon, authenticated, service_role;
+grant execute on function public.vote_to_skip_round_prompt(text, bigint, bigint, numeric) to anon, authenticated, service_role;
+grant execute on function public.replace_skipped_round_prompt(text, bigint, bigint, text, bigint, text, text, text, timestamptz, integer, numeric) to anon, authenticated, service_role;
