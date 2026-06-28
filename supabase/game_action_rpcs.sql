@@ -176,7 +176,83 @@ begin
 end;
 $$;
 
+create or replace function public.create_game_round(
+  room_code_input text,
+  host_player_id_input bigint,
+  prompt_input text,
+  prompt_id_input bigint,
+  prompt_source_input text,
+  game_mode_input text,
+  image_style_input text,
+  submission_deadline_input timestamptz,
+  voting_duration_seconds_input integer
+)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_game_id bigint;
+begin
+  if room_code_input !~ '^[A-Z0-9]{4,12}$' then
+    raise exception 'Invalid room code';
+  end if;
+
+  if not exists (
+    select 1
+    from public.players
+    where id = host_player_id_input
+      and room_code = room_code_input
+      and is_host = true
+  ) then
+    raise exception 'Only the host can start rounds';
+  end if;
+
+  if (
+    select count(*)
+    from public.players
+    where room_code = room_code_input
+  ) < 2 then
+    raise exception 'At least two players are required';
+  end if;
+
+  if length(btrim(prompt_input)) < 1 or length(btrim(prompt_input)) > 300 then
+    raise exception 'Invalid prompt';
+  end if;
+
+  insert into public.games (
+    room_code,
+    stage,
+    prompt,
+    prompt_id,
+    prompt_source,
+    game_mode,
+    image_style,
+    submission_deadline,
+    voting_duration_seconds,
+    winner_awarded
+  )
+  values (
+    room_code_input,
+    'submitting',
+    btrim(prompt_input),
+    prompt_id_input,
+    prompt_source_input,
+    game_mode_input,
+    image_style_input,
+    submission_deadline_input,
+    voting_duration_seconds_input,
+    false
+  )
+  returning id into new_game_id;
+
+  return new_game_id;
+end;
+$$;
+
 grant execute on function public.submit_room_prompt_suggestion(text, text, text, text, text) to anon, authenticated, service_role;
 grant execute on function public.vote_for_room_prompt_suggestion(text, bigint, text) to anon, authenticated, service_role;
 grant execute on function public.remove_player_from_room(text, bigint, bigint) to anon, authenticated, service_role;
 grant execute on function public.start_rematch(text, bigint, bigint) to anon, authenticated, service_role;
+grant execute on function public.create_game_round(text, bigint, text, bigint, text, text, text, timestamptz, integer) to anon, authenticated, service_role;

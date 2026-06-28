@@ -893,6 +893,45 @@ async function shareRoom() {
   }
 }
 
+async function createRoundFromPrompt(prompt: PromptOption) {
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+
+  if (!savedPlayerId) {
+    alert("Your host session was lost. Please rejoin the room.");
+    return null;
+  }
+
+  const activeImageStyle = resolveImageStyle(prompt.image_style, selectedImageStyle);
+  const submissionDeadline =
+    selectedRoundDuration === "unlimited"
+      ? null
+      : new Date(Date.now() + selectedRoundDuration * 1000).toISOString();
+
+  const { data: newGameId, error } = await supabase.rpc("create_game_round", {
+    game_mode_input: selectedGameMode,
+    host_player_id_input: Number(savedPlayerId),
+    image_style_input: activeImageStyle,
+    prompt_id_input: prompt.id,
+    prompt_input: prompt.prompt,
+    prompt_source_input: prompt.source,
+    room_code_input: code,
+    submission_deadline_input: submissionDeadline,
+    voting_duration_seconds_input: selectedVotingDuration,
+  });
+
+  if (error) {
+    console.error(error);
+    alert("Failed to start round");
+    return null;
+  }
+
+  return {
+    activeImageStyle,
+    gameId: Number(newGameId),
+    submissionDeadline,
+  };
+}
+
 async function startGame() {
   if (!isHost || isStarting) return;
   if (players.length < 2) {
@@ -914,45 +953,18 @@ async function startGame() {
   return;
   }
 
-    const activeImageStyle = resolveImageStyle(
-      randomPrompt.image_style,
-      selectedImageStyle
-    );
-    const submissionDeadline =
-      selectedRoundDuration === "unlimited"
-        ? null
-        : new Date(Date.now() + selectedRoundDuration * 1000).toISOString();
-
     console.log("Selected CAH prompt:", randomPrompt.prompt);
 
-    const { data: newGame, error } = await supabase.from("games").insert([
-      {
-        room_code: code,
-        stage: "submitting",
-        prompt: randomPrompt.prompt,
-        prompt_id: randomPrompt.id,
-        prompt_source: randomPrompt.source,
-        game_mode: selectedGameMode,
-        image_style: activeImageStyle,
-        submission_deadline: submissionDeadline,
-        voting_duration_seconds: selectedVotingDuration,
-        winner_awarded: false,
-      },
-    ]).select("id").single();
+    const newRound = await createRoundFromPrompt(randomPrompt);
+    if (!newRound) return;
 
-    if (error) {
-      console.error(error);
-      alert("Failed to start game");
-      return;
-    }
-
-    setCurrentGameId(newGame.id);
+    setCurrentGameId(newRound.gameId);
     setCurrentPromptId(randomPrompt.id);
     setCurrentPromptSource(randomPrompt.source);
     setCurrentPromptRating(randomPrompt.rating);
     setRoundPrompt(randomPrompt.prompt);
-    setRoundImageStyle(activeImageStyle);
-    setRoundDeadline(submissionDeadline);
+    setRoundImageStyle(newRound.activeImageStyle);
+    setRoundDeadline(newRound.submissionDeadline);
     setVotingDeadline(null);
     setStage("submitting");
   } finally {
@@ -1598,41 +1610,16 @@ async function nextRound() {
       return;
     }
 
-    const activeImageStyle = resolveImageStyle(
-      newPrompt.image_style,
-      selectedImageStyle
-    );
-    const submissionDeadline =
-      selectedRoundDuration === "unlimited"
-        ? null
-        : new Date(Date.now() + selectedRoundDuration * 1000).toISOString();
+    const newRound = await createRoundFromPrompt(newPrompt);
+    if (!newRound) return;
 
-    const { data: newGame, error: gameError } = await supabase
-      .from("games")
-      .insert({
-        room_code: code,
-        stage: "submitting",
-        prompt: newPrompt.prompt,
-        prompt_id: newPrompt.id,
-        prompt_source: newPrompt.source,
-        game_mode: selectedGameMode,
-        image_style: activeImageStyle,
-        submission_deadline: submissionDeadline,
-        voting_duration_seconds: selectedVotingDuration,
-        winner_awarded: false,
-      })
-      .select("id")
-      .single();
-
-    if (gameError) throw gameError;
-
-    setCurrentGameId(newGame.id);
+    setCurrentGameId(newRound.gameId);
     setCurrentPromptId(newPrompt.id);
     setCurrentPromptSource(newPrompt.source);
     setCurrentPromptRating(newPrompt.rating);
     setRoundPrompt(newPrompt.prompt);
-    setRoundImageStyle(activeImageStyle);
-    setRoundDeadline(submissionDeadline);
+    setRoundImageStyle(newRound.activeImageStyle);
+    setRoundDeadline(newRound.submissionDeadline);
     setVotingDeadline(null);
     setStage("submitting"); // Move this browser immediately.
     setHasVoted(false);
