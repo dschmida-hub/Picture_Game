@@ -9,6 +9,12 @@ const imageStyleInstructions: Record<string, string> = {
   clay_animation: "Playful handcrafted clay-animation style with soft studio lighting",
   storybook: "Whimsical illustrated storybook art with rich, charming detail",
   pixel_art: "Detailed retro pixel-art scene with expressive characters",
+  puppet_show: "Handmade puppet show scene with felt, fabric, cardboard props, visible stage lighting, and charming theatrical staging",
+  low_budget_90s_cgi: "Low-budget 1990s CGI aesthetic with shiny plastic surfaces, awkward simple geometry, dramatic gradients, and delightfully dated computer-animation charm",
+  childrens_picture_book: "Children's picture book illustration with warm watercolor textures, soft ink outlines, cozy colors, and expressive storybook characters",
+  lego_stop_motion: "Toy brick stop-motion scene made from colorful plastic building blocks and minifigure-like characters, with playful handmade animation energy and no logos",
+  minecraft: "Blocky voxel sandbox-game world with cube-shaped characters, chunky pixel textures, square props, and playful grid-based scenery with no logos",
+  renaissance_painting: "Renaissance oil painting style with dramatic chiaroscuro lighting, rich fabric textures, classical composition, expressive poses, and museum-quality brushwork",
 };
 
 function getImageStyleInstruction(style: string | null) {

@@ -1,3 +1,4 @@
+import { HelpTooltip } from "./HelpTooltip";
 import type { GameMode } from "./types";
 
 type SubmissionFormProps = {
@@ -42,8 +43,15 @@ export function SubmissionForm({
           isCards ? "rotate-[-0.5deg]" : ""
         }`}
       >
-        <label className="mb-2 block text-sm font-black uppercase tracking-[0.16em] text-rose-700">
+        <label className="mb-2 flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-rose-700">
           {isCards ? "Complete the prompt" : "Your Answer"}
+          <HelpTooltip
+            text={
+              isCards
+                ? "Write only the fill-in-the-blank part. Keep it short so the image idea stays clear."
+                : "Write a short image idea or punchline. Specific answers usually generate funnier pictures."
+            }
+          />
         </label>
         <textarea
           value={submission}

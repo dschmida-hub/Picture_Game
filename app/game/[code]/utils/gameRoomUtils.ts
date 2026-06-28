@@ -32,6 +32,22 @@ export function formatCountdown(seconds: number) {
 }
 
 export function getImageStyleLabel(style: string) {
+  const labels: Record<string, string> = {
+    cartoon: "Colorful Cartoon",
+    comic_book: "Comic Book",
+    clay_animation: "Clay Animation",
+    storybook: "Storybook",
+    pixel_art: "Pixel Art",
+    puppet_show: "Puppet Show",
+    low_budget_90s_cgi: "Low Budget 90s CGI",
+    childrens_picture_book: "Children's Picture Book",
+    lego_stop_motion: "LEGO Stop-Motion",
+    minecraft: "Minecraft",
+    renaissance_painting: "Renaissance Painting",
+  };
+
+  if (labels[style]) return labels[style];
+
   return style.split("_").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
 }
 

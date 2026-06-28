@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { CurrentPromptRater } from "./CurrentPromptRater";
+import { HelpTooltip } from "./HelpTooltip";
 import { parseSubmission } from "./submissions";
 import type { Player, PromptRating } from "./types";
 
@@ -169,7 +170,10 @@ export function GeneratingScreen({
             </div>
 
             <div className="rounded-3xl border-2 border-black bg-zinc-950 p-4 text-white shadow-[5px_5px_0_#fb7185] md:min-w-56">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-rose-200">Round progress</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-rose-200">Round progress</p>
+                <HelpTooltip text="Progress is based on how many players have finished generating an image for this round." />
+              </div>
               <p className="mt-2 text-3xl font-black">{progressPercent}%</p>
               <div className="mt-3 h-3 overflow-hidden rounded-full bg-white/20">
                 <div
@@ -263,6 +267,7 @@ export function GeneratingScreen({
                 type="button"
                 onClick={onForceReveal}
                 disabled={isForcingStage}
+                title={allImagesReady ? "Reveal all finished images for voting." : "Reveal the images that are ready and skip pending players."}
                 className="min-h-12 flex-1 rounded-2xl bg-rose-600 px-5 py-3 font-black text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isForcingStage
@@ -276,6 +281,7 @@ export function GeneratingScreen({
               type="button"
               onClick={onReturnToLobby}
               disabled={isForcingStage}
+              title="Return everyone to the lobby so the host can change settings or restart."
               className="min-h-12 flex-1 rounded-2xl border-2 border-black bg-white px-5 py-3 font-black text-zinc-950 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Back to Lobby

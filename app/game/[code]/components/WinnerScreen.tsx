@@ -1,3 +1,4 @@
+import { HelpTooltip } from "./HelpTooltip";
 import type { Player, RoundHistoryItem, ScoreboardPlayer } from "./types";
 
 type ConfettiPiece = {
@@ -144,7 +145,10 @@ export function WinnerScreen({
       </div>
 
       <div className="w-full max-w-md rounded-[2rem] border-2 border-black bg-white p-5 shadow-[8px_8px_0_#111827]">
-        <h3 className="mb-4 text-center text-3xl font-black">Scoreboard</h3>
+        <div className="mb-4 flex items-center justify-center gap-2">
+          <h3 className="text-center text-3xl font-black">Scoreboard</h3>
+          <HelpTooltip text="Scores update after each round. First player to 3 points wins the game." />
+        </div>
 
         <div className="flex flex-col gap-3">
           {scoreboardPlayers.map((player, index) => (
@@ -256,6 +260,7 @@ export function WinnerScreen({
             type="button"
             onClick={onPlayAgain}
             disabled={isPlayingAgain}
+            title="Reset scores and start a fresh match with the same room."
             className="mt-4 w-full rounded-2xl bg-rose-600 px-8 py-4 font-black text-white shadow-[4px_4px_0_#111827] disabled:opacity-50"
           >
             {isPlayingAgain ? "Resetting Game..." : "Rematch in This Room"}
@@ -279,6 +284,7 @@ export function WinnerScreen({
             <button
               onClick={onNextRound}
               disabled={isAdvancing}
+              title="Start the next round with a new prompt."
               className="rounded-2xl bg-rose-600 px-6 py-4 font-black text-white shadow-[4px_4px_0_#111827] disabled:opacity-50"
             >
               {isAdvancing ? "Starting..." : "Next Round"}
@@ -287,6 +293,7 @@ export function WinnerScreen({
               type="button"
               onClick={onReturnToLobby}
               disabled={isAdvancing}
+              title="Return to lobby to change settings or wait for players."
               className="rounded-2xl border-2 border-black bg-white px-6 py-4 font-black text-zinc-950 disabled:opacity-50"
             >
               Back to Lobby

@@ -3,6 +3,7 @@ import {
   getPromptRatingHint,
   getPromptRatingLabel,
 } from "./promptQuality";
+import { HelpTooltip } from "./HelpTooltip";
 import type { GameMode, PromptSuggestion } from "./types";
 
 type PromptSuggestionPanelProps = {
@@ -36,9 +37,12 @@ export function PromptSuggestionPanel({
     <div className="w-full max-w-5xl rounded-[2rem] border-2 border-black bg-white p-5 shadow-[8px_8px_0_#111827]">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-black uppercase tracking-[0.22em] text-rose-700">
-            Player-made prompts
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-black uppercase tracking-[0.22em] text-rose-700">
+              Player-made prompts
+            </p>
+            <HelpTooltip text="Players can pitch prompts in the lobby. If enough people vote one in, it can enter the room's prompt pool." />
+          </div>
           <h3 className="text-2xl font-black">Pitch a prompt</h3>
           <p className="mt-1 text-sm text-gray-500">
             Prompts with {approvalVotesNeeded} vote{approvalVotesNeeded === 1 ? "" : "s"} can show up in this room.

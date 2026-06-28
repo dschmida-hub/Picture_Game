@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { HelpTooltip } from "./HelpTooltip";
 import { PromptSuggestionPanel } from "./PromptSuggestionPanel";
 import type { GameMode, Player, PromptRating, PromptSuggestion, RoundDuration } from "./types";
 
@@ -219,9 +220,12 @@ export function LobbyScreen({
           {isHost ? (
             <>
               <div className={cardClass}>
-                <p className="mb-3 text-sm font-black uppercase tracking-[0.22em] text-rose-700">
-                  Choose game mode
-                </p>
+                <div className="mb-3 flex items-center gap-2">
+                  <p className="text-sm font-black uppercase tracking-[0.22em] text-rose-700">
+                    Choose game mode
+                  </p>
+                  <HelpTooltip text="Classic means everyone writes a full funny answer. Fill in the Blank gives a prompt-card style setup." />
+                </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <button
                     type="button"
@@ -284,8 +288,9 @@ export function LobbyScreen({
                   <div className="mt-3 grid grid-cols-1 gap-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 sm:grid-cols-2">
                     {selectedGameMode === "classic" && (
                       <div>
-                        <label className="mb-2 block text-sm font-black text-rose-700">
+                        <label className="mb-2 flex items-center gap-2 text-sm font-black text-rose-700">
                           Prompt category
+                          <HelpTooltip text="Random pulls from every active classic prompt. Categories narrow the type of prompt for this room." />
                         </label>
                         <select
                           value={selectedCategory}
@@ -307,8 +312,9 @@ export function LobbyScreen({
                     )}
 
                     <div>
-                      <label className="mb-2 block text-sm font-black text-rose-700">
+                      <label className="mb-2 flex items-center gap-2 text-sm font-black text-rose-700">
                         Image style
+                        <HelpTooltip text="Prompt's style uses the style saved with the prompt. Other options override it for this round." />
                       </label>
                       <select
                         value={selectedImageStyle}
@@ -321,12 +327,19 @@ export function LobbyScreen({
                         <option value="clay_animation">Clay Animation</option>
                         <option value="storybook">Storybook</option>
                         <option value="pixel_art">Pixel Art</option>
+                        <option value="puppet_show">Puppet Show</option>
+                        <option value="low_budget_90s_cgi">Low Budget 90s CGI</option>
+                        <option value="childrens_picture_book">Children&apos;s Picture Book</option>
+                        <option value="lego_stop_motion">LEGO Stop-Motion</option>
+                        <option value="minecraft">Minecraft</option>
+                        <option value="renaissance_painting">Renaissance Painting</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm font-black text-rose-700">
+                      <label className="mb-2 flex items-center gap-2 text-sm font-black text-rose-700">
                         Answer timer
+                        <HelpTooltip text="How long players have to submit an answer. Unlimited keeps the round open until everyone finishes or the host reveals." />
                       </label>
                       <select
                         value={selectedRoundDuration}
@@ -347,8 +360,9 @@ export function LobbyScreen({
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm font-black text-rose-700">
+                      <label className="mb-2 flex items-center gap-2 text-sm font-black text-rose-700">
                         Voting timer
+                        <HelpTooltip text="How long players have to vote once images are revealed. The host can still end voting early." />
                       </label>
                       <select
                         value={selectedVotingDuration}

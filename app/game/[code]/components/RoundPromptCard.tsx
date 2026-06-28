@@ -1,3 +1,4 @@
+import { HelpTooltip } from "./HelpTooltip";
 import type { GameMode } from "./types";
 
 type RoundPromptCardProps = {
@@ -70,8 +71,9 @@ export function RoundPromptCard({
               : "border-rose-200 bg-rose-50 text-rose-950"
           }`}
         >
-          <p className={`text-xs font-extrabold uppercase tracking-wider ${isCards ? "text-gray-300" : "text-rose-700"}`}>
+          <p className={`inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider ${isCards ? "text-gray-300" : "text-rose-700"}`}>
             Not feeling this prompt?
+            <HelpTooltip text="If enough players vote to skip, this prompt gets marked bad and a new prompt replaces it." />
           </p>
 
           <div className="mt-2 flex flex-col items-center justify-center gap-2 sm:flex-row">
