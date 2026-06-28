@@ -736,24 +736,47 @@ useEffect(() => {
 }, [stage]);
 
 useEffect(() => {
+  let isMounted = true;
+
   async function loadInitialData() {
     setIsPageLoading(true);
 
-    await Promise.all([
-    loadPlayers(),
-    loadGame(),
-    loadSubmissions(),
-    loadVotes(),
-    loadScoreboard(),
-    loadPastImages(),
-    loadRoundHistory(),
-    loadPromptSuggestions(),
+    try {
+      const initialLoad = Promise.allSettled([
+        loadPlayers(),
+        loadGame(),
+        loadSubmissions(),
+        loadVotes(),
+        loadScoreboard(),
+        loadPastImages(),
+        loadRoundHistory(),
+        loadPromptSuggestions(),
+      ]);
 
-    ]);
+      const timeout = new Promise<"timeout">((resolve) => {
+        window.setTimeout(() => resolve("timeout"), 8000);
+      });
 
-    await restoreJoinedPlayer();
+      const result = await Promise.race([initialLoad, timeout]);
 
-    setIsPageLoading(false);
+      if (result === "timeout") {
+        console.warn("Initial room load timed out. Showing the room anyway.");
+      } else {
+        result.forEach((item) => {
+          if (item.status === "rejected") {
+            console.error("Initial room load task failed:", item.reason);
+          }
+        });
+      }
+
+      await restoreJoinedPlayer();
+    } catch (error) {
+      console.error("Initial room load failed:", error);
+    } finally {
+      if (isMounted) {
+        setIsPageLoading(false);
+      }
+    }
   }
 
   loadInitialData();
@@ -765,7 +788,10 @@ useEffect(() => {
   loadScoreboard();
   loadPromptSuggestions();
 }, 2000);
-  return () => clearInterval(interval);
+  return () => {
+    isMounted = false;
+    clearInterval(interval);
+  };
 }, []);
 
 async function joinGame() {
