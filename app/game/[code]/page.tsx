@@ -11,6 +11,7 @@ import { LobbyScreen } from "./components/LobbyScreen";
 import { LoadingScreen } from "./components/LoadingScreen";
 import { RoundPromptCard } from "./components/RoundPromptCard";
 import { SubmissionForm } from "./components/SubmissionForm";
+import { ToastNotice, type ToastTone } from "./components/ToastNotice";
 import { VotingScreen } from "./components/VotingScreen";
 import { WinnerScreen } from "./components/WinnerScreen";
 import { useRoundCountdowns } from "./hooks/useRoundCountdowns";
@@ -42,6 +43,11 @@ import {
 } from "./utils/gameRoomUtils";
 
 type GameStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
+
+type ToastState = {
+  message: string;
+  tone: ToastTone;
+};
 
 type HostDebugStats = {
   estimatedCostCents: number;
@@ -119,6 +125,7 @@ export default function GameRoom() {
   const [roundPrompt, setRoundPrompt] = useState("");
   const [roundImageStyle, setRoundImageStyle] = useState("cartoon");
   const [hostDebugStats, setHostDebugStats] = useState<HostDebugStats>(emptyHostDebugStats);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const hostName = players.find((player) => player.is_host)?.name;
   const isHost = joined && name === hostName;
   const [roundHistory, setRoundHistory] = useState<RoundHistoryItem[]>([]);
@@ -161,6 +168,18 @@ export default function GameRoom() {
   const promptSuggestionRating = ratePrompt(promptSuggestionText, promptSuggestionMode);
   const roomExpirationMessage = formatRoomExpiration(roomCreatedAt);
 
+  function showToast(message: string, tone: ToastTone = "error") {
+    setToast({ message, tone });
+  }
+
+  const toastNotice = (
+    <ToastNotice
+      message={toast?.message || ""}
+      tone={toast?.tone || "info"}
+      onDismiss={() => setToast(null)}
+    />
+  );
+
   useEffect(() => {
     if (stage !== "submitting" || !currentGameId) return;
 
@@ -179,6 +198,13 @@ export default function GameRoom() {
     const timeout = window.setTimeout(() => setReconnectMessage(""), 3500);
     return () => window.clearTimeout(timeout);
   }, [reconnectMessage]);
+
+  useEffect(() => {
+    if (!toast) return;
+
+    const timeout = window.setTimeout(() => setToast(null), 4200);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
 
   useEffect(() => {
     if (!joined || !name) return;
@@ -314,7 +340,7 @@ async function removePlayer(player: Player) {
   const savedPlayerId = window.localStorage.getItem(playerStorageKey);
 
   if (!savedPlayerId) {
-    alert("Your host session was lost. Please rejoin the room.");
+    showToast("Your host session was lost. Please rejoin the room.");
     return;
   }
 
@@ -341,7 +367,7 @@ async function removePlayer(player: Player) {
     ]);
   } catch (error) {
     console.error("Failed to remove player:", error);
-    alert("Could not remove that player.");
+    showToast("Could not remove that player.");
   }
 }
 
@@ -459,7 +485,7 @@ async function submitPromptSuggestion() {
   } catch (error) {
     console.error("Failed to submit prompt suggestion:", error);
     const message = error instanceof Error ? error.message : "Unknown Supabase error";
-    alert(`Could not submit that prompt suggestion: ${message}`);
+    showToast(`Could not submit that prompt suggestion: ${message}`);
   } finally {
     setIsSubmittingPromptSuggestion(false);
   }
@@ -640,9 +666,10 @@ async function rateCurrentPrompt(rating: PromptRating) {
 
     setCurrentPromptRating(rating);
     setRatedPromptKey(`${currentPromptSource}:${currentPromptId}`);
+    showToast(`Prompt marked ${rating}.`, "success");
   } catch (error) {
     console.error("Failed to rate current prompt:", error);
-    alert("Could not save that prompt rating.");
+    showToast("Could not save that prompt rating.");
   } finally {
     setIsRatingCurrentPrompt(false);
   }
@@ -654,7 +681,7 @@ async function voteToSkipPrompt() {
   const savedPlayerId = window.localStorage.getItem(playerStorageKey);
 
   if (!savedPlayerId) {
-    alert("Your player session was lost. Please rejoin the room.");
+    showToast("Your player session was lost. Please rejoin the room.");
     return;
   }
 
@@ -680,7 +707,7 @@ async function voteToSkipPrompt() {
       const replacementPrompt = await pickRoundPrompt();
 
       if (!replacementPrompt) {
-        alert("That prompt was marked bad, but I couldn't find another prompt to replace it yet.");
+        showToast("That prompt was marked bad, but I couldn't find another prompt to replace it yet.");
         await loadGame();
         return;
       }
@@ -706,13 +733,14 @@ async function voteToSkipPrompt() {
       setSubmissions([]);
       setVotedPlayerNames([]);
       setStage("submitting");
+      showToast("Prompt skipped. A fresh prompt is up.", "success");
       return;
     }
 
     await loadPromptSkipVotes(currentGameId);
   } catch (error) {
     console.error("Failed to vote to skip prompt:", error);
-    alert(`Could not vote to skip: ${error instanceof Error ? error.message : "Unknown database error"}`);
+    showToast(`Could not vote to skip: ${error instanceof Error ? error.message : "Unknown database error"}`);
   } finally {
     setIsVotingToSkipPrompt(false);
   }
@@ -745,7 +773,7 @@ async function replaceSkippedRoundWithPrompt(
 
   if (error) {
     console.error("Failed to replace skipped prompt:", error);
-    alert(`The prompt was skipped, but the replacement failed: ${error.message || "Unknown database error"}`);
+    showToast(`The prompt was skipped, but the replacement failed: ${error.message || "Unknown database error"}`);
     return null;
   }
 
@@ -926,7 +954,7 @@ async function joinGame() {
 
     if (savedPlayerError) {
       console.error(savedPlayerError);
-      alert("Failed to check your saved player.");
+      showToast("Failed to check your saved player.");
       return;
     }
 
@@ -951,7 +979,7 @@ async function joinGame() {
 
     if (uploadError) {
       console.error(uploadError);
-      alert("Failed to upload avatar");
+      showToast("Failed to upload avatar");
       return;
     }
 
@@ -981,7 +1009,7 @@ async function joinGame() {
 
     if (joinError || !joinData) {
       console.error(joinError);
-      alert(joinError || "Failed to join room");
+      showToast(joinError || "Failed to join room");
       return;
     }
 
@@ -1036,7 +1064,7 @@ async function createRoundFromPrompt(prompt: PromptOption) {
   const savedPlayerId = window.localStorage.getItem(playerStorageKey);
 
   if (!savedPlayerId) {
-    alert("Your host session was lost. Please rejoin the room.");
+    showToast("Your host session was lost. Please rejoin the room.");
     return null;
   }
 
@@ -1060,7 +1088,7 @@ async function createRoundFromPrompt(prompt: PromptOption) {
 
   if (error) {
     console.error(error);
-    alert(`Failed to start round: ${error.message || "Unknown database error"}`);
+    showToast(`Failed to start round: ${error.message || "Unknown database error"}`);
     return null;
   }
 
@@ -1074,7 +1102,7 @@ async function createRoundFromPrompt(prompt: PromptOption) {
 async function startGame() {
   if (!isHost || isStarting) return;
   if (players.length < 2) {
-    alert("Wait for at least one more player before starting.");
+    showToast("Wait for at least one more player before starting.");
     return;
   }
 
@@ -1084,7 +1112,7 @@ async function startGame() {
     const randomPrompt = await pickRoundPrompt();
 
     if (!randomPrompt) {
-    alert(
+    showToast(
       selectedGameMode === "cards"
       ? "No fill-in-the-blank prompts found"
       : "No prompts found for this category"
@@ -1137,18 +1165,18 @@ async function grantImageRetryTime() {
   if (!submission.trim()) return;
   if (isSubmitting || hasSubmitted) return;
   if (isSubmissionTimeExpired) {
-    alert("Time is up for this round.");
+    showToast("Time is up for this round.");
     return;
   }
   if (!currentGameId) {
-    alert("The round is still loading. Please try again.");
+    showToast("The round is still loading. Please try again.");
     return;
   }
   const submittedAnswer = submission.trim();
   const savedPlayerId = window.localStorage.getItem(playerStorageKey);
 
   if (!savedPlayerId) {
-    alert("Your player session was lost. Please rejoin the room.");
+    showToast("Your player session was lost. Please rejoin the room.");
     return;
   }
 
@@ -1164,7 +1192,7 @@ async function grantImageRetryTime() {
 
     if (submitError || !submitData) {
       console.error(submitError);
-      alert(submitError || "Failed to submit answer");
+      showToast(submitError || "Failed to submit answer");
       return;
     }
 
@@ -1187,13 +1215,13 @@ async function grantImageRetryTime() {
       console.error(imageData || imageError);
       if (imageData?.rejected) {
         const wasExtended = await grantImageRetryTime();
-        alert(
+        showToast(
           wasExtended
             ? "The AI got weird about that one. You have an extra minute to tweak your answer and try again."
             : "The AI got weird about that one. Try a slightly different version."
         );
       } else {
-        alert("The image machine tripped over its own shoelaces. Try submitting again.");
+        showToast("The image machine tripped over its own shoelaces. Try submitting again.");
       }
       await gameApi.deletePendingSubmission({
         gameId: currentGameId,
@@ -1257,16 +1285,16 @@ async function voteForSubmission(answerText: string, playerName: string) {
   const allowSelfVoting = players.length === 2;
 
   if (!savedPlayerId) {
-    alert("Your player session was lost. Please rejoin the room.");
+    showToast("Your player session was lost. Please rejoin the room.");
     return;
   }
 
   if (playerName === name && !allowSelfVoting) {
-    alert("You can't vote for your own submission.");
+    showToast("You can't vote for your own submission.");
     return;
   }
   if (isVotingTimeExpired) {
-    alert("Voting time is up.");
+    showToast("Voting time is up.");
     return;
   }
 
@@ -1282,12 +1310,12 @@ async function voteForSubmission(answerText: string, playerName: string) {
 
   if (voteError || !voteData) {
     console.error(voteError);
-    alert(voteError || "Failed to vote");
+    showToast(voteError || "Failed to vote");
     setHasVoted(false);
     return;
   }
 
-  setVoteMessage("✅ Vote recorded! Waiting for other players...");
+  setVoteMessage("? Vote recorded! Waiting for other players...");
   await loadVotes(currentGameId);
 
   if (voteData.stage === "winner") {
@@ -1303,7 +1331,7 @@ async function rateImage(submissionId: number, rating: "funny" | "meh" | "bad") 
   const savedPlayerId = window.localStorage.getItem(playerStorageKey);
 
   if (!savedPlayerId) {
-    alert("Your player session was lost. Please rejoin the room.");
+    showToast("Your player session was lost. Please rejoin the room.");
     return;
   }
 
@@ -1318,14 +1346,15 @@ async function rateImage(submissionId: number, rating: "funny" | "meh" | "bad") 
 
     if (error) {
       console.error(error);
-      alert("Could not save that image rating.");
+      showToast("Could not save that image rating.");
       return;
     }
 
     setVoteMessage("Image feedback saved. Thanks!");
+    showToast("Image feedback saved.", "success");
   } catch (error) {
     console.error("Failed to rate image:", error);
-    alert("Could not save that image rating.");
+    showToast("Could not save that image rating.");
   }
 }
 
@@ -1341,7 +1370,7 @@ async function reportImage(submissionId: number) {
   const savedPlayerId = window.localStorage.getItem(playerStorageKey);
 
   if (!savedPlayerId) {
-    alert("Your player session was lost. Please rejoin the room.");
+    showToast("Your player session was lost. Please rejoin the room.");
     return;
   }
 
@@ -1355,15 +1384,16 @@ async function reportImage(submissionId: number) {
 
     if (error) {
       console.error(error);
-      alert("Could not report that image.");
+      showToast("Could not report that image.");
       return;
     }
 
     setVoteMessage("Report saved. Thanks for keeping the game playable.");
+    showToast("Report saved for review.", "success");
     await loadHostDebugStats(currentGameId);
   } catch (error) {
     console.error("Failed to report image:", error);
-    alert("Could not report that image.");
+    showToast("Could not report that image.");
   }
 }
 
@@ -1379,7 +1409,7 @@ async function regenerateImage(submissionId: number, submissionPlayerName: strin
   const savedPlayerId = window.localStorage.getItem(playerStorageKey);
 
   if (!savedPlayerId) {
-    alert("Your host session was lost. Please rejoin the room.");
+    showToast("Your host session was lost. Please rejoin the room.");
     return;
   }
 
@@ -1395,7 +1425,7 @@ async function regenerateImage(submissionId: number, submissionPlayerName: strin
 
     if (error) {
       console.error(data || error);
-      alert(error || "Could not regenerate that image.");
+      showToast(error || "Could not regenerate that image.");
       return;
     }
 
@@ -1404,9 +1434,10 @@ async function regenerateImage(submissionId: number, submissionPlayerName: strin
       loadHostDebugStats(currentGameId),
     ]);
     setVoteMessage("Image regenerated.");
+    showToast("Image regenerated.", "success");
   } catch (error) {
     console.error("Failed to regenerate image:", error);
-    alert("Could not regenerate that image.");
+    showToast("Could not regenerate that image.");
   } finally {
     setIsForcingStage(false);
   }
@@ -1417,7 +1448,7 @@ async function deleteSubmission(submissionId: number, submissionPlayerName: stri
   const savedPlayerId = window.localStorage.getItem(playerStorageKey);
 
   if (!savedPlayerId) {
-    alert("Your host session was lost. Please rejoin the room.");
+    showToast("Your host session was lost. Please rejoin the room.");
     return;
   }
 
@@ -1446,7 +1477,7 @@ async function deleteSubmission(submissionId: number, submissionPlayerName: stri
     ]);
   } catch (error) {
     console.error("Failed to delete submission:", error);
-    alert(`Could not delete that submission: ${error instanceof Error ? error.message : "Unknown database error"}`);
+    showToast(`Could not delete that submission: ${error instanceof Error ? error.message : "Unknown database error"}`);
   } finally {
     setIsForcingStage(false);
   }
@@ -1457,7 +1488,7 @@ async function forceReveal() {
   const savedPlayerId = window.localStorage.getItem(playerStorageKey);
 
   if (!savedPlayerId) {
-    alert("Your host session was lost. Please rejoin the room.");
+    showToast("Your host session was lost. Please rejoin the room.");
     return;
   }
 
@@ -1483,7 +1514,7 @@ async function forceReveal() {
     await loadHostDebugStats(currentGameId);
   } catch (error) {
     console.error("Failed to reveal submitted images:", error);
-    alert(`Could not reveal the submitted images: ${error instanceof Error ? error.message : "Unknown database error"}`);
+    showToast(`Could not reveal the submitted images: ${error instanceof Error ? error.message : "Unknown database error"}`);
   } finally {
     setIsForcingStage(false);
   }
@@ -1494,7 +1525,7 @@ async function returnToLobby() {
   const savedPlayerId = window.localStorage.getItem(playerStorageKey);
 
   if (!savedPlayerId) {
-    alert("Your host session was lost. Please rejoin the room.");
+    showToast("Your host session was lost. Please rejoin the room.");
     return;
   }
 
@@ -1528,7 +1559,7 @@ async function returnToLobby() {
     setVotingDeadline(null);
   } catch (error) {
     console.error("Failed to return to lobby:", error);
-    alert(`Could not return to the lobby: ${error instanceof Error ? error.message : "Unknown database error"}`);
+    showToast(`Could not return to the lobby: ${error instanceof Error ? error.message : "Unknown database error"}`);
   } finally {
     setIsForcingStage(false);
   }
@@ -1539,7 +1570,7 @@ async function endVotingEarly() {
   const savedPlayerId = window.localStorage.getItem(playerStorageKey);
 
   if (!savedPlayerId) {
-    alert("Your host session was lost. Please rejoin the room.");
+    showToast("Your host session was lost. Please rejoin the room.");
     return;
   }
 
@@ -1557,7 +1588,7 @@ async function endVotingEarly() {
     setStage("winner");
   } catch (error) {
     console.error("Failed to end voting:", error);
-    alert(`Could not end voting: ${error instanceof Error ? error.message : "Unknown database error"}`);
+    showToast(`Could not end voting: ${error instanceof Error ? error.message : "Unknown database error"}`);
   } finally {
     setIsForcingStage(false);
   }
@@ -1676,7 +1707,7 @@ if (!gameData.winner_awarded) {
 
   if (awardError) {
     console.error("Award error:", awardError);
-    alert(`Could not award points: ${awardError.message || "Unknown database error"}`);
+    showToast(`Could not award points: ${awardError.message || "Unknown database error"}`);
     return;
   }
 
@@ -1736,7 +1767,7 @@ async function nextRound() {
     const newPrompt = await loadRandomPrompt();
 
     if (!newPrompt) {
-      alert("Could not load the next prompt");
+      showToast("Could not load the next prompt");
       return;
     }
 
@@ -1761,7 +1792,7 @@ async function nextRound() {
     setWinner("");
   } catch (error) {
     console.error("Failed to start next round:", error);
-    alert("Could not start the next round. Check the browser console.");
+    showToast("Could not start the next round. Check the browser console.");
   } finally {
     setIsAdvancing(false);
   }
@@ -1772,7 +1803,7 @@ async function playAgain() {
   const savedPlayerId = window.localStorage.getItem(playerStorageKey);
 
   if (!savedPlayerId) {
-    alert("Your host session was lost. Please rejoin the room.");
+    showToast("Your host session was lost. Please rejoin the room.");
     return;
   }
 
@@ -1801,7 +1832,7 @@ async function playAgain() {
     await loadScoreboard();
   } catch (error) {
     console.error("Failed to start a rematch:", error);
-    alert("Could not start a rematch.");
+    showToast("Could not start a rematch.");
   } finally {
     setIsPlayingAgain(false);
   }
@@ -1838,7 +1869,7 @@ async function saveImage(imageUrl: string, imageCaption: string) {
     window.URL.revokeObjectURL(url);
   } catch (error) {
     console.error(error);
-    alert("Could not save image");
+    showToast("Could not save image");
   }
 }
 
@@ -1873,7 +1904,7 @@ async function shareImage(imageUrl: string, imageCaption: string) {
     }
 
     console.error(error);
-    alert("Could not share image");
+    showToast("Could not share image");
   }
 }
 
@@ -1904,19 +1935,26 @@ async function loadScoreboard() {
 }
 if (isJoining) {
   return (
-    <LoadingScreen title="Joining Room..." message="Gathering the troublemakers" />
+    <>
+      {toastNotice}
+      <LoadingScreen title="Joining Room..." message="Gathering the troublemakers" />
+    </>
   );
 }
 
 if (isPageLoading) {
   return (
-    <LoadingScreen title="Loading Game..." message="Getting the chaos ready" />
+    <>
+      {toastNotice}
+      <LoadingScreen title="Loading Game..." message="Getting the chaos ready" />
+    </>
   );
 }
 
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center gap-6 bg-[#fff7ed] p-6 text-zinc-950">
+      {toastNotice}
       <GameLogo />
 
       {reconnectMessage && (
@@ -2134,4 +2172,6 @@ if (isPageLoading) {
 </main>
   );
 }
+
+
 

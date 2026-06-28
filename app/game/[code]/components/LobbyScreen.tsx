@@ -43,6 +43,20 @@ type LobbyScreenProps = {
 
 const cardClass = "rounded-[2rem] border-2 border-black bg-white p-4 shadow-[8px_8px_0_#111827] md:p-5";
 const selectClass = "w-full rounded-xl border-2 border-black bg-white p-3 font-bold";
+const imageStyleDescriptions: Record<string, string> = {
+  prompt: "Use the style attached to the prompt, or default to a clean cartoon look.",
+  cartoon: "Bright, expressive, and easy to read on phones.",
+  comic_book: "Bold outlines, dramatic reactions, and panel-style energy.",
+  clay_animation: "Squishy handmade characters with playful stop-motion charm.",
+  storybook: "Soft illustrated scenes with cozy children’s-book polish.",
+  pixel_art: "Retro game-style images with chunky pixels and simple shapes.",
+  puppet_show: "A silly handmade stage look with felt, strings, and theatrical chaos.",
+  low_budget_90s_cgi: "Awkward shiny characters and weird early-computer-animation energy.",
+  childrens_picture_book: "Wholesome picture-book art that makes dumb jokes feel extra absurd.",
+  lego_stop_motion: "Toy-brick characters staged like a stop-motion short.",
+  minecraft: "Blocky sandbox scenes with recognizable cube-world style.",
+  renaissance_painting: "Dramatic old-master lighting for maximum unnecessary seriousness.",
+};
 
 export function LobbyScreen({
   code,
@@ -258,6 +272,34 @@ export function LobbyScreen({
               </div>
 
               <div className={cardClass}>
+                <label className="mb-2 flex items-center gap-2 text-sm font-black uppercase tracking-[0.22em] text-rose-700">
+                  Prompt style
+                  <HelpTooltip text="This controls the visual art style for every generated image in the round." />
+                </label>
+                <select
+                  value={selectedImageStyle}
+                  onChange={(event) => onImageStyleChange(event.target.value)}
+                  className={selectClass}
+                >
+                  <option value="prompt">Prompt&apos;s style</option>
+                  <option value="cartoon">Colorful Cartoon</option>
+                  <option value="comic_book">Comic Book</option>
+                  <option value="clay_animation">Clay Animation</option>
+                  <option value="storybook">Storybook</option>
+                  <option value="pixel_art">Pixel Art</option>
+                  <option value="puppet_show">Puppet Show</option>
+                  <option value="low_budget_90s_cgi">Low Budget 90s CGI</option>
+                  <option value="childrens_picture_book">Children&apos;s Picture Book</option>
+                  <option value="lego_stop_motion">LEGO Stop-Motion</option>
+                  <option value="minecraft">Minecraft</option>
+                  <option value="renaissance_painting">Renaissance Painting</option>
+                </select>
+                <p className="mt-2 text-sm font-bold leading-snug text-zinc-500">
+                  {imageStyleDescriptions[selectedImageStyle] || imageStyleDescriptions.cartoon}
+                </p>
+              </div>
+
+              <div className={cardClass}>
                 <button
                   onClick={onStartGame}
                   disabled={isStarting || players.length < 2}
@@ -310,31 +352,6 @@ export function LobbyScreen({
                         </select>
                       </div>
                     )}
-
-                    <div>
-                      <label className="mb-2 flex items-center gap-2 text-sm font-black text-rose-700">
-                        Image style
-                        <HelpTooltip text="Prompt's style uses the style saved with the prompt. Other options override it for this round." />
-                      </label>
-                      <select
-                        value={selectedImageStyle}
-                        onChange={(event) => onImageStyleChange(event.target.value)}
-                        className={selectClass}
-                      >
-                        <option value="prompt">Prompt&apos;s style</option>
-                        <option value="cartoon">Colorful Cartoon</option>
-                        <option value="comic_book">Comic Book</option>
-                        <option value="clay_animation">Clay Animation</option>
-                        <option value="storybook">Storybook</option>
-                        <option value="pixel_art">Pixel Art</option>
-                        <option value="puppet_show">Puppet Show</option>
-                        <option value="low_budget_90s_cgi">Low Budget 90s CGI</option>
-                        <option value="childrens_picture_book">Children&apos;s Picture Book</option>
-                        <option value="lego_stop_motion">LEGO Stop-Motion</option>
-                        <option value="minecraft">Minecraft</option>
-                        <option value="renaissance_painting">Renaissance Painting</option>
-                      </select>
-                    </div>
 
                     <div>
                       <label className="mb-2 flex items-center gap-2 text-sm font-black text-rose-700">
