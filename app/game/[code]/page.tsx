@@ -921,7 +921,7 @@ async function createRoundFromPrompt(prompt: PromptOption) {
 
   if (error) {
     console.error(error);
-    alert("Failed to start round");
+    alert(`Failed to start round: ${error.message || "Unknown database error"}`);
     return null;
   }
 
@@ -1273,6 +1273,12 @@ async function regenerateImage(submissionId: number, submissionPlayerName: strin
 
 async function deleteSubmission(submissionId: number, submissionPlayerName: string) {
   if (!isHost || !currentGameId || isForcingStage) return;
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+
+  if (!savedPlayerId) {
+    alert("Your host session was lost. Please rejoin the room.");
+    return;
+  }
 
   const shouldDelete = window.confirm(
     `Delete ${submissionPlayerName}'s submission from this round? Existing votes for it will be removed.`
@@ -1283,21 +1289,14 @@ async function deleteSubmission(submissionId: number, submissionPlayerName: stri
   setIsForcingStage(true);
 
   try {
-    const { error: votesError } = await supabase
-      .from("votes")
-      .delete()
-      .eq("game_id", currentGameId)
-      .like("voted_for", `${submissionPlayerName}: %`);
+    const { error } = await supabase.rpc("delete_round_submission", {
+      game_id_input: currentGameId,
+      host_player_id_input: Number(savedPlayerId),
+      room_code_input: code,
+      submission_id_input: submissionId,
+    });
 
-    if (votesError) throw votesError;
-
-    const { error: submissionError } = await supabase
-      .from("submissions")
-      .delete()
-      .eq("id", submissionId)
-      .eq("game_id", currentGameId);
-
-    if (submissionError) throw submissionError;
+    if (error) throw error;
 
     await Promise.all([
       loadSubmissions(currentGameId),
@@ -1306,7 +1305,7 @@ async function deleteSubmission(submissionId: number, submissionPlayerName: stri
     ]);
   } catch (error) {
     console.error("Failed to delete submission:", error);
-    alert("Could not delete that submission.");
+    alert(`Could not delete that submission: ${error instanceof Error ? error.message : "Unknown database error"}`);
   } finally {
     setIsForcingStage(false);
   }
@@ -1314,41 +1313,28 @@ async function deleteSubmission(submissionId: number, submissionPlayerName: stri
 
 async function forceReveal() {
   if (!isHost || !currentGameId || isForcingStage) return;
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+
+  if (!savedPlayerId) {
+    alert("Your host session was lost. Please rejoin the room.");
+    return;
+  }
 
   setIsForcingStage(true);
 
   try {
-    const { data: readySubmissions, error: submissionsError } = await supabase
-      .from("submissions")
-      .select("id, image_url")
-      .eq("game_id", currentGameId)
-      .not("image_url", "is", null);
-
-    if (submissionsError) throw submissionsError;
-
-    if (!readySubmissions?.length) {
-      alert("At least one finished image is needed before reveal.");
-      return;
-    }
-
-    const { error: pendingDeleteError } = await supabase
-      .from("submissions")
-      .delete()
-      .eq("game_id", currentGameId)
-      .is("image_url", null);
-
-    if (pendingDeleteError) throw pendingDeleteError;
-
     const nextVotingDeadline = new Date(
       Date.now() + selectedVotingDuration * 1000
     ).toISOString();
 
-    const { error: stageError } = await supabase
-      .from("games")
-      .update({ stage: "reveal", voting_deadline: nextVotingDeadline })
-      .eq("id", currentGameId);
+    const { error } = await supabase.rpc("force_reveal_round", {
+      game_id_input: currentGameId,
+      host_player_id_input: Number(savedPlayerId),
+      room_code_input: code,
+      voting_deadline_input: nextVotingDeadline,
+    });
 
-    if (stageError) throw stageError;
+    if (error) throw error;
 
     setStage("reveal");
     setVotingDeadline(nextVotingDeadline);
@@ -1356,7 +1342,7 @@ async function forceReveal() {
     await loadHostDebugStats(currentGameId);
   } catch (error) {
     console.error("Failed to reveal submitted images:", error);
-    alert("Could not reveal the submitted images.");
+    alert(`Could not reveal the submitted images: ${error instanceof Error ? error.message : "Unknown database error"}`);
   } finally {
     setIsForcingStage(false);
   }
@@ -1364,6 +1350,12 @@ async function forceReveal() {
 
 async function returnToLobby() {
   if (!isHost || !currentGameId || isForcingStage) return;
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+
+  if (!savedPlayerId) {
+    alert("Your host session was lost. Please rejoin the room.");
+    return;
+  }
 
   const shouldReturn = window.confirm(
     "Return everyone to the lobby? Scores stay the same, but the current round will stop."
@@ -1374,10 +1366,11 @@ async function returnToLobby() {
   setIsForcingStage(true);
 
   try {
-    const { error } = await supabase
-      .from("games")
-      .update({ stage: "lobby" })
-      .eq("id", currentGameId);
+    const { error } = await supabase.rpc("return_round_to_lobby", {
+      game_id_input: currentGameId,
+      host_player_id_input: Number(savedPlayerId),
+      room_code_input: code,
+    });
 
     if (error) throw error;
 
@@ -1394,7 +1387,7 @@ async function returnToLobby() {
     setVotingDeadline(null);
   } catch (error) {
     console.error("Failed to return to lobby:", error);
-    alert("Could not return to the lobby.");
+    alert(`Could not return to the lobby: ${error instanceof Error ? error.message : "Unknown database error"}`);
   } finally {
     setIsForcingStage(false);
   }
@@ -1402,33 +1395,28 @@ async function returnToLobby() {
 
 async function endVotingEarly() {
   if (!isHost || !currentGameId || isForcingStage) return;
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+
+  if (!savedPlayerId) {
+    alert("Your host session was lost. Please rejoin the room.");
+    return;
+  }
 
   setIsForcingStage(true);
 
   try {
-    const { data: votes, error: votesError } = await supabase
-      .from("votes")
-      .select("id")
-      .eq("game_id", currentGameId);
+    const { error } = await supabase.rpc("end_voting_now", {
+      game_id_input: currentGameId,
+      host_player_id_input: Number(savedPlayerId),
+      room_code_input: code,
+    });
 
-    if (votesError) throw votesError;
-
-    if (!votes?.length) {
-      alert("At least one vote is needed to choose a winner.");
-      return;
-    }
-
-    const { error: stageError } = await supabase
-      .from("games")
-      .update({ stage: "winner" })
-      .eq("id", currentGameId);
-
-    if (stageError) throw stageError;
+    if (error) throw error;
 
     setStage("winner");
   } catch (error) {
     console.error("Failed to end voting:", error);
-    alert("Could not end voting.");
+    alert(`Could not end voting: ${error instanceof Error ? error.message : "Unknown database error"}`);
   } finally {
     setIsForcingStage(false);
   }
@@ -1547,6 +1535,7 @@ if (!gameData.winner_awarded) {
 
   if (awardError) {
     console.error("Award error:", awardError);
+    alert(`Could not award points: ${awardError.message || "Unknown database error"}`);
     return;
   }
 

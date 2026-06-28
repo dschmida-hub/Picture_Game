@@ -251,8 +251,201 @@ begin
 end;
 $$;
 
+create or replace function public.award_winners_once(
+  winner_names_input text[],
+  room_code_input text,
+  game_id_input bigint
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if room_code_input !~ '^[A-Z0-9]{4,12}$' then
+    raise exception 'Invalid room code';
+  end if;
+
+  if winner_names_input is null or array_length(winner_names_input, 1) is null then
+    raise exception 'At least one winner is required';
+  end if;
+
+  update public.games
+  set winner_awarded = true
+  where id = game_id_input
+    and room_code = room_code_input
+    and coalesce(winner_awarded, false) = false;
+
+  -- If no row was updated, this game was already awarded or does not exist.
+  -- Returning quietly prevents accidental double-scoring from multiple clients.
+  if not found then
+    return;
+  end if;
+
+  update public.players
+  set points = coalesce(points, 0) + 1
+  where room_code = room_code_input
+    and name = any(winner_names_input);
+end;
+$$;
+
+create or replace function public.delete_round_submission(
+  room_code_input text,
+  host_player_id_input bigint,
+  game_id_input bigint,
+  submission_id_input bigint
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_player_name text;
+begin
+  if not exists (
+    select 1 from public.players
+    where id = host_player_id_input
+      and room_code = room_code_input
+      and is_host = true
+  ) then
+    raise exception 'Only the host can delete submissions';
+  end if;
+
+  select player_name into target_player_name
+  from public.submissions
+  where id = submission_id_input
+    and game_id = game_id_input
+    and room_code = room_code_input;
+
+  if target_player_name is null then
+    raise exception 'Submission not found';
+  end if;
+
+  delete from public.votes
+  where game_id = game_id_input
+    and room_code = room_code_input
+    and voted_for like target_player_name || ':%';
+
+  delete from public.submissions
+  where id = submission_id_input
+    and game_id = game_id_input
+    and room_code = room_code_input;
+end;
+$$;
+
+create or replace function public.force_reveal_round(
+  room_code_input text,
+  host_player_id_input bigint,
+  game_id_input bigint,
+  voting_deadline_input timestamptz
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (
+    select 1 from public.players
+    where id = host_player_id_input
+      and room_code = room_code_input
+      and is_host = true
+  ) then
+    raise exception 'Only the host can reveal images';
+  end if;
+
+  if not exists (
+    select 1 from public.submissions
+    where game_id = game_id_input
+      and room_code = room_code_input
+      and image_url is not null
+  ) then
+    raise exception 'At least one finished image is needed before reveal';
+  end if;
+
+  delete from public.submissions
+  where game_id = game_id_input
+    and room_code = room_code_input
+    and image_url is null;
+
+  update public.games
+  set stage = 'reveal',
+      voting_deadline = voting_deadline_input
+  where id = game_id_input
+    and room_code = room_code_input;
+end;
+$$;
+
+create or replace function public.return_round_to_lobby(
+  room_code_input text,
+  host_player_id_input bigint,
+  game_id_input bigint
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (
+    select 1 from public.players
+    where id = host_player_id_input
+      and room_code = room_code_input
+      and is_host = true
+  ) then
+    raise exception 'Only the host can return to lobby';
+  end if;
+
+  update public.games
+  set stage = 'lobby'
+  where id = game_id_input
+    and room_code = room_code_input;
+end;
+$$;
+
+create or replace function public.end_voting_now(
+  room_code_input text,
+  host_player_id_input bigint,
+  game_id_input bigint
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (
+    select 1 from public.players
+    where id = host_player_id_input
+      and room_code = room_code_input
+      and is_host = true
+  ) then
+    raise exception 'Only the host can end voting';
+  end if;
+
+  if not exists (
+    select 1 from public.votes
+    where game_id = game_id_input
+      and room_code = room_code_input
+  ) then
+    raise exception 'At least one vote is needed to choose a winner';
+  end if;
+
+  update public.games
+  set stage = 'winner'
+  where id = game_id_input
+    and room_code = room_code_input;
+end;
+$$;
+
 grant execute on function public.submit_room_prompt_suggestion(text, text, text, text, text) to anon, authenticated, service_role;
 grant execute on function public.vote_for_room_prompt_suggestion(text, bigint, text) to anon, authenticated, service_role;
 grant execute on function public.remove_player_from_room(text, bigint, bigint) to anon, authenticated, service_role;
 grant execute on function public.start_rematch(text, bigint, bigint) to anon, authenticated, service_role;
 grant execute on function public.create_game_round(text, bigint, text, bigint, text, text, text, timestamptz, integer) to anon, authenticated, service_role;
+grant execute on function public.award_winners_once(text[], text, bigint) to anon, authenticated, service_role;
+grant execute on function public.delete_round_submission(text, bigint, bigint, bigint) to anon, authenticated, service_role;
+grant execute on function public.force_reveal_round(text, bigint, bigint, timestamptz) to anon, authenticated, service_role;
+grant execute on function public.return_round_to_lobby(text, bigint, bigint) to anon, authenticated, service_role;
+grant execute on function public.end_voting_now(text, bigint, bigint) to anon, authenticated, service_role;
