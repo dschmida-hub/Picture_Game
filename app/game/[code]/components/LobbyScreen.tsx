@@ -46,7 +46,7 @@ const imageStyleDescriptions: Record<string, string> = {
   cartoon: "Bright, expressive, and easy to read on phones.",
   comic_book: "Bold outlines, dramatic reactions, and panel-style energy.",
   clay_animation: "Squishy handmade characters with playful stop-motion charm.",
-  storybook: "Soft illustrated scenes with cozy children’s-book polish.",
+  storybook: "Soft illustrated scenes with cozy children's-book polish.",
   pixel_art: "Retro game-style images with chunky pixels and simple shapes.",
   puppet_show: "A silly handmade stage look with felt, strings, and theatrical chaos.",
   low_budget_90s_cgi: "Awkward shiny characters and weird early-computer-animation energy.",
@@ -192,17 +192,19 @@ export function LobbyScreen({
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-1">
             {players.map((player) => (
               <div key={player.name} className="flex items-center gap-3 rounded-2xl border-2 border-black bg-white p-3">
-                {player.avatar_url ? (
-                  <img
-                    src={player.avatar_url}
-                    alt={player.name}
-                    className="h-12 w-12 rounded-full border-2 border-black object-cover md:h-14 md:w-14"
-                  />
-                ) : (
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-black bg-rose-100 text-sm font-black text-rose-800">
-                    ?
-                  </div>
-                )}
+                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-black bg-rose-100 text-sm font-black text-rose-800 md:h-14 md:w-14">
+                  <span aria-hidden="true">?</span>
+                  {player.avatar_url && (
+                    <img
+                      src={player.avatar_url}
+                      alt={player.name}
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                      }}
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                  )}
+                </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-black">

@@ -127,7 +127,7 @@ async function loadGenerationContext({
 }) {
   const { data: player, error: playerError } = await supabase
     .from("players")
-    .select("id, name")
+    .select("id, name, is_host")
     .eq("id", playerId)
     .eq("room_code", roomCode)
     .maybeSingle();
@@ -159,7 +159,14 @@ async function loadGenerationContext({
 
   if (submissionError) throw submissionError;
 
-  if (!submission || submission.player_name !== player.name) {
+  if (!submission) {
+    return { error: jsonError("Submission not found", 404) };
+  }
+
+  const isOwnSubmission = submission.player_name === player.name;
+  const canRescueSubmission = Boolean(player.is_host);
+
+  if (!isOwnSubmission && !canRescueSubmission) {
     return { error: jsonError("Submission does not belong to this player", 403) };
   }
 
@@ -170,8 +177,8 @@ async function loadGenerationContext({
   const [gameImageCount, roomImageCount, playerGameImageCount, playerSubmissionCount] = await Promise.all([
     countGeneratedImages({ gameId, roomCode }),
     countGeneratedImages({ roomCode }),
-    countGeneratedImages({ gameId, playerName: player.name, roomCode }),
-    countPlayerSubmissionsForGame({ gameId, playerName: player.name, roomCode }),
+    countGeneratedImages({ gameId, playerName: submission.player_name, roomCode }),
+    countPlayerSubmissionsForGame({ gameId, playerName: submission.player_name, roomCode }),
   ]);
 
   if (playerSubmissionCount > 1) {
@@ -201,6 +208,7 @@ async function loadGenerationContext({
     data: {
       player,
       game,
+      generationPlayerName: submission.player_name,
       submission,
       players: players || [],
     },
@@ -335,7 +343,7 @@ export async function POST(request: Request) {
 
     if (context.error) return context.error;
 
-    const { game, player, players, submission } = context.data;
+    const { game, generationPlayerName, players, submission } = context.data;
     const answer = sanitizeText(submission.prompt, 160);
     const roundPrompt = sanitizeText(game.prompt, 300);
 
@@ -348,7 +356,7 @@ export async function POST(request: Request) {
       roundPrompt,
       imageStyle: game.image_style,
       players,
-      playerName: player.name,
+      playerName: generationPlayerName,
     });
 
     const [imageBuffer, caption] = await Promise.all([

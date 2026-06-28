@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { GeneratingScreen } from "./components/GeneratingScreen";
 import { GameLogo } from "./components/GameLogo";
@@ -11,6 +11,7 @@ import { LobbyScreen } from "./components/LobbyScreen";
 import { LoadingScreen } from "./components/LoadingScreen";
 import { RoundPromptCard } from "./components/RoundPromptCard";
 import { SubmissionForm } from "./components/SubmissionForm";
+import { parseSubmission } from "./components/submissions";
 import { ToastNotice, type ToastTone } from "./components/ToastNotice";
 import { VotingScreen } from "./components/VotingScreen";
 import { WinnerScreen } from "./components/WinnerScreen";
@@ -125,6 +126,7 @@ export default function GameRoom() {
   const [roundImageStyle, setRoundImageStyle] = useState("cartoon");
   const [hostDebugStats, setHostDebugStats] = useState<HostDebugStats>(emptyHostDebugStats);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const rescuingSubmissionIds = useRef(new Set<number>());
   const hostName = players.find((player) => player.is_host)?.name;
   const isHost = joined && name === hostName;
   const [roundHistory, setRoundHistory] = useState<RoundHistoryItem[]>([]);
@@ -204,6 +206,56 @@ export default function GameRoom() {
     const timeout = window.setTimeout(() => setToast(null), 4200);
     return () => window.clearTimeout(timeout);
   }, [toast]);
+
+  useEffect(() => {
+    if (!isHost || stage !== "submitting" || !currentGameId) return;
+
+    const hostPlayerId = window.localStorage.getItem(playerStorageKey);
+    if (!hostPlayerId) return;
+
+    const pendingSubmissions = submissions
+      .map((item) => parseSubmission(item))
+      .filter(
+        (submission) =>
+          submission.id &&
+          !submission.imageUrl &&
+          submission.playerName &&
+          submission.playerName !== name &&
+          !rescuingSubmissionIds.current.has(submission.id)
+      );
+
+    if (pendingSubmissions.length === 0) return;
+
+    const rescueTimeouts = pendingSubmissions.map((submission) => {
+      const submissionId = submission.id!;
+      rescuingSubmissionIds.current.add(submissionId);
+
+      return window.setTimeout(async () => {
+        const { error } = await gameApi.generateImage({
+          roomCode: code,
+          gameId: currentGameId,
+          playerId: hostPlayerId,
+          submissionId,
+        });
+
+        if (error && !/already generated/i.test(error)) {
+          console.error("Failed to rescue pending image:", error);
+          rescuingSubmissionIds.current.delete(submissionId);
+          return;
+        }
+
+        await loadSubmissions(currentGameId);
+        await loadHostDebugStats(currentGameId);
+        await revealRoundIfReady(currentGameId);
+      }, 25_000);
+    });
+
+    return () => {
+      rescueTimeouts.forEach((timeout) => window.clearTimeout(timeout));
+    };
+    // Rescue should only be scheduled from visible round state changes, not helper identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, currentGameId, isHost, name, playerStorageKey, stage, submissions]);
 
   useEffect(() => {
     if (!joined || !name) return;
@@ -970,11 +1022,18 @@ async function joinGame() {
   let avatarDescription = null;
 
   if (avatarFile) {
-    const filePath = `${code}/${cleanName}-${Date.now()}`;
+    const avatarExtension = avatarFile.name
+      .split(".")
+      .pop()
+      ?.toLowerCase()
+      .replace(/[^a-z0-9]/g, "") || "jpg";
+    const filePath = `${code}/${cleanName}-${Date.now()}.${avatarExtension}`;
 
     const { error: uploadError } = await supabase.storage
       .from("avatars")
-      .upload(filePath, avatarFile);
+      .upload(filePath, avatarFile, {
+        contentType: avatarFile.type || "image/jpeg",
+      });
 
     if (uploadError) {
       console.error(uploadError);
@@ -1160,6 +1219,48 @@ async function grantImageRetryTime() {
   return true;
 }
 
+async function revealRoundIfReady(gameId = currentGameId) {
+  if (!gameId) return;
+
+  const { data: allPlayers } = await supabase
+    .from("players")
+    .select("id")
+    .eq("room_code", code);
+
+  const { data: allSubmissions } = await supabase
+    .from("submissions")
+    .select("id, image_url")
+    .eq("game_id", gameId);
+
+  const everyoneSubmitted =
+    allPlayers &&
+    allSubmissions &&
+    allSubmissions.length >= allPlayers.length;
+
+  const allImagesReady =
+    allSubmissions &&
+    allSubmissions.length > 0 &&
+    allSubmissions.every((item) => item.image_url);
+
+  if (!everyoneSubmitted || !allImagesReady) return;
+
+  const nextVotingDeadline = new Date(
+    Date.now() + selectedVotingDuration * 1000
+  ).toISOString();
+  const { error: gameError } = await supabase
+    .from("games")
+    .update({ stage: "reveal", voting_deadline: nextVotingDeadline })
+    .eq("id", gameId);
+
+  if (gameError) {
+    console.error(gameError);
+    return;
+  }
+
+  setStage("reveal");
+  setVotingDeadline(nextVotingDeadline);
+}
+
  async function submitPrompt() {
   if (!submission.trim()) return;
   if (isSubmitting || hasSubmitted) return;
@@ -1236,42 +1337,7 @@ async function grantImageRetryTime() {
     await loadSubmissions(currentGameId);
     await loadHostDebugStats(currentGameId);
 
-    const { data: allPlayers } = await supabase
-      .from("players")
-      .select("id")
-      .eq("room_code", code);
-
-    const { data: allSubmissions } = await supabase
-      .from("submissions")
-      .select("id, image_url")
-      .eq("game_id", currentGameId);
-
-    const everyoneSubmitted =
-      allPlayers &&
-      allSubmissions &&
-      allSubmissions.length >= allPlayers.length;
-
-    const allImagesReady =
-      allSubmissions &&
-      allSubmissions.every((item) => item.image_url);
-
-    if (everyoneSubmitted && allImagesReady) {
-      const nextVotingDeadline = new Date(
-        Date.now() + selectedVotingDuration * 1000
-      ).toISOString();
-      const { error: gameError } = await supabase
-        .from("games")
-        .update({ stage: "reveal", voting_deadline: nextVotingDeadline })
-        .eq("id", currentGameId);
-
-      if (gameError) {
-        console.error(gameError);
-        return;
-      }
-
-      setStage("reveal");
-      setVotingDeadline(nextVotingDeadline);
-    }
+    await revealRoundIfReady(currentGameId);
   } finally {
     setIsSubmitting(false);
   }
