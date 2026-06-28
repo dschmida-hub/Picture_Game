@@ -17,6 +17,7 @@ import { useRoundCountdowns } from "./hooks/useRoundCountdowns";
 import { useRoundReadiness } from "./hooks/useRoundReadiness";
 import { useRotatingPastImages } from "./hooks/useRotatingPastImages";
 import { ratePrompt } from "./components/promptQuality";
+import { gameApi } from "./utils/clientApi";
 import type {
   GameMode,
   Player,
@@ -304,6 +305,12 @@ async function loadRandomPrompt() {
 
 async function removePlayer(player: Player) {
   if (!isHost || player.is_host) return;
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+
+  if (!savedPlayerId) {
+    alert("Your host session was lost. Please rejoin the room.");
+    return;
+  }
 
   const shouldRemove = window.confirm(
     `Remove ${player.name} from this room? Their submissions and votes in this room will also be removed.`
@@ -312,38 +319,13 @@ async function removePlayer(player: Player) {
   if (!shouldRemove) return;
 
   try {
-    const { error: submissionsError } = await supabase
-      .from("submissions")
-      .delete()
-      .eq("room_code", code)
-      .eq("player_name", player.name);
+    const { error } = await supabase.rpc("remove_player_from_room", {
+      host_player_id_input: Number(savedPlayerId),
+      player_id_input: player.id,
+      room_code_input: code,
+    });
 
-    if (submissionsError) throw submissionsError;
-
-    const { error: votesError } = await supabase
-      .from("votes")
-      .delete()
-      .eq("room_code", code)
-      .eq("voter_name", player.name);
-
-    if (votesError) throw votesError;
-
-    const { error: votedForError } = await supabase
-      .from("votes")
-      .delete()
-      .eq("room_code", code)
-      .like("voted_for", `${player.name}: %`);
-
-    if (votedForError) throw votedForError;
-
-    const { error: playerError } = await supabase
-      .from("players")
-      .delete()
-      .eq("id", player.id)
-      .eq("room_code", code)
-      .eq("is_host", false);
-
-    if (playerError) throw playerError;
+    if (error) throw error;
 
     await Promise.all([
       loadPlayers(),
@@ -456,27 +438,15 @@ async function submitPromptSuggestion() {
   setIsSubmittingPromptSuggestion(true);
 
   try {
-    const { data: suggestion, error: suggestionError } = await supabase
-      .from("room_prompt_suggestions")
-      .insert({
-        room_code: code,
-        prompt,
-        game_mode: promptSuggestionMode,
-        image_style: selectedImageStyle === "prompt" ? "cartoon" : selectedImageStyle,
-        submitted_by: name,
-      })
-      .select("id")
-      .single();
-
-    if (suggestionError) throw suggestionError;
-
-    const { error: voteError } = await supabase.from("room_prompt_suggestion_votes").insert({
-      room_code: code,
-      suggestion_id: suggestion.id,
-      voter_name: name,
+    const { error } = await supabase.rpc("submit_room_prompt_suggestion", {
+      game_mode_input: promptSuggestionMode,
+      image_style_input: selectedImageStyle === "prompt" ? "cartoon" : selectedImageStyle,
+      prompt_input: prompt,
+      room_code_input: code,
+      submitted_by_input: name,
     });
 
-    if (voteError) throw voteError;
+    if (error) throw error;
 
     setPromptSuggestionText("");
     await loadPromptSuggestions();
@@ -492,10 +462,10 @@ async function submitPromptSuggestion() {
 async function voteForPromptSuggestion(suggestionId: number) {
   if (!joined || !name) return;
 
-  const { error } = await supabase.from("room_prompt_suggestion_votes").insert({
-    room_code: code,
-    suggestion_id: suggestionId,
-    voter_name: name,
+  const { error } = await supabase.rpc("vote_for_room_prompt_suggestion", {
+    room_code_input: code,
+    suggestion_id_input: suggestionId,
+    voter_name_input: name,
   });
 
   if (error) {
@@ -851,43 +821,28 @@ async function joinGame() {
       .getPublicUrl(filePath);
 
     avatarUrl = data.publicUrl;
-try{
-    const descResponse = await fetch("/api/describe-avatar", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    avatarUrl,
-  }),
-});
 
-const descData = await descResponse.json();
- avatarDescription = descData.description || null;
+    try {
+      const { data: descData } = await gameApi.describeAvatar(avatarUrl);
+      avatarDescription = descData?.description || null;
+    } catch (error) {
+      console.error("Avatar description failed:", error);
+    }
   }
-   catch (error) {
-  console.error("Avatar description failed:", error);
-   }}
 
     const cameFromCreateGame = new URLSearchParams(window.location.search).get("create") === "1";
 
-    const joinResponse = await fetch("/api/join-room", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        allowCreateRoom: cameFromCreateGame,
-        avatarDescription,
-        avatarUrl,
-        name: cleanName,
-        roomCode: code,
-      }),
+    const { data: joinData, error: joinError } = await gameApi.joinRoom({
+      allowCreateRoom: cameFromCreateGame,
+      avatarDescription,
+      avatarUrl,
+      name: cleanName,
+      roomCode: code,
     });
 
-    const joinData = await joinResponse.json();
-
-    if (!joinResponse.ok) {
-      console.error(joinData);
-      alert(joinData.error || "Failed to join room");
+    if (joinError || !joinData) {
+      console.error(joinError);
+      alert(joinError || "Failed to join room");
       return;
     }
 
@@ -1047,22 +1002,16 @@ async function grantImageRetryTime() {
   setIsSubmitting(true);
 
   try {
-    const submitResponse = await fetch("/api/submit-answer", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        answer: submittedAnswer,
-        gameId: currentGameId,
-        playerId: savedPlayerId,
-        roomCode: code,
-      }),
+    const { data: submitData, error: submitError } = await gameApi.submitAnswer({
+      answer: submittedAnswer,
+      gameId: currentGameId,
+      playerId: savedPlayerId,
+      roomCode: code,
     });
 
-    const submitData = await submitResponse.json();
-
-    if (!submitResponse.ok) {
-      console.error(submitData);
-      alert(submitData.error || "Failed to submit answer");
+    if (submitError || !submitData) {
+      console.error(submitError);
+      alert(submitError || "Failed to submit answer");
       return;
     }
 
@@ -1074,22 +1023,16 @@ async function grantImageRetryTime() {
       loadingMessages[Math.floor(Math.random() * loadingMessages.length)]
     );
 
-    const imageResponse = await fetch("/api/generate-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        roomCode: code,
-        gameId: currentGameId,
-        playerId: savedPlayerId,
-        submissionId: pendingSubmissionId,
-      }),
+    const { data: imageData, error: imageError } = await gameApi.generateImage({
+      roomCode: code,
+      gameId: currentGameId,
+      playerId: savedPlayerId,
+      submissionId: pendingSubmissionId,
     });
 
-    const imageData = await imageResponse.json();
-
-    if (!imageResponse.ok) {
-      console.error(imageData);
-      if (imageData.rejected) {
+    if (imageError) {
+      console.error(imageData || imageError);
+      if (imageData?.rejected) {
         const wasExtended = await grantImageRetryTime();
         alert(
           wasExtended
@@ -1099,15 +1042,11 @@ async function grantImageRetryTime() {
       } else {
         alert("The image machine tripped over its own shoelaces. Try submitting again.");
       }
-      await fetch("/api/submit-answer", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          gameId: currentGameId,
-          playerId: savedPlayerId,
-          roomCode: code,
-          submissionId: pendingSubmissionId,
-        }),
+      await gameApi.deletePendingSubmission({
+        gameId: currentGameId,
+        playerId: savedPlayerId,
+        roomCode: code,
+        submissionId: pendingSubmissionId,
       });
       await loadSubmissions(currentGameId);
       return;
@@ -1180,23 +1119,17 @@ async function voteForSubmission(answerText: string, playerName: string) {
 
   setHasVoted(true);
 
-  const voteResponse = await fetch("/api/vote", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      answerText,
-      gameId: currentGameId,
-      playerId: savedPlayerId,
-      roomCode: code,
-      votedForPlayerName: playerName,
-    }),
+  const { data: voteData, error: voteError } = await gameApi.vote({
+    answerText,
+    gameId: currentGameId,
+    playerId: savedPlayerId,
+    roomCode: code,
+    votedForPlayerName: playerName,
   });
 
-  const voteData = await voteResponse.json();
-
-  if (!voteResponse.ok) {
-    console.error(voteData);
-    alert(voteData.error || "Failed to vote");
+  if (voteError || !voteData) {
+    console.error(voteError);
+    alert(voteError || "Failed to vote");
     setHasVoted(false);
     return;
   }
@@ -1222,21 +1155,16 @@ async function rateImage(submissionId: number, rating: "funny" | "meh" | "bad") 
   }
 
   try {
-    const response = await fetch("/api/image-feedback", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        gameId: currentGameId,
-        playerId: savedPlayerId,
-        rating,
-        roomCode: code,
-        submissionId,
-      }),
+    const { error } = await gameApi.rateImage({
+      gameId: currentGameId,
+      playerId: savedPlayerId,
+      rating,
+      roomCode: code,
+      submissionId,
     });
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => null);
-      console.error(data);
+    if (error) {
+      console.error(error);
       alert("Could not save that image rating.");
       return;
     }
@@ -1265,20 +1193,15 @@ async function reportImage(submissionId: number) {
   }
 
   try {
-    const response = await fetch("/api/image-report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        gameId: currentGameId,
-        playerId: savedPlayerId,
-        roomCode: code,
-        submissionId,
-      }),
+    const { error } = await gameApi.reportImage({
+      gameId: currentGameId,
+      playerId: savedPlayerId,
+      roomCode: code,
+      submissionId,
     });
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => null);
-      console.error(data);
+    if (error) {
+      console.error(error);
       alert("Could not report that image.");
       return;
     }
@@ -1310,22 +1233,16 @@ async function regenerateImage(submissionId: number, submissionPlayerName: strin
   setIsForcingStage(true);
 
   try {
-    const response = await fetch("/api/regenerate-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        gameId: currentGameId,
-        playerId: savedPlayerId,
-        roomCode: code,
-        submissionId,
-      }),
+    const { data, error } = await gameApi.regenerateImage({
+      gameId: currentGameId,
+      playerId: savedPlayerId,
+      roomCode: code,
+      submissionId,
     });
 
-    const data = await response.json().catch(() => null);
-
-    if (!response.ok) {
-      console.error(data);
-      alert(data?.error || "Could not regenerate that image.");
+    if (error) {
+      console.error(data || error);
+      alert(error || "Could not regenerate that image.");
       return;
     }
 
@@ -1538,64 +1455,56 @@ async function loadWinner() {
     (submission) => voteCounts[submission] === topVotes
   );
 
-  const winningImages: string[] = [];
-  const winningThumbnails: string[] = [];
+  const tiedSubmissionDetails = tiedSubmissions.map((submission) => {
+    const [playerNamePart, ...promptParts] = submission.split(":");
 
-  for (const winningSubmission of tiedSubmissions) {
-    const playerName = winningSubmission.split(":")[0].trim();
+    return {
+      playerName: playerNamePart.trim(),
+      promptText: promptParts.join(":").trim(),
+      voteValue: submission,
+    };
+  });
 
-    const promptText = winningSubmission
-      .split(":")
-      .slice(1)
-      .join(":")
-      .trim();
+  const { data: winningSubmissionImages, error: winningImagesError } = await supabase
+    .from("submissions")
+    .select("player_name, prompt, image_url, gallery_thumbnail_url")
+    .eq("game_id", currentGameId)
+    .in(
+      "player_name",
+      tiedSubmissionDetails.map((submission) => submission.playerName)
+    );
 
-    const { data: submissionData, error: submissionError } = await supabase
-      .from("submissions")
-      .select("image_url, gallery_thumbnail_url")
-      .eq("game_id", currentGameId)
-      .eq("player_name", playerName)
-      .eq("prompt", promptText)
-      .order("id", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (submissionError) {
-      console.error(submissionError);
-    }
-
-    if (submissionData?.image_url) {
-      winningImages.push(submissionData.image_url);
-      winningThumbnails.push(submissionData.gallery_thumbnail_url || "");
-    }
+  if (winningImagesError) {
+    console.error(winningImagesError);
   }
+
+  const winningImagesByVoteValue = new Map(
+    (winningSubmissionImages || []).map((submission) => [
+      `${submission.player_name}: ${submission.prompt}`,
+      submission,
+    ])
+  );
+
+  const winningImages = tiedSubmissionDetails
+    .map((submission) => winningImagesByVoteValue.get(submission.voteValue)?.image_url)
+    .filter((imageUrl): imageUrl is string => Boolean(imageUrl));
 
   setWinnerImages(winningImages);
 
   if (tiedSubmissions.length > 1) {
-    const tiedNames = tiedSubmissions.map((submission) =>
-      submission.split(":")[0].trim()
-    );
+    const tiedNames = tiedSubmissionDetails.map((submission) => submission.playerName);
 
     setWinnerName(`Tie: ${tiedNames.join(" and ")}`);
 
-    const tiedPrompts = tiedSubmissions
-      .map((submission) => submission.split(":").slice(1).join(":").trim())
-      .join(" / ");
+    const tiedPrompts = tiedSubmissionDetails.map((submission) => submission.promptText).join(" / ");
 
     setWinnerPrompt(tiedPrompts);
 
     setWinner(`Tie! ${tiedSubmissions.join(" and ")} each get 1 point.`);
   } else {
-    const winningSubmission = tiedSubmissions[0];
-
-    const displayWinnerName = winningSubmission.split(":")[0].trim();
-
-    const displayWinnerPrompt = winningSubmission
-      .split(":")
-      .slice(1)
-      .join(":")
-      .trim();
+    const winningSubmission = tiedSubmissionDetails[0];
+    const displayWinnerName = winningSubmission.playerName;
+    const displayWinnerPrompt = winningSubmission.promptText;
 
     setWinnerName(displayWinnerName);
     setWinnerPrompt(displayWinnerPrompt);
@@ -1616,9 +1525,7 @@ async function loadWinner() {
 if (!gameData) return;
 
 if (!gameData.winner_awarded) {
-  const winnerNames = tiedSubmissions.map((submission) =>
-    submission.split(":")[0].trim()
-  );
+  const winnerNames = tiedSubmissionDetails.map((submission) => submission.playerName);
 
   const { error: awardError } = await supabase.rpc("award_winners_once", {
     winner_names_input: winnerNames,
@@ -1646,31 +1553,28 @@ if (!gameData.winner_awarded) {
 
   const nextRoundNumber = (latestHistory?.round_number ?? 0) + 1;
 
-  for (const winningSubmission of tiedSubmissions) {
-    const playerName = winningSubmission.split(":")[0].trim();
+  const roundHistoryRows = tiedSubmissionDetails.map((winningSubmission) => ({
+      room_code: code,
+      game_id: gameData.id,
+      round_number: nextRoundNumber,
+      winner_name: winningSubmission.playerName,
+      winner_prompt: winningSubmission.promptText,
+      winner_image_url: winningImagesByVoteValue.get(winningSubmission.voteValue)?.image_url || null,
+      gallery_thumbnail_url:
+        winningImagesByVoteValue.get(winningSubmission.voteValue)?.gallery_thumbnail_url || null,
+    }));
 
-    const promptText = winningSubmission
-      .split(":")
-      .slice(1)
-      .join(":")
-      .trim();
-
-    const imageIndex = tiedSubmissions.indexOf(winningSubmission);
-
-    await supabase.from("round_history").upsert(
-      {
-        room_code: code,
-        game_id: gameData.id,
-        round_number: nextRoundNumber,
-        winner_name: playerName,
-        winner_prompt: promptText,
-        winner_image_url: winningImages[imageIndex] || null,
-        gallery_thumbnail_url: winningThumbnails[imageIndex] || null,
-      },
+  if (roundHistoryRows.length > 0) {
+    const { error: roundHistoryError } = await supabase.from("round_history").upsert(
+      roundHistoryRows,
       {
         onConflict: "room_code,game_id,winner_name,winner_prompt",
       }
     );
+
+    if (roundHistoryError) {
+      console.error("Failed to save round history:", roundHistoryError);
+    }
   }
 }
 
@@ -1746,23 +1650,23 @@ async function nextRound() {
 
 async function playAgain() {
   if (!isHost || !currentGameId || isPlayingAgain) return;
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+
+  if (!savedPlayerId) {
+    alert("Your host session was lost. Please rejoin the room.");
+    return;
+  }
 
   setIsPlayingAgain(true);
 
   try {
-    const { error: scoreResetError } = await supabase
-      .from("players")
-      .update({ points: 0 })
-      .eq("room_code", code);
+    const { error } = await supabase.rpc("start_rematch", {
+      game_id_input: currentGameId,
+      host_player_id_input: Number(savedPlayerId),
+      room_code_input: code,
+    });
 
-    if (scoreResetError) throw scoreResetError;
-
-    const { error: stageError } = await supabase
-      .from("games")
-      .update({ stage: "lobby" })
-      .eq("id", currentGameId);
-
-    if (stageError) throw stageError;
+    if (error) throw error;
 
     setFinalWinner("");
     setWinner("");

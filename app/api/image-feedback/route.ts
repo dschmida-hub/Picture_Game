@@ -1,10 +1,14 @@
-import { createClient } from "@supabase/supabase-js";
 import { getActiveImageModel, imageConfig } from "@/app/lib/imageConfig";
 import {
-  checkRateLimit,
-  checkSameOrigin,
+  guardRequest,
+  jsonError,
+  normalizeRoomCode,
+  parsePositiveInteger,
+  routeError,
+  supabaseAdmin,
+} from "../_utils/api";
+import {
   readJsonWithLimit,
-  sanitizeText,
 } from "../_utils/security";
 
 type ImageFeedbackRating = "funny" | "meh" | "bad";
@@ -17,29 +21,7 @@ type ImageFeedbackRequest = {
   submissionId?: unknown;
 };
 
-const ROOM_CODE_PATTERN = /^[A-Z0-9]{4,12}$/;
 const validRatings = new Set<ImageFeedbackRating>(["funny", "meh", "bad"]);
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-function jsonError(message: string, status: number) {
-  return Response.json({ error: message }, { status });
-}
-
-function parsePositiveInteger(value: unknown) {
-  const parsedValue = Number(value);
-  return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : null;
-}
-
-function isBadRequestError(error: unknown) {
-  if (error instanceof SyntaxError) return true;
-  if (!(error instanceof Error)) return false;
-
-  return error.message === "Request must be JSON" || error.message === "Request body is too large";
-}
 
 function parseRating(value: unknown): ImageFeedbackRating | null {
   if (typeof value !== "string") return null;
@@ -51,27 +33,21 @@ function parseRating(value: unknown): ImageFeedbackRating | null {
 
 export async function POST(request: Request) {
   try {
-    const originError = checkSameOrigin(request);
-    if (originError) return originError;
-
-    const rateLimitError = checkRateLimit(request, "image-feedback", {
-      windowMs: 60_000,
-      maxRequests: 30,
-    });
-    if (rateLimitError) return rateLimitError;
+    const requestError = guardRequest(request, "image-feedback", 30);
+    if (requestError) return requestError;
 
     const body = await readJsonWithLimit<ImageFeedbackRequest>(request, 2_000);
-    const roomCode = sanitizeText(body.roomCode, 12).toUpperCase();
+    const roomCode = normalizeRoomCode(body.roomCode);
     const gameId = parsePositiveInteger(body.gameId);
     const playerId = parsePositiveInteger(body.playerId);
     const submissionId = parsePositiveInteger(body.submissionId);
     const rating = parseRating(body.rating);
 
-    if (!roomCode || !ROOM_CODE_PATTERN.test(roomCode) || !gameId || !playerId || !submissionId || !rating) {
+    if (!roomCode || !gameId || !playerId || !submissionId || !rating) {
       return jsonError("Valid room, game, player, submission, and rating are required", 400);
     }
 
-    const { data: player, error: playerError } = await supabase
+    const { data: player, error: playerError } = await supabaseAdmin
       .from("players")
       .select("id, name")
       .eq("id", playerId)
@@ -81,7 +57,7 @@ export async function POST(request: Request) {
     if (playerError) throw playerError;
     if (!player) return jsonError("Player not found in this room", 403);
 
-    const { data: game, error: gameError } = await supabase
+    const { data: game, error: gameError } = await supabaseAdmin
       .from("games")
       .select("id, game_mode, image_style, prompt_source")
       .eq("id", gameId)
@@ -91,7 +67,7 @@ export async function POST(request: Request) {
     if (gameError) throw gameError;
     if (!game) return jsonError("Game not found", 404);
 
-    const { data: submission, error: submissionError } = await supabase
+    const { data: submission, error: submissionError } = await supabaseAdmin
       .from("submissions")
       .select("id, image_url, player_name")
       .eq("id", submissionId)
@@ -102,7 +78,7 @@ export async function POST(request: Request) {
     if (submissionError) throw submissionError;
     if (!submission?.image_url) return jsonError("Generated image not found", 404);
 
-    const { error: feedbackError } = await supabase
+    const { error: feedbackError } = await supabaseAdmin
       .from("image_feedback")
       .upsert(
         {
@@ -127,12 +103,6 @@ export async function POST(request: Request) {
 
     return Response.json({ ok: true });
   } catch (error) {
-    console.error("Failed to save image feedback:", error);
-
-    if (isBadRequestError(error)) {
-      return jsonError(error instanceof Error ? error.message : "Invalid request", 400);
-    }
-
-    return jsonError("Could not save image feedback", 500);
+    return routeError(error, "Failed to save image feedback:", "Could not save image feedback");
   }
 }

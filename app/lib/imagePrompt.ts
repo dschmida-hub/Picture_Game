@@ -49,6 +49,12 @@ function buildPlayerAppearanceContext(players: PromptPlayer[], currentPlayerName
     .join("\n");
 }
 
+function shouldAllowVisibleText(answer: string) {
+  return /\b(sign|banner|poster|billboard|label|note|letter|card|shirt|t-shirt|slogan|speech bubble|word bubble|reads|written|writing|text|logo)\b/i.test(
+    answer
+  );
+}
+
 export function buildImagePrompt({
   answer,
   roundPrompt,
@@ -63,28 +69,29 @@ export function buildImagePrompt({
   playerName: string;
 }) {
   const playerAppearanceContext = buildPlayerAppearanceContext(players, playerName, answer);
+  const visibleTextInstruction = shouldAllowVisibleText(answer)
+    ? `Visible text rule:
+The player's answer appears to ask for visible text. You may include ONE tiny piece of readable text only if it is essential to the joke.
+- Never use text from the round prompt/question.
+- Never copy the full player answer into the image.
+- Use at most 1-5 words.
+- Put it on one obvious object only, such as a sign, shirt, note, banner, or single speech bubble.
+- Do not add background writing, captions, subtitles, labels, logos, UI text, or random fake letters.`
+    : `Visible text rule:
+ABSOLUTELY NO READABLE TEXT ANYWHERE IN THE IMAGE.
+Do not draw words, letters, captions, subtitles, labels, signs, posters, banners, logos, UI text, speech bubbles, fake writing, gibberish writing, or text-like marks.
+Communicate the joke only through characters, props, expressions, action, and composition.`;
 
   return `
 Create one hilarious party game image.
 
-Default text rule: do not put readable or fake text in the image.
+${visibleTextInstruction}
 
 The round prompt/question is private context only. Never write, quote, paraphrase, label, or display the round prompt/question anywhere in the image.
 
-Exception: if the player's punchline clearly asks for visible words, a sign, a note, a label, a shirt slogan, a banner, or a speech bubble, you may include one short piece of readable text because it is part of the joke.
-
-This exception applies only to the player's punchline. It never applies to the round prompt/question.
-
-If text is included:
-- Use only the exact words needed for the joke.
-- Keep it very short, ideally 1-5 words.
-- Put it on one obvious object like a sign, shirt, note, banner, or single speech bubble.
-- Make the letters clean and readable.
-- Do not add any extra text.
-
 Private scene context, for inspiration only:
-- Round prompt/question, never visible as text: ${roundPrompt}
-- Player punchline, may be visible as text only if the punchline itself asks for it: ${answer}
+- Private round prompt/question, NEVER visible as text: ${roundPrompt}
+- Private player punchline, use as scene inspiration: ${answer}
 
 Relevant Player Appearances:
 ${playerAppearanceContext}
@@ -114,6 +121,7 @@ The image should:
 
 Never include:
 - Captions
+- Subtitles
 - The round prompt/question as text
 - Words copied from the round prompt/question
 - Extra labels
@@ -121,7 +129,7 @@ Never include:
 - Posters
 - Logos
 - Fake letters, gibberish, subtitles, UI text, or random background writing.
-- Speech bubbles unless the player's punchline specifically asks for someone to say something.
+- Speech bubbles unless the visible text rule above explicitly allows it.
 
 Avoid:
 - Crowded scenes

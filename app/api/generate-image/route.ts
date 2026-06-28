@@ -1,12 +1,17 @@
 import OpenAI from "openai";
-import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
 import { getActiveImageModel, getEstimatedImageCostCents, imageConfig } from "@/app/lib/imageConfig";
 import { buildImagePrompt } from "@/app/lib/imagePrompt";
 import { generateImageBuffer } from "@/app/lib/imageProviders";
 import {
-  checkRateLimit,
-  checkSameOrigin,
+  guardRequest,
+  isBadRequestError,
+  jsonError,
+  normalizeRoomCode,
+  parsePositiveInteger,
+  supabaseAdmin,
+} from "../_utils/api";
+import {
   readJsonWithLimit,
   sanitizeText,
 } from "../_utils/security";
@@ -15,12 +20,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-const ROOM_CODE_PATTERN = /^[A-Z0-9]{4,12}$/;
+const supabase = supabaseAdmin;
 
 function parseLimit(value: string | undefined, fallback: number) {
   const parsedValue = Number(value);
@@ -38,25 +38,9 @@ type GenerateImageRequest = {
   submissionId?: unknown;
 };
 
-function parsePositiveInteger(value: unknown) {
-  const parsedValue = Number(value);
-  return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : null;
-}
-
 function wasImageRejected(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   return /(safety|moderation|policy|rejected|blocked)/.test(message);
-}
-
-function jsonError(message: string, status: number) {
-  return Response.json({ error: message }, { status });
-}
-
-function isBadRequestError(error: unknown) {
-  if (error instanceof SyntaxError) return true;
-  if (!(error instanceof Error)) return false;
-
-  return error.message === "Request must be JSON" || error.message === "Request body is too large";
 }
 
 async function countGeneratedImages(filters: {
@@ -329,22 +313,16 @@ async function updateGameEstimatedCost(gameId: number) {
 
 export async function POST(request: Request) {
   try {
-    const originError = checkSameOrigin(request);
-    if (originError) return originError;
-
-    const rateLimitError = checkRateLimit(request, "generate-image", {
-      windowMs: 60_000,
-      maxRequests: 8,
-    });
-    if (rateLimitError) return rateLimitError;
+    const requestError = guardRequest(request, "generate-image", 8);
+    if (requestError) return requestError;
 
     const body = await readJsonWithLimit<GenerateImageRequest>(request, 2_000);
-    const roomCode = sanitizeText(body.roomCode, 12).toUpperCase();
+    const roomCode = normalizeRoomCode(body.roomCode);
     const gameId = parsePositiveInteger(body.gameId);
     const playerId = parsePositiveInteger(body.playerId);
     const submissionId = parsePositiveInteger(body.submissionId);
 
-    if (!roomCode || !ROOM_CODE_PATTERN.test(roomCode) || !gameId || !playerId || !submissionId) {
+    if (!roomCode || !gameId || !playerId || !submissionId) {
       return jsonError("Valid room, game, player, and submission are required", 400);
     }
 

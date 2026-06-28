@@ -1,18 +1,18 @@
-import { createClient } from "@supabase/supabase-js";
 import {
-  checkRateLimit,
-  checkSameOrigin,
+  arePlayerNamesEqual,
+  guardRequest,
+  jsonError,
+  normalizePlayerName,
+  normalizeRoomCode,
+  routeError,
+  supabaseAdmin,
+} from "../_utils/api";
+import {
   readJsonWithLimit,
   sanitizeText,
   validatePublicSupabaseUrl,
 } from "../_utils/security";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-const ROOM_CODE_PATTERN = /^[A-Z0-9]{4,12}$/;
 const MAX_PLAYERS = 8;
 
 type JoinRoomRequest = {
@@ -23,44 +23,19 @@ type JoinRoomRequest = {
   roomCode?: unknown;
 };
 
-function jsonError(message: string, status: number) {
-  return Response.json({ error: message }, { status });
-}
-
-function isBadRequestError(error: unknown) {
-  if (error instanceof SyntaxError) return true;
-  if (!(error instanceof Error)) return false;
-
-  return error.message === "Request must be JSON" || error.message === "Request body is too large";
-}
-
-function normalizePlayerName(value: string) {
-  return value.replace(/\s+/g, " ").trim().slice(0, 40);
-}
-
-function arePlayerNamesEqual(firstName: string, secondName: string) {
-  return firstName.trim().toLowerCase() === secondName.trim().toLowerCase();
-}
-
 export async function POST(request: Request) {
   try {
-    const originError = checkSameOrigin(request);
-    if (originError) return originError;
-
-    const rateLimitError = checkRateLimit(request, "join-room", {
-      windowMs: 60_000,
-      maxRequests: 20,
-    });
-    if (rateLimitError) return rateLimitError;
+    const requestError = guardRequest(request, "join-room", 20);
+    if (requestError) return requestError;
 
     const body = await readJsonWithLimit<JoinRoomRequest>(request, 3_000);
-    const roomCode = sanitizeText(body.roomCode, 12).toUpperCase();
-    const name = normalizePlayerName(sanitizeText(body.name, 40));
+    const roomCode = normalizeRoomCode(body.roomCode);
+    const name = normalizePlayerName(body.name);
     const allowCreateRoom = body.allowCreateRoom === true;
     const avatarUrl = sanitizeText(body.avatarUrl, 600);
     const avatarDescription = sanitizeText(body.avatarDescription, 240);
 
-    if (!roomCode || !ROOM_CODE_PATTERN.test(roomCode) || !name) {
+    if (!roomCode || !name) {
       return jsonError("Valid room code and player name are required", 400);
     }
 
@@ -68,7 +43,7 @@ export async function POST(request: Request) {
       return jsonError("Invalid avatar URL", 400);
     }
 
-    const { data: roomPlayers, error: roomPlayersError } = await supabase
+    const { data: roomPlayers, error: roomPlayersError } = await supabaseAdmin
       .from("players")
       .select("id, name")
       .eq("room_code", roomCode);
@@ -96,7 +71,7 @@ export async function POST(request: Request) {
 
     const isFirstPlayer = players.length === 0;
 
-    const { data: newPlayer, error: insertError } = await supabase
+    const { data: newPlayer, error: insertError } = await supabaseAdmin
       .from("players")
       .insert([
         {
@@ -125,12 +100,6 @@ export async function POST(request: Request) {
       playerName: newPlayer.name,
     });
   } catch (error) {
-    console.error("Failed to join room:", error);
-
-    if (isBadRequestError(error)) {
-      return jsonError(error instanceof Error ? error.message : "Invalid request", 400);
-    }
-
-    return jsonError("Failed to join room", 500);
+    return routeError(error, "Failed to join room:", "Failed to join room");
   }
 }

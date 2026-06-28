@@ -1,17 +1,15 @@
-import { createClient } from "@supabase/supabase-js";
 import {
-  checkRateLimit,
-  checkSameOrigin,
+  guardRequest,
+  jsonError,
+  normalizeRoomCode,
+  parsePositiveInteger,
+  routeError,
+  supabaseAdmin,
+} from "../_utils/api";
+import {
   readJsonWithLimit,
   sanitizeText,
 } from "../_utils/security";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-const ROOM_CODE_PATTERN = /^[A-Z0-9]{4,12}$/;
 
 type VoteRequest = {
   answerText?: unknown;
@@ -21,35 +19,13 @@ type VoteRequest = {
   votedForPlayerName?: unknown;
 };
 
-function jsonError(message: string, status: number) {
-  return Response.json({ error: message }, { status });
-}
-
-function isBadRequestError(error: unknown) {
-  if (error instanceof SyntaxError) return true;
-  if (!(error instanceof Error)) return false;
-
-  return error.message === "Request must be JSON" || error.message === "Request body is too large";
-}
-
-function parsePositiveInteger(value: unknown) {
-  const parsedValue = Number(value);
-  return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : null;
-}
-
 export async function POST(request: Request) {
   try {
-    const originError = checkSameOrigin(request);
-    if (originError) return originError;
-
-    const rateLimitError = checkRateLimit(request, "vote", {
-      windowMs: 60_000,
-      maxRequests: 30,
-    });
-    if (rateLimitError) return rateLimitError;
+    const requestError = guardRequest(request, "vote", 30);
+    if (requestError) return requestError;
 
     const body = await readJsonWithLimit<VoteRequest>(request, 2_000);
-    const roomCode = sanitizeText(body.roomCode, 12).toUpperCase();
+    const roomCode = normalizeRoomCode(body.roomCode);
     const gameId = parsePositiveInteger(body.gameId);
     const playerId = parsePositiveInteger(body.playerId);
     const answerText = sanitizeText(body.answerText, 160);
@@ -57,7 +33,6 @@ export async function POST(request: Request) {
 
     if (
       !roomCode ||
-      !ROOM_CODE_PATTERN.test(roomCode) ||
       !gameId ||
       !playerId ||
       !answerText ||
@@ -66,7 +41,7 @@ export async function POST(request: Request) {
       return jsonError("Valid room, game, player, and vote are required", 400);
     }
 
-    const { data: voter, error: voterError } = await supabase
+    const { data: voter, error: voterError } = await supabaseAdmin
       .from("players")
       .select("id, name")
       .eq("id", playerId)
@@ -76,7 +51,7 @@ export async function POST(request: Request) {
     if (voterError) throw voterError;
     if (!voter) return jsonError("Player not found in this room", 403);
 
-    const { data: game, error: gameError } = await supabase
+    const { data: game, error: gameError } = await supabaseAdmin
       .from("games")
       .select("id, room_code, stage, voting_deadline")
       .eq("id", gameId)
@@ -94,7 +69,7 @@ export async function POST(request: Request) {
       return jsonError("Voting time is up", 409);
     }
 
-    const { data: players, error: playersError } = await supabase
+    const { data: players, error: playersError } = await supabaseAdmin
       .from("players")
       .select("id, name")
       .eq("room_code", roomCode);
@@ -107,7 +82,7 @@ export async function POST(request: Request) {
       return jsonError("You can't vote for your own submission", 403);
     }
 
-    const { data: targetSubmission, error: targetSubmissionError } = await supabase
+    const { data: targetSubmission, error: targetSubmissionError } = await supabaseAdmin
       .from("submissions")
       .select("id, player_name, prompt")
       .eq("game_id", gameId)
@@ -119,7 +94,7 @@ export async function POST(request: Request) {
     if (targetSubmissionError) throw targetSubmissionError;
     if (!targetSubmission) return jsonError("That submission was not found", 404);
 
-    const { data: existingVote, error: existingVoteError } = await supabase
+    const { data: existingVote, error: existingVoteError } = await supabaseAdmin
       .from("votes")
       .select("id")
       .eq("game_id", gameId)
@@ -132,7 +107,7 @@ export async function POST(request: Request) {
 
     const voteValue = `${targetSubmission.player_name}: ${targetSubmission.prompt}`;
 
-    const { error: insertError } = await supabase.from("votes").insert([
+    const { error: insertError } = await supabaseAdmin.from("votes").insert([
       {
         room_code: roomCode,
         game_id: gameId,
@@ -143,7 +118,7 @@ export async function POST(request: Request) {
 
     if (insertError) throw insertError;
 
-    const { count: submissionCount, error: submissionCountError } = await supabase
+    const { count: submissionCount, error: submissionCountError } = await supabaseAdmin
       .from("submissions")
       .select("id", { count: "exact", head: true })
       .eq("game_id", gameId)
@@ -151,7 +126,7 @@ export async function POST(request: Request) {
 
     if (submissionCountError) throw submissionCountError;
 
-    const { count: voteCount, error: voteCountError } = await supabase
+    const { count: voteCount, error: voteCountError } = await supabaseAdmin
       .from("votes")
       .select("id", { count: "exact", head: true })
       .eq("game_id", gameId)
@@ -162,7 +137,7 @@ export async function POST(request: Request) {
     const isWinnerStage = Boolean(submissionCount && voteCount && voteCount >= submissionCount);
 
     if (isWinnerStage) {
-      const { error: stageError } = await supabase
+      const { error: stageError } = await supabaseAdmin
         .from("games")
         .update({ stage: "winner" })
         .eq("id", gameId)
@@ -176,12 +151,6 @@ export async function POST(request: Request) {
       voteCount: voteCount || 0,
     });
   } catch (error) {
-    console.error("Failed to vote:", error);
-
-    if (isBadRequestError(error)) {
-      return jsonError(error instanceof Error ? error.message : "Invalid request", 400);
-    }
-
-    return jsonError("Failed to vote", 500);
+    return routeError(error, "Failed to vote:", "Failed to vote");
   }
 }
