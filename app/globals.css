@@ -24,6 +24,54 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* App palette override
+   The UI was originally built with Tailwind purple/blue utilities everywhere.
+   These overrides remap those utilities to a warmer sunset palette without
+   rewriting every component class. */
+.bg-purple-50 { background-color: #fff7ed !important; }
+.bg-purple-100 { background-color: #ffedd5 !important; }
+.bg-purple-200 { background-color: #fed7aa !important; }
+.bg-purple-300 { background-color: #fdba74 !important; }
+.bg-purple-600 { background-color: #ea580c !important; }
+.bg-purple-700 { background-color: #c2410c !important; }
+.bg-purple-800 { background-color: #9a3412 !important; }
+.bg-purple-900 { background-color: #7c2d12 !important; }
+.bg-purple-950 { background-color: #431407 !important; }
+.bg-purple-300\/40 { background-color: rgb(253 186 116 / 0.4) !important; }
+.bg-purple-900\/60 { background-color: rgb(124 45 18 / 0.6) !important; }
+.bg-purple-950\/70 { background-color: rgb(67 20 7 / 0.7) !important; }
+
+.text-purple-50 { color: #fff7ed !important; }
+.text-purple-100 { color: #ffedd5 !important; }
+.text-purple-200 { color: #fed7aa !important; }
+.text-purple-300 { color: #fdba74 !important; }
+.text-purple-500 { color: #f97316 !important; }
+.text-purple-600 { color: #ea580c !important; }
+.text-purple-700 { color: #c2410c !important; }
+.text-purple-800 { color: #9a3412 !important; }
+.text-purple-900 { color: #7c2d12 !important; }
+.text-purple-700\/70 { color: rgb(194 65 12 / 0.7) !important; }
+
+.border-purple-100 { border-color: #ffedd5 !important; }
+.border-purple-200 { border-color: #fed7aa !important; }
+.border-purple-300 { border-color: #fdba74 !important; }
+.border-purple-500 { border-color: #f97316 !important; }
+.border-purple-600 { border-color: #ea580c !important; }
+
+.from-purple-700 { --tw-gradient-from: #c2410c var(--tw-gradient-from-position) !important; }
+.to-purple-950 { --tw-gradient-to: #431407 var(--tw-gradient-to-position) !important; }
+
+.focus\:border-purple-500:focus { border-color: #f97316 !important; }
+.focus\:border-purple-600:focus { border-color: #ea580c !important; }
+.hover\:border-purple-200:hover { border-color: #fed7aa !important; }
+.hover\:bg-purple-700:hover { background-color: #c2410c !important; }
+.shadow-purple-300 { --tw-shadow-color: #fdba74 !important; }
+
+.bg-blue-50 { background-color: #f0fdfa !important; }
+.bg-blue-600 { background-color: #0f766e !important; }
+.border-blue-200 { border-color: #99f6e4 !important; }
+.text-blue-700 { color: #0f766e !important; }
+
 @keyframes confetti-fall {
   from {
     opacity: 1;
