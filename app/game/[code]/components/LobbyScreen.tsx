@@ -21,7 +21,6 @@ type LobbyScreenProps = {
   roomExpirationMessage: string;
   promptSuggestions: PromptSuggestion[];
   promptSuggestionText: string;
-  promptSuggestionMode: GameMode;
   promptSuggestionRating: PromptRating;
   promptApprovalVotesNeeded: number;
   isSubmittingPromptSuggestion: boolean;
@@ -35,7 +34,6 @@ type LobbyScreenProps = {
   onCopyRoomCode: () => void;
   onShareRoom: () => void;
   onPromptSuggestionTextChange: (value: string) => void;
-  onPromptSuggestionModeChange: (mode: GameMode) => void;
   onSubmitPromptSuggestion: () => void;
   onVotePromptSuggestion: (suggestionId: number) => void;
   onRemovePlayer: (player: Player) => void;
@@ -76,7 +74,6 @@ export function LobbyScreen({
   roomExpirationMessage,
   promptSuggestions,
   promptSuggestionText,
-  promptSuggestionMode,
   promptSuggestionRating,
   promptApprovalVotesNeeded,
   isSubmittingPromptSuggestion,
@@ -90,7 +87,6 @@ export function LobbyScreen({
   onCopyRoomCode,
   onShareRoom,
   onPromptSuggestionTextChange,
-  onPromptSuggestionModeChange,
   onSubmitPromptSuggestion,
   onVotePromptSuggestion,
   onRemovePlayer,
@@ -442,12 +438,11 @@ export function LobbyScreen({
         playerName={playerName}
         suggestions={promptSuggestions}
         suggestionText={promptSuggestionText}
-        suggestionMode={promptSuggestionMode}
+        suggestionMode={selectedGameMode}
         suggestionRating={promptSuggestionRating}
         approvalVotesNeeded={promptApprovalVotesNeeded}
         isSubmittingSuggestion={isSubmittingPromptSuggestion}
         onSuggestionTextChange={onPromptSuggestionTextChange}
-        onSuggestionModeChange={onPromptSuggestionModeChange}
         onSubmitSuggestion={onSubmitPromptSuggestion}
         onVoteSuggestion={onVotePromptSuggestion}
       />

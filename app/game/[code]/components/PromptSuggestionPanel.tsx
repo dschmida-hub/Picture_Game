@@ -15,7 +15,6 @@ type PromptSuggestionPanelProps = {
   approvalVotesNeeded: number;
   isSubmittingSuggestion: boolean;
   onSuggestionTextChange: (value: string) => void;
-  onSuggestionModeChange: (mode: GameMode) => void;
   onSubmitSuggestion: () => void;
   onVoteSuggestion: (suggestionId: number) => void;
 };
@@ -29,10 +28,11 @@ export function PromptSuggestionPanel({
   approvalVotesNeeded,
   isSubmittingSuggestion,
   onSuggestionTextChange,
-  onSuggestionModeChange,
   onSubmitSuggestion,
   onVoteSuggestion,
 }: PromptSuggestionPanelProps) {
+  const suggestionModeLabel = suggestionMode === "cards" ? "Fill in Blank" : "Classic";
+
   return (
     <div className="w-full max-w-5xl rounded-[2rem] border-2 border-black bg-white p-5 shadow-[8px_8px_0_#111827]">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -54,19 +54,24 @@ export function PromptSuggestionPanel({
         <textarea
           value={suggestionText}
           onChange={(event) => onSuggestionTextChange(event.target.value)}
-          placeholder="Example: The worst thing to hear from your dentist is..."
+          placeholder={
+            suggestionMode === "cards"
+              ? "Example: The real treasure was _____ all along."
+              : "Example: The worst thing to hear from your dentist is..."
+          }
           maxLength={160}
           className="min-h-24 resize-none rounded-2xl border-2 border-black p-3 font-bold outline-none focus:border-rose-600 focus:shadow-[0_0_0_4px_rgba(225,29,72,0.16)]"
         />
 
-        <select
-          value={suggestionMode}
-          onChange={(event) => onSuggestionModeChange(event.target.value as GameMode)}
-          className="rounded-2xl border-2 border-black p-3 font-bold"
-        >
-          <option value="classic">Classic</option>
-          <option value="cards">Fill in Blank</option>
-        </select>
+        <div className="rounded-2xl border-2 border-black bg-rose-50 p-3">
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.18em] text-rose-700">
+            Locked to
+          </p>
+          <p className="mt-1 font-black text-zinc-950">{suggestionModeLabel}</p>
+          <p className="mt-1 text-xs font-bold text-zinc-500">
+            Follows the room mode.
+          </p>
+        </div>
 
         <button
           type="button"

@@ -114,7 +114,6 @@ export default function GameRoom() {
   const [reconnectMessage, setReconnectMessage] = useState("");
   const [promptSuggestions, setPromptSuggestions] = useState<PromptSuggestion[]>([]);
   const [promptSuggestionText, setPromptSuggestionText] = useState("");
-  const [promptSuggestionMode, setPromptSuggestionMode] = useState<GameMode>("classic");
   const [isSubmittingPromptSuggestion, setIsSubmittingPromptSuggestion] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
   const [votedPlayerNames, setVotedPlayerNames] = useState<string[]>([]);
@@ -165,7 +164,7 @@ export default function GameRoom() {
   ) + 1;
   const promptSkipVotesNeeded = Math.max(1, Math.ceil(players.length * PROMPT_SKIP_THRESHOLD));
   const promptApprovalVotesNeeded = Math.max(2, Math.ceil(players.length / 2));
-  const promptSuggestionRating = ratePrompt(promptSuggestionText, promptSuggestionMode);
+  const promptSuggestionRating = ratePrompt(promptSuggestionText, selectedGameMode);
   const roomExpirationMessage = formatRoomExpiration(roomCreatedAt);
 
   function showToast(message: string, tone: ToastTone = "error") {
@@ -471,7 +470,7 @@ async function submitPromptSuggestion() {
 
   try {
     const { error } = await supabase.rpc("submit_room_prompt_suggestion", {
-      game_mode_input: promptSuggestionMode,
+      game_mode_input: selectedGameMode,
       image_style_input: selectedImageStyle === "prompt" ? "cartoon" : selectedImageStyle,
       prompt_input: prompt,
       room_code_input: code,
@@ -2002,7 +2001,6 @@ if (isPageLoading) {
     roomExpirationMessage={roomExpirationMessage}
     promptSuggestions={promptSuggestions}
     promptSuggestionText={promptSuggestionText}
-    promptSuggestionMode={promptSuggestionMode}
     promptSuggestionRating={promptSuggestionRating}
     promptApprovalVotesNeeded={promptApprovalVotesNeeded}
     isSubmittingPromptSuggestion={isSubmittingPromptSuggestion}
@@ -2016,7 +2014,6 @@ if (isPageLoading) {
     onCopyRoomCode={copyRoomCode}
     onShareRoom={shareRoom}
     onPromptSuggestionTextChange={setPromptSuggestionText}
-    onPromptSuggestionModeChange={setPromptSuggestionMode}
     onSubmitPromptSuggestion={submitPromptSuggestion}
     onVotePromptSuggestion={voteForPromptSuggestion}
     onRemovePlayer={removePlayer}
