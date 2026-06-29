@@ -20,6 +20,7 @@ export default function Home() {
   const [joinError, setJoinError] = useState("");
   const [isJoining, setIsJoining] = useState(false);
   const [backgroundImages, setBackgroundImages] = useState<string[]>([]);
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
 
   useEffect(() => {
     async function loadBackgroundImages() {
@@ -101,6 +102,65 @@ export default function Home() {
     }
   }
 
+  if (showHowToPlay) {
+    return (
+      <main className="relative min-h-screen overflow-hidden bg-[#fff7ed] px-5 py-8 text-black md:px-8 md:py-12">
+        <div className="pointer-events-none fixed inset-0 overflow-hidden">
+          <div className="absolute inset-0 bg-[#fff7ed]" />
+          <div className="absolute -left-20 top-24 h-72 w-72 rounded-full bg-rose-100/80 blur-2xl" />
+          <div className="absolute -right-24 bottom-10 h-72 w-72 rounded-full bg-orange-100/80 blur-2xl" />
+        </div>
+
+        <section className="relative mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-5xl flex-col justify-center">
+          <button
+            type="button"
+            onClick={() => setShowHowToPlay(false)}
+            className="mb-8 w-fit rounded-2xl border-2 border-black bg-white px-5 py-3 text-sm font-black text-rose-700 shadow-[4px_4px_0_#111827] transition active:scale-[0.99] md:hover:-translate-y-0.5"
+          >
+            Back to home
+          </button>
+
+          <div className="rounded-[2rem] border-4 border-black bg-white/95 p-6 shadow-[10px_10px_0_#111827] md:p-8">
+            <p className="text-sm font-extrabold uppercase tracking-[0.25em] text-rose-700">
+              How to play
+            </p>
+            <h1 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">
+              Three steps. Maximum nonsense.
+            </h1>
+            <p className="mt-4 max-w-2xl text-lg font-bold leading-relaxed text-zinc-700">
+              Everyone joins from their phone, writes the funniest answer they can,
+              and then votes on the anonymous AI images.
+            </p>
+
+            <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
+              {howItWorks.map(([number, title, description]) => (
+                <div
+                  key={number}
+                  className="rounded-3xl border-2 border-black bg-rose-50 p-5 shadow-[5px_5px_0_#111827]"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-black bg-rose-600 text-lg font-black text-white">
+                    {number}
+                  </div>
+                  <h2 className="mt-5 text-2xl font-black">{title}</h2>
+                  <p className="mt-2 text-sm font-bold leading-relaxed text-zinc-600">{description}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 rounded-3xl border-2 border-black bg-[#fff7ed] p-5 shadow-[5px_5px_0_#111827]">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-rose-700">
+                Winning
+              </p>
+              <p className="mt-2 text-xl font-black">
+                Win rounds by getting votes. First player to 3 points takes the game.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#fff7ed] text-black">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
@@ -142,8 +202,8 @@ export default function Home() {
         <div className="absolute inset-0 bg-[#fff7ed]/88 backdrop-blur-[1px]" />
       </div>
 
-      <section className="relative px-5 py-8 md:px-8 md:py-12">
-        <div className="relative mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-8 lg:grid-cols-[1.08fr_0.92fr]">
+      <section className="relative px-5 py-10 md:px-8 md:py-16">
+        <div className="relative mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="text-center lg:text-left">
             <p className="mb-4 inline-flex rounded-full border border-rose-200 bg-white px-4 py-2 text-xs font-extrabold uppercase tracking-[0.25em] text-rose-700 shadow-[4px_4px_0_#111827]">
               AI party game · 2-8 players · phone friendly
@@ -154,12 +214,12 @@ export default function Home() {
               <span className="mt-2 block -rotate-1 text-rose-600">ridiculous AI pictures.</span>
             </h1>
 
-            <p className="mx-auto mt-5 max-w-2xl text-lg font-black leading-relaxed text-zinc-700 lg:mx-0">
+            <p className="mx-auto mt-6 max-w-2xl text-lg font-black leading-relaxed text-zinc-700 lg:mx-0">
               Picture This is a room-code party game where friends answer chaotic prompts,
               AI draws the anonymous masterpieces, and everyone votes for the biggest laugh.
             </p>
 
-            <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
+            <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
               <button
                 type="button"
                 onClick={createGame}
@@ -167,15 +227,16 @@ export default function Home() {
               >
                 Start Free Game
               </button>
-              <a
-                href="#join"
+              <button
+                type="button"
+                onClick={() => setShowHowToPlay(true)}
                 className="rounded-2xl border-2 border-black bg-white px-8 py-4 text-lg font-extrabold text-rose-700 shadow-[6px_6px_0_#111827] transition active:scale-[0.99] md:hover:-translate-y-0.5"
               >
-                Join a Room
-              </a>
+                How to Play
+              </button>
             </div>
 
-            <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-3">
               {featureCards.map(([title, description]) => (
                 <div key={title} className="rounded-2xl border-2 border-black bg-white/95 p-4 shadow-[4px_4px_0_#111827]">
                   <p className="font-black">{title}</p>
@@ -227,7 +288,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div id="join" className="mt-5 rounded-3xl border-2 border-black bg-rose-50 p-5 shadow-[5px_5px_0_#111827]">
+            <div id="join" className="mt-6 rounded-3xl border-2 border-black bg-rose-50 p-5 shadow-[5px_5px_0_#111827]">
               <p className="text-sm font-extrabold uppercase tracking-wider text-rose-700">
                 Join friends
               </p>
@@ -267,23 +328,23 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="relative px-5 pb-10 md:px-8">
-        <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-5 lg:grid-cols-[1fr_0.8fr]">
-          <div className="rounded-[2rem] border-2 border-black bg-white/95 p-6 shadow-[8px_8px_0_#111827]">
+      <section className="relative px-5 pb-16 pt-8 md:px-8 md:pb-20 md:pt-12">
+        <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 lg:grid-cols-[0.8fr_1fr]">
+          <div className="rounded-[2rem] border-4 border-black bg-white/95 p-6 shadow-[8px_8px_0_#111827]">
             <p className="text-sm font-extrabold uppercase tracking-[0.25em] text-rose-700">
-              How it works
+              New here?
             </p>
-            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
-              {howItWorks.map(([number, title, description]) => (
-                <div key={number} className="rounded-3xl border-2 border-black bg-rose-50 p-5 shadow-[4px_4px_0_#111827]">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-black bg-rose-600 font-black text-white">
-                    {number}
-                  </div>
-                  <h3 className="mt-4 text-xl font-black">{title}</h3>
-                  <p className="mt-2 text-sm font-bold text-zinc-600">{description}</p>
-                </div>
-              ))}
-            </div>
+            <h2 className="mt-2 text-3xl font-black">Learn the game in 30 seconds.</h2>
+            <p className="mt-3 font-bold text-zinc-700">
+              See how rooms, prompts, images, voting, and scoring work before you start.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowHowToPlay(true)}
+              className="mt-5 rounded-2xl bg-zinc-950 px-6 py-4 font-black text-white shadow-[5px_5px_0_#fb7185] transition active:scale-[0.99] md:hover:-translate-y-0.5"
+            >
+              Open How to Play
+            </button>
           </div>
 
           <div className="rounded-[2rem] border-4 border-black bg-rose-100 p-6 shadow-[8px_8px_0_#111827]">
