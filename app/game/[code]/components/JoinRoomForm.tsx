@@ -1,6 +1,7 @@
 type JoinRoomFormProps = {
   code: string;
   name: string;
+  backgroundImages?: string[];
   isJoining: boolean;
   onNameChange: (name: string) => void;
   onAvatarFileChange: (file: File | null) => void;
@@ -10,15 +11,60 @@ type JoinRoomFormProps = {
 export function JoinRoomForm({
   code,
   name,
+  backgroundImages = [],
   isJoining,
   onNameChange,
   onAvatarFileChange,
   onJoinGame,
 }: JoinRoomFormProps) {
+  const collageImages = backgroundImages.slice(0, 8);
+
   return (
-    <section className="relative w-full max-w-xl overflow-hidden rounded-[2rem] border-2 border-black bg-white p-6 text-zinc-950 shadow-[8px_8px_0_#111827] md:p-8">
-      <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-rose-200" />
-      <div className="absolute -bottom-12 -left-12 h-36 w-36 rounded-full bg-sky-200" />
+    <>
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,#fed7aa,transparent_32%),radial-gradient(circle_at_bottom_right,#fecdd3,transparent_34%),linear-gradient(135deg,#fff7ed,#ffe4e6)]" />
+
+        {collageImages.length > 0 ? (
+          <div className="absolute inset-0 opacity-35 blur-[0.5px]">
+            {collageImages.map((imageUrl, index) => {
+              const positions = [
+                "left-[3%] top-[8%] rotate-[-10deg]",
+                "right-[5%] top-[10%] rotate-[8deg]",
+                "left-[8%] bottom-[10%] rotate-[7deg]",
+                "right-[8%] bottom-[9%] rotate-[-8deg]",
+                "left-[38%] top-[4%] rotate-[4deg]",
+                "left-[42%] bottom-[5%] rotate-[-5deg]",
+                "left-[1%] top-[44%] rotate-[11deg]",
+                "right-[1%] top-[45%] rotate-[-11deg]",
+              ];
+
+              return (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={`${imageUrl}-${index}`}
+                  src={imageUrl}
+                  alt=""
+                  aria-hidden="true"
+                  className={`absolute h-28 w-28 rounded-3xl border-2 border-black object-cover shadow-[6px_6px_0_#111827] md:h-40 md:w-40 ${positions[index]}`}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <>
+            <div className="absolute -left-16 top-16 h-44 w-44 rounded-full bg-rose-200/80" />
+            <div className="absolute -right-12 bottom-20 h-48 w-48 rounded-full bg-orange-200/80" />
+            <div className="absolute left-[12%] bottom-[18%] h-24 w-24 rotate-12 rounded-[2rem] border-2 border-black bg-white/70 shadow-[5px_5px_0_#111827]" />
+            <div className="absolute right-[13%] top-[18%] h-20 w-20 -rotate-12 rounded-full border-2 border-black bg-rose-100/80 shadow-[5px_5px_0_#111827]" />
+          </>
+        )}
+
+        <div className="absolute inset-0 bg-[#fff7ed]/70 backdrop-blur-[1px]" />
+      </div>
+
+      <section className="relative z-10 w-full max-w-xl overflow-hidden rounded-[2rem] border-2 border-black bg-white/95 p-6 text-zinc-950 shadow-[8px_8px_0_#111827] md:p-8">
+        <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-rose-200" />
+        <div className="absolute -bottom-12 -left-12 h-36 w-36 rounded-full bg-orange-200" />
 
       <div className="relative">
         <div className="mb-5 flex items-center justify-between gap-4">
@@ -84,11 +130,12 @@ export function JoinRoomForm({
         </div>
 
         <div className="mt-6 grid grid-cols-3 gap-3 text-center text-xs font-black text-zinc-700">
-          <div className="rounded-xl border border-zinc-200 bg-white p-3">Write</div>
-          <div className="rounded-xl border border-zinc-200 bg-white p-3">Generate</div>
-          <div className="rounded-xl border border-zinc-200 bg-white p-3">Vote</div>
+          <div className="rounded-xl border-2 border-black bg-rose-50 p-3 shadow-[3px_3px_0_#111827]">Write</div>
+          <div className="rounded-xl border-2 border-black bg-orange-50 p-3 shadow-[3px_3px_0_#111827]">Generate</div>
+          <div className="rounded-xl border-2 border-black bg-yellow-50 p-3 shadow-[3px_3px_0_#111827]">Vote</div>
         </div>
       </div>
-    </section>
+      </section>
+    </>
   );
 }

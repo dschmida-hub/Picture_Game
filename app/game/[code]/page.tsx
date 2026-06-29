@@ -2018,9 +2018,11 @@ if (isPageLoading) {
 
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-6 bg-[#fff7ed] p-6 text-zinc-950">
+    <main className="relative isolate min-h-screen flex flex-col items-center justify-center gap-6 overflow-hidden bg-[#fff7ed] p-6 text-zinc-950">
       {toastNotice}
-      <GameLogo />
+      <div className="relative z-10">
+        <GameLogo />
+      </div>
 
       {reconnectMessage && (
         <div className="rounded-full border-2 border-emerald-300 bg-emerald-50 px-5 py-2 text-sm font-black text-emerald-800 shadow-[4px_4px_0_#111827]">
@@ -2043,6 +2045,7 @@ if (isPageLoading) {
   <JoinRoomForm
     code={code}
     name={name}
+    backgroundImages={pastImages}
     isJoining={isJoining}
     onNameChange={setName}
     onAvatarFileChange={setAvatarFile}

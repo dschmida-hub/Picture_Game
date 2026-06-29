@@ -21,8 +21,33 @@ export const confettiPieces = Array.from({ length: 28 }, (_, index) => ({
   rotation: `${(index * 53) % 360}deg`,
 }));
 
+export function normalizeImageStyle(style: string | null | undefined) {
+  const normalizedStyle = (style || "cartoon")
+    .trim()
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  const aliases: Record<string, string> = {
+    colorful_cartoon: "cartoon",
+    claymation: "clay_animation",
+    clay: "clay_animation",
+    children_picture_book: "childrens_picture_book",
+    childrens_book: "childrens_picture_book",
+    childrens_picturebook: "childrens_picture_book",
+    lego: "lego_stop_motion",
+    lego_stopmotion: "lego_stop_motion",
+    low_budget_90s: "low_budget_90s_cgi",
+    nineties_cgi: "low_budget_90s_cgi",
+    renaissance: "renaissance_painting",
+  };
+
+  return aliases[normalizedStyle] || normalizedStyle || "cartoon";
+}
+
 export function resolveImageStyle(promptStyle: string | null, selectedStyle: string) {
-  return selectedStyle === "prompt" ? promptStyle || "cartoon" : selectedStyle;
+  return normalizeImageStyle(selectedStyle === "prompt" ? promptStyle || "cartoon" : selectedStyle);
 }
 
 export function formatCountdown(seconds: number) {
@@ -32,6 +57,7 @@ export function formatCountdown(seconds: number) {
 }
 
 export function getImageStyleLabel(style: string) {
+  const normalizedStyle = normalizeImageStyle(style);
   const labels: Record<string, string> = {
     cartoon: "Colorful Cartoon",
     comic_book: "Comic Book",
@@ -46,9 +72,9 @@ export function getImageStyleLabel(style: string) {
     renaissance_painting: "Renaissance Painting",
   };
 
-  if (labels[style]) return labels[style];
+  if (labels[normalizedStyle]) return labels[normalizedStyle];
 
-  return style.split("_").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
+  return normalizedStyle.split("_").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
 }
 
 export function pickBestRatedPromptDeck(prompts: PromptOption[]) {

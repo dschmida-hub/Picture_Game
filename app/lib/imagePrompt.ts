@@ -17,8 +17,33 @@ const imageStyleInstructions: Record<string, string> = {
   renaissance_painting: "Renaissance oil painting style with dramatic chiaroscuro lighting, rich fabric textures, classical composition, expressive poses, and museum-quality brushwork",
 };
 
+function normalizeImageStyle(style: string | null | undefined) {
+  const normalizedStyle = (style || "cartoon")
+    .trim()
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  const aliases: Record<string, string> = {
+    colorful_cartoon: "cartoon",
+    claymation: "clay_animation",
+    clay: "clay_animation",
+    children_picture_book: "childrens_picture_book",
+    childrens_book: "childrens_picture_book",
+    childrens_picturebook: "childrens_picture_book",
+    lego: "lego_stop_motion",
+    lego_stopmotion: "lego_stop_motion",
+    low_budget_90s: "low_budget_90s_cgi",
+    nineties_cgi: "low_budget_90s_cgi",
+    renaissance: "renaissance_painting",
+  };
+
+  return aliases[normalizedStyle] || normalizedStyle || "cartoon";
+}
+
 function getImageStyleInstruction(style: string | null) {
-  return imageStyleInstructions[style || "cartoon"] || imageStyleInstructions.cartoon;
+  return imageStyleInstructions[normalizeImageStyle(style)] || imageStyleInstructions.cartoon;
 }
 
 function escapeRegExp(value: string) {
@@ -117,7 +142,7 @@ The image should:
 - Make players laugh within 3 seconds.
 - Show one clear visual joke.
 - Be immediately understandable.
-- Use bright, colorful cartoon styling.
+- Follow the selected visual style exactly.
 - Have big expressive faces and exaggerated reactions.
 - Focus on one main subject and one funny moment.
 - Show the consequences of the joke whenever possible.
@@ -145,9 +170,9 @@ Avoid:
 - Empty backgrounds
 - Confusing compositions
 
-The final image should feel like a frame from an animated comedy movie.
+The final image should feel like a polished frame from a visual comedy scene.
 
 ${getImageStyleInstruction(imageStyle)}
-Create a hilarious cartoon image based on the player's answer.
+Create a hilarious image based on the player's answer.
 `;
 }
