@@ -28,7 +28,7 @@ export default function Home() {
         .select("gallery_thumbnail_url, winner_image_url")
         .not("winner_image_url", "is", null)
         .order("id", { ascending: false })
-        .limit(10);
+        .limit(8);
 
       if (error) {
         console.error("Failed to load homepage images:", error);
@@ -104,10 +104,10 @@ export default function Home() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#fff7ed] text-black">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_12%,#fed7aa,transparent_30%),radial-gradient(circle_at_88%_8%,#fecdd3,transparent_28%),radial-gradient(circle_at_82%_82%,#fef3c7,transparent_30%),linear-gradient(135deg,#fff7ed,#ffe4e6)]" />
+        <div className="absolute inset-0 bg-[#fff7ed]" />
 
         {backgroundImages.length > 0 ? (
-          <div className="absolute inset-0 opacity-25">
+          <div className="absolute inset-0 opacity-16 saturate-75">
             {backgroundImages.slice(0, 8).map((imageUrl, index) => {
               const positions = [
                 "left-[2%] top-[9%] rotate-[-9deg]",
@@ -134,20 +134,18 @@ export default function Home() {
           </div>
         ) : (
           <>
-            <div className="absolute -left-20 top-24 h-72 w-72 rounded-full bg-rose-200/70 blur-2xl" />
-            <div className="absolute -right-24 top-10 h-72 w-72 rounded-full bg-orange-200/70 blur-2xl" />
-            <div className="absolute bottom-20 left-[8%] h-28 w-28 rotate-12 rounded-[2rem] border-2 border-black bg-white/70 shadow-[6px_6px_0_#111827]" />
-            <div className="absolute right-[10%] top-[34%] h-24 w-24 -rotate-12 rounded-full border-2 border-black bg-yellow-100/80 shadow-[6px_6px_0_#111827]" />
+            <div className="absolute -left-20 top-24 h-72 w-72 rounded-full bg-rose-100/80 blur-2xl" />
+            <div className="absolute -right-24 top-10 h-72 w-72 rounded-full bg-orange-100/80 blur-2xl" />
           </>
         )}
 
-        <div className="absolute inset-0 bg-[#fff7ed]/78 backdrop-blur-[1px]" />
+        <div className="absolute inset-0 bg-[#fff7ed]/88 backdrop-blur-[1px]" />
       </div>
 
       <section className="relative px-5 py-8 md:px-8 md:py-12">
         <div className="relative mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-8 lg:grid-cols-[1.08fr_0.92fr]">
           <div className="text-center lg:text-left">
-            <p className="mb-4 inline-flex rounded-full border border-orange-200 bg-white px-4 py-2 text-xs font-extrabold uppercase tracking-[0.25em] text-rose-700 shadow-[4px_4px_0_#111827]">
+            <p className="mb-4 inline-flex rounded-full border border-rose-200 bg-white px-4 py-2 text-xs font-extrabold uppercase tracking-[0.25em] text-rose-700 shadow-[4px_4px_0_#111827]">
               AI party game · 2-8 players · phone friendly
             </p>
 
@@ -188,10 +186,10 @@ export default function Home() {
           </div>
 
           <div className="rounded-[2rem] border-4 border-black bg-white/95 p-5 shadow-[10px_10px_0_#111827] md:p-6">
-            <div className="rounded-[1.5rem] border-2 border-black bg-gradient-to-br from-rose-600 via-orange-500 to-zinc-950 p-5 text-white shadow-[6px_6px_0_#111827]">
+            <div className="rounded-[1.5rem] border-2 border-black bg-[#fff7ed] p-5 text-zinc-950 shadow-[6px_6px_0_#111827]">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-rose-100">
+                  <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-rose-700">
                     Picture This
                   </p>
                   <h2 className="mt-1 text-3xl font-black">A tiny chaos machine.</h2>
@@ -209,14 +207,23 @@ export default function Home() {
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-white/25 bg-white/15 p-3">
-                  <p className="text-xs font-extrabold uppercase text-rose-100">Answer</p>
-                  <p className="mt-1 font-black">A suspiciously confident raccoon</p>
+                <div className="rounded-2xl border-2 border-black bg-white p-3 shadow-[3px_3px_0_#111827]">
+                  <p className="text-xs font-extrabold uppercase text-rose-700">Answer</p>
+                  <p className="mt-1 font-black">A lie detector test</p>
                 </div>
-                <div className="rounded-2xl border border-white/25 bg-white/15 p-3">
-                  <p className="text-xs font-extrabold uppercase text-rose-100">AI picture</p>
-                  <p className="mt-1 font-black">Grandma starts a tribunal</p>
+                <div className="rounded-2xl border-2 border-black bg-white p-3 shadow-[3px_3px_0_#111827]">
+                  <p className="text-xs font-extrabold uppercase text-rose-700">AI picture</p>
+                  <p className="mt-1 font-black">Family truth hour</p>
                 </div>
+              </div>
+
+              <div className="mt-4 overflow-hidden rounded-2xl border-2 border-black bg-white shadow-[4px_4px_0_#111827]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/demo-images/lie-detector-test.png"
+                  alt="Puppet-style lie detector test scene"
+                  className="aspect-[4/3] w-full object-cover"
+                />
               </div>
             </div>
 
@@ -268,7 +275,7 @@ export default function Home() {
             </p>
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
               {howItWorks.map(([number, title, description]) => (
-                <div key={number} className="rounded-3xl border-2 border-black bg-orange-50 p-5 shadow-[4px_4px_0_#111827]">
+                <div key={number} className="rounded-3xl border-2 border-black bg-rose-50 p-5 shadow-[4px_4px_0_#111827]">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-black bg-rose-600 font-black text-white">
                     {number}
                   </div>
@@ -279,8 +286,8 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border-4 border-black bg-yellow-100 p-6 shadow-[8px_8px_0_#111827]">
-            <p className="text-sm font-extrabold uppercase tracking-[0.25em] text-amber-700">
+          <div className="rounded-[2rem] border-4 border-black bg-rose-100 p-6 shadow-[8px_8px_0_#111827]">
+            <p className="text-sm font-extrabold uppercase tracking-[0.25em] text-rose-700">
               Coming next
             </p>
             <h2 className="mt-2 text-3xl font-black">Party passes</h2>
