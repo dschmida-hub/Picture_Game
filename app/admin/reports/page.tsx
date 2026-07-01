@@ -29,6 +29,10 @@ type SubmissionPreview = {
   image_caption: string | null;
 };
 
+function getAdminKey() {
+  return process.env.ADMIN_KEY || process.env.ADMIN_REPORTS_KEY;
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
@@ -38,7 +42,7 @@ function formatDate(value: string) {
 
 export default async function AdminReportsPage({ searchParams }: AdminReportsPageProps) {
   const { key } = await searchParams;
-  const adminKey = process.env.ADMIN_REPORTS_KEY;
+  const adminKey = getAdminKey();
 
   if (!adminKey) {
     return (
@@ -46,8 +50,8 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
         <section className="mx-auto max-w-2xl rounded-3xl border border-orange-200 bg-white p-6 shadow-xl">
           <h1 className="text-3xl font-black">Reports admin is not configured</h1>
           <p className="mt-3 font-bold text-gray-600">
-            Add <code>ADMIN_REPORTS_KEY</code> to your environment variables, then open this page with
-            <code> ?key=your-key</code>.
+            Add <code>ADMIN_KEY</code> or <code>ADMIN_REPORTS_KEY</code> to your environment
+            variables, then open this page with <code> ?key=your-key</code>.
           </p>
         </section>
       </main>
@@ -103,6 +107,12 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
           <p className="mt-2 font-bold text-gray-600">
             Review reported prompts/images. For now, status changes can be handled in Supabase.
           </p>
+          <Link
+            href={`/admin?key=${encodeURIComponent(key)}`}
+            className="mt-4 inline-flex font-black text-purple-700 underline"
+          >
+            Back to admin dashboard
+          </Link>
         </section>
 
         {reportsError && (
@@ -130,6 +140,7 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
                 className="overflow-hidden rounded-3xl border border-purple-200 bg-white shadow-lg"
               >
                 {displayImage && (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={displayImage}
                     alt={submission?.image_caption || "Reported image"}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 const featureCards = [
@@ -9,18 +10,11 @@ const featureCards = [
   ["Built for chaos", "Classic prompts, fill-in-the-blank cards, avatars, voting, and winners."],
 ];
 
-const howItWorks = [
-  ["1", "Create a room", "Host a game and share the code with friends."],
-  ["2", "Answer the prompt", "Write something short, specific, and laughably wrong."],
-  ["3", "Vote on images", "The funniest AI masterpiece wins the round."],
-];
-
 export default function Home() {
   const [roomCode, setRoomCode] = useState("");
   const [joinError, setJoinError] = useState("");
   const [isJoining, setIsJoining] = useState(false);
   const [backgroundImages, setBackgroundImages] = useState<string[]>([]);
-  const [showHowToPlay, setShowHowToPlay] = useState(false);
 
   useEffect(() => {
     async function loadBackgroundImages() {
@@ -39,7 +33,9 @@ export default function Home() {
       setBackgroundImages(
         (data || [])
           .map((round) => round.gallery_thumbnail_url || round.winner_image_url)
-          .filter((imageUrl): imageUrl is string => Boolean(imageUrl && !imageUrl.startsWith("data:")))
+          .filter((imageUrl): imageUrl is string =>
+            Boolean(imageUrl && !imageUrl.startsWith("data:"))
+          )
       );
     }
 
@@ -102,65 +98,6 @@ export default function Home() {
     }
   }
 
-  if (showHowToPlay) {
-    return (
-      <main className="relative min-h-screen overflow-hidden bg-[#fff7ed] px-5 py-8 text-black md:px-8 md:py-12">
-        <div className="pointer-events-none fixed inset-0 overflow-hidden">
-          <div className="absolute inset-0 bg-[#fff7ed]" />
-          <div className="absolute -left-20 top-24 h-72 w-72 rounded-full bg-rose-100/80 blur-2xl" />
-          <div className="absolute -right-24 bottom-10 h-72 w-72 rounded-full bg-orange-100/80 blur-2xl" />
-        </div>
-
-        <section className="relative mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-5xl flex-col justify-center">
-          <button
-            type="button"
-            onClick={() => setShowHowToPlay(false)}
-            className="mb-8 w-fit rounded-2xl border-2 border-black bg-white px-5 py-3 text-sm font-black text-rose-700 shadow-[4px_4px_0_#111827] transition active:scale-[0.99] md:hover:-translate-y-0.5"
-          >
-            Back to home
-          </button>
-
-          <div className="rounded-[2rem] border-4 border-black bg-white/95 p-6 shadow-[10px_10px_0_#111827] md:p-8">
-            <p className="text-sm font-extrabold uppercase tracking-[0.25em] text-rose-700">
-              How to play
-            </p>
-            <h1 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">
-              Three steps. Maximum nonsense.
-            </h1>
-            <p className="mt-4 max-w-2xl text-lg font-bold leading-relaxed text-zinc-700">
-              Everyone joins from their phone, writes the funniest answer they can,
-              and then votes on the anonymous AI images.
-            </p>
-
-            <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
-              {howItWorks.map(([number, title, description]) => (
-                <div
-                  key={number}
-                  className="rounded-3xl border-2 border-black bg-rose-50 p-5 shadow-[5px_5px_0_#111827]"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-black bg-rose-600 text-lg font-black text-white">
-                    {number}
-                  </div>
-                  <h2 className="mt-5 text-2xl font-black">{title}</h2>
-                  <p className="mt-2 text-sm font-bold leading-relaxed text-zinc-600">{description}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-8 rounded-3xl border-2 border-black bg-[#fff7ed] p-5 shadow-[5px_5px_0_#111827]">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-rose-700">
-                Winning
-              </p>
-              <p className="mt-2 text-xl font-black">
-                Win rounds by getting votes. First player to 3 points takes the game.
-              </p>
-            </div>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#fff7ed] text-black">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
@@ -211,7 +148,9 @@ export default function Home() {
 
             <h1 className="text-5xl font-black tracking-tight md:text-7xl">
               Turn inside jokes into
-              <span className="mt-2 block -rotate-1 text-rose-600">ridiculous AI pictures.</span>
+              <span className="mt-2 block -rotate-1 text-rose-600">
+                ridiculous AI pictures.
+              </span>
             </h1>
 
             <p className="mx-auto mt-6 max-w-2xl text-lg font-black leading-relaxed text-zinc-700 lg:mx-0">
@@ -227,18 +166,20 @@ export default function Home() {
               >
                 Start Free Game
               </button>
-              <button
-                type="button"
-                onClick={() => setShowHowToPlay(true)}
+              <Link
+                href="/how-to-play"
                 className="rounded-2xl border-2 border-black bg-white px-8 py-4 text-lg font-extrabold text-rose-700 shadow-[6px_6px_0_#111827] transition active:scale-[0.99] md:hover:-translate-y-0.5"
               >
                 How to Play
-              </button>
+              </Link>
             </div>
 
             <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-3">
               {featureCards.map(([title, description]) => (
-                <div key={title} className="rounded-2xl border-2 border-black bg-white/95 p-4 shadow-[4px_4px_0_#111827]">
+                <div
+                  key={title}
+                  className="rounded-2xl border-2 border-black bg-white/95 p-4 shadow-[4px_4px_0_#111827]"
+                >
                   <p className="font-black">{title}</p>
                   <p className="mt-1 text-sm font-bold text-zinc-600">{description}</p>
                 </div>
@@ -255,8 +196,8 @@ export default function Home() {
                   </p>
                   <h2 className="mt-1 text-3xl font-black">A tiny chaos machine.</h2>
                 </div>
-                <div className="rounded-2xl border-2 border-black bg-white px-3 py-2 text-2xl shadow-[4px_4px_0_#111827]">
-                  <span aria-hidden="true">🎨</span>
+                <div className="rounded-2xl border-2 border-black bg-white px-3 py-2 text-xl font-black shadow-[4px_4px_0_#111827]">
+                  AI
                 </div>
               </div>
 
@@ -264,7 +205,9 @@ export default function Home() {
                 <p className="text-xs font-extrabold uppercase tracking-wider text-rose-700">
                   Prompt
                 </p>
-                <p className="mt-1 text-2xl font-black">The worst thing to bring to a family reunion</p>
+                <p className="mt-1 text-2xl font-black">
+                  The worst thing to bring to a family reunion
+                </p>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
@@ -288,7 +231,10 @@ export default function Home() {
               </div>
             </div>
 
-            <div id="join" className="mt-6 rounded-3xl border-2 border-black bg-rose-50 p-5 shadow-[5px_5px_0_#111827]">
+            <div
+              id="join"
+              className="mt-6 rounded-3xl border-2 border-black bg-rose-50 p-5 shadow-[5px_5px_0_#111827]"
+            >
               <p className="text-sm font-extrabold uppercase tracking-wider text-rose-700">
                 Join friends
               </p>
@@ -338,13 +284,12 @@ export default function Home() {
             <p className="mt-3 font-bold text-zinc-700">
               See how rooms, prompts, images, voting, and scoring work before you start.
             </p>
-            <button
-              type="button"
-              onClick={() => setShowHowToPlay(true)}
-              className="mt-5 rounded-2xl bg-zinc-950 px-6 py-4 font-black text-white shadow-[5px_5px_0_#fb7185] transition active:scale-[0.99] md:hover:-translate-y-0.5"
+            <Link
+              href="/how-to-play"
+              className="mt-5 inline-flex rounded-2xl bg-zinc-950 px-6 py-4 font-black text-white shadow-[5px_5px_0_#fb7185] transition active:scale-[0.99] md:hover:-translate-y-0.5"
             >
               Open How to Play
-            </button>
+            </Link>
           </div>
 
           <div className="rounded-[2rem] border-4 border-black bg-rose-100 p-6 shadow-[8px_8px_0_#111827]">
