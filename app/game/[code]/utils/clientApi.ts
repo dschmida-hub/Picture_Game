@@ -81,4 +81,12 @@ export const gameApi = {
 
   regenerateImage: (body: RoomPlayerPayload & { submissionId: number }) =>
     sendJson("/api/regenerate-image", body),
+
+  logEvent: (
+    body: RoomPlayerPayload & {
+      eventName: "round_started" | "game_completed" | "room_returned_to_lobby" | "rematch_started";
+      metadata?: Record<string, unknown>;
+      stage?: string;
+    }
+  ) => sendJson("/api/game-event", body),
 };

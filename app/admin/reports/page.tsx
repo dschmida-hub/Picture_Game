@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
+import { updateReportStatus } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -105,7 +106,7 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
           </p>
           <h1 className="mt-2 text-4xl font-black">Image Reports</h1>
           <p className="mt-2 font-bold text-gray-600">
-            Review reported prompts/images. For now, status changes can be handled in Supabase.
+            Review reported prompts/images and mark each report once handled.
           </p>
           <Link
             href={`/admin?key=${encodeURIComponent(key)}`}
@@ -154,7 +155,9 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
                     <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-orange-700">
                       {report.status}
                     </span>
-                    <span className="text-xs font-bold text-gray-500">{formatDate(report.created_at)}</span>
+                    <span className="text-xs font-bold text-gray-500">
+                      {formatDate(report.created_at)}
+                    </span>
                   </div>
 
                   <div>
@@ -171,25 +174,50 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
                     </div>
                     <div className="rounded-2xl bg-gray-50 p-3">
                       <p className="text-xs font-extrabold uppercase text-gray-500">Room</p>
-                      <Link href={`/game/${report.room_code}`} className="font-bold text-purple-700 underline">
+                      <Link
+                        href={`/game/${report.room_code}`}
+                        className="font-bold text-purple-700 underline"
+                      >
                         {report.room_code}
                       </Link>
                     </div>
                   </div>
 
                   <div className="rounded-2xl bg-purple-50 p-3">
-                    <p className="text-xs font-extrabold uppercase text-purple-600">Round prompt</p>
-                    <p className="mt-1 text-sm font-bold text-gray-700">{report.round_prompt || "Unknown"}</p>
+                    <p className="text-xs font-extrabold uppercase text-purple-600">
+                      Round prompt
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-gray-700">
+                      {report.round_prompt || "Unknown"}
+                    </p>
                   </div>
 
                   <div className="rounded-2xl bg-gray-950 p-3 text-white">
-                    <p className="text-xs font-extrabold uppercase text-purple-200">Player answer</p>
+                    <p className="text-xs font-extrabold uppercase text-purple-200">
+                      Player answer
+                    </p>
                     <p className="mt-1 font-bold">{report.submission_text || "Unknown"}</p>
                   </div>
 
                   <p className="text-xs font-bold text-gray-500">
                     Report #{report.id} · Game {report.game_id} · Submission {report.submission_id}
                   </p>
+
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {(["reviewed", "dismissed", "removed"] as const).map((status) => (
+                      <form key={status} action={updateReportStatus}>
+                        <input type="hidden" name="key" value={key} />
+                        <input type="hidden" name="reportId" value={report.id} />
+                        <input type="hidden" name="status" value={status} />
+                        <button
+                          type="submit"
+                          className="w-full rounded-xl bg-purple-100 px-3 py-2 text-sm font-black capitalize text-purple-900"
+                        >
+                          {status}
+                        </button>
+                      </form>
+                    ))}
+                  </div>
                 </div>
               </article>
             );

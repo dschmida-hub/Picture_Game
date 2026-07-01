@@ -1157,6 +1157,32 @@ async function createRoundFromPrompt(prompt: PromptOption) {
   };
 }
 
+async function logClientGameEvent({
+  eventName,
+  gameId,
+  metadata,
+  stage,
+}: {
+  eventName: "round_started" | "game_completed" | "room_returned_to_lobby" | "rematch_started";
+  gameId: number;
+  metadata?: Record<string, unknown>;
+  stage?: string;
+}) {
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+  if (!savedPlayerId) return;
+
+  const { error } = await gameApi.logEvent({
+    eventName,
+    gameId,
+    metadata,
+    playerId: savedPlayerId,
+    roomCode: code,
+    stage,
+  });
+
+  if (error) console.error("Failed to log game event:", error);
+}
+
 async function startGame() {
   if (!isHost || isStarting) return;
   if (players.length < 2) {
@@ -1194,6 +1220,16 @@ async function startGame() {
     setPromptSkipVoteCount(0);
     setHasVotedToSkipPrompt(false);
     setStage("submitting");
+    await logClientGameEvent({
+      eventName: "round_started",
+      gameId: newRound.gameId,
+      metadata: {
+        gameMode: selectedGameMode,
+        imageStyle: newRound.activeImageStyle,
+        promptSource: randomPrompt.source,
+      },
+      stage: "submitting",
+    });
   } finally {
     setIsStarting(false);
   }
@@ -1622,6 +1658,11 @@ async function returnToLobby() {
     setVoteMessage("");
     setRoundDeadline(null);
     setVotingDeadline(null);
+    await logClientGameEvent({
+      eventName: "room_returned_to_lobby",
+      gameId: currentGameId,
+      stage: "lobby",
+    });
   } catch (error) {
     console.error("Failed to return to lobby:", error);
     showToast(`Could not return to the lobby: ${error instanceof Error ? error.message : "Unknown database error"}`);
@@ -1855,6 +1896,16 @@ async function nextRound() {
     setSubmission("");
     setSubmissions([]);
     setWinner("");
+    await logClientGameEvent({
+      eventName: "round_started",
+      gameId: newRound.gameId,
+      metadata: {
+        gameMode: selectedGameMode,
+        imageStyle: newRound.activeImageStyle,
+        promptSource: newPrompt.source,
+      },
+      stage: "submitting",
+    });
   } catch (error) {
     console.error("Failed to start next round:", error);
     showToast("Could not start the next round. Check the browser console.");
@@ -1895,6 +1946,11 @@ async function playAgain() {
     setStage("lobby");
     await loadPlayers();
     await loadScoreboard();
+    await logClientGameEvent({
+      eventName: "rematch_started",
+      gameId: currentGameId,
+      stage: "lobby",
+    });
   } catch (error) {
     console.error("Failed to start a rematch:", error);
     showToast("Could not start a rematch.");

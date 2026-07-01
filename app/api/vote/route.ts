@@ -1,6 +1,7 @@
 import {
   guardRequest,
   jsonError,
+  logGameEvent,
   normalizeRoomCode,
   parsePositiveInteger,
   routeError,
@@ -118,6 +119,18 @@ export async function POST(request: Request) {
 
     if (insertError) throw insertError;
 
+    await logGameEvent(request, {
+      eventName: "vote_submitted",
+      gameId,
+      metadata: {
+        votedForPlayerName: targetSubmission.player_name,
+      },
+      playerId,
+      playerName: voter.name,
+      roomCode,
+      stage: game.stage,
+    });
+
     const { count: submissionCount, error: submissionCountError } = await supabaseAdmin
       .from("submissions")
       .select("id", { count: "exact", head: true })
@@ -144,6 +157,19 @@ export async function POST(request: Request) {
         .eq("room_code", roomCode);
 
       if (stageError) throw stageError;
+
+      await logGameEvent(request, {
+        eventName: "game_completed",
+        gameId,
+        metadata: {
+          voteCount: voteCount || 0,
+          submissionCount: submissionCount || 0,
+        },
+        playerId,
+        playerName: voter.name,
+        roomCode,
+        stage: "winner",
+      });
     }
 
     return Response.json({

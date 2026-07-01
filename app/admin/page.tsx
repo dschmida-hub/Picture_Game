@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
+import { forceRoomToLobby, revealReadyImages } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,18 @@ type ReportRow = {
   status: string;
   reported_player_name: string;
   created_at: string;
+};
+
+type GameEventRow = {
+  id: number;
+  city: string | null;
+  country: string | null;
+  created_at: string;
+  event_name: string;
+  game_id: number | null;
+  player_name: string | null;
+  region: string | null;
+  room_code: string | null;
 };
 
 function getAdminKey() {
@@ -142,6 +155,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     recentSubmissionsResult,
     openReportsResult,
     costSummaryResult,
+    gameEventsResult,
   ] = await Promise.all([
     supabase
       .from("games")
@@ -174,6 +188,11 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       )
       .order("game_id", { ascending: false })
       .limit(10),
+    supabase
+      .from("game_events")
+      .select("id, city, country, created_at, event_name, game_id, player_name, region, room_code")
+      .order("created_at", { ascending: false })
+      .limit(200),
   ]);
 
   const recentGames = (recentGamesResult.data || []) as RecentGame[];
@@ -181,6 +200,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   const recentSubmissions = (recentSubmissionsResult.data || []) as SubmissionRow[];
   const openReports = (openReportsResult.data || []) as ReportRow[];
   const costSummary = (costSummaryResult.data || []) as CostSummary[];
+  const gameEvents = (gameEventsResult.data || []) as GameEventRow[];
 
   const latestGameByRoom = new Map<string, RecentGame>();
   for (const game of recentGames) {
@@ -225,6 +245,21 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     (sum, submission) => sum + Number(submission.estimated_image_cost_cents || 0),
     0
   );
+
+  const eventCountByName = new Map<string, number>();
+  const eventCountByLocation = new Map<string, number>();
+  for (const event of gameEvents) {
+    eventCountByName.set(event.event_name, (eventCountByName.get(event.event_name) || 0) + 1);
+    const locationLabel = [event.city, event.region, event.country].filter(Boolean).join(", ") || "Unknown";
+    eventCountByLocation.set(locationLabel, (eventCountByLocation.get(locationLabel) || 0) + 1);
+  }
+
+  const topEvents = Array.from(eventCountByName.entries())
+    .sort((first, second) => second[1] - first[1])
+    .slice(0, 8);
+  const topLocations = Array.from(eventCountByLocation.entries())
+    .sort((first, second) => second[1] - first[1])
+    .slice(0, 8);
 
   const roomLinkSuffix = `?key=${encodeURIComponent(key)}`;
 
@@ -272,11 +307,38 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             {selectedRoom ? `Room ${selectedRoom}` : "Quick health check"}
           </h2>
           {selectedRoom ? (
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-              <MiniPanel title="Games" value={String(selectedGames.length)} />
-              <MiniPanel title="Players" value={String(selectedPlayers.length)} />
-              <MiniPanel title="Submissions" value={String(selectedSubmissions.length)} />
-            </div>
+            <>
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <MiniPanel title="Games" value={String(selectedGames.length)} />
+                <MiniPanel title="Players" value={String(selectedPlayers.length)} />
+                <MiniPanel title="Submissions" value={String(selectedSubmissions.length)} />
+              </div>
+              <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <form action={revealReadyImages}>
+                  <input type="hidden" name="key" value={key} />
+                  <input type="hidden" name="roomCode" value={selectedRoom} />
+                  <button
+                    type="submit"
+                    className="w-full rounded-2xl border-2 border-black bg-orange-100 px-5 py-4 font-black text-orange-900 shadow-[4px_4px_0_#111827]"
+                  >
+                    Reveal Ready Images
+                  </button>
+                </form>
+                <form action={forceRoomToLobby}>
+                  <input type="hidden" name="key" value={key} />
+                  <input type="hidden" name="roomCode" value={selectedRoom} />
+                  <button
+                    type="submit"
+                    className="w-full rounded-2xl border-2 border-black bg-rose-100 px-5 py-4 font-black text-rose-900 shadow-[4px_4px_0_#111827]"
+                  >
+                    Force Back to Lobby
+                  </button>
+                </form>
+              </div>
+              <p className="mt-3 text-xs font-bold text-zinc-500">
+                Admin actions update the latest game row for this room and do not delete submissions.
+              </p>
+            </>
           ) : (
             <p className="mt-3 font-bold text-zinc-600">
               Lookup a room when someone says “it’s stuck” and you’ll see the players,
@@ -382,6 +444,22 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     <p className="text-sm font-bold text-orange-800">
                       Stage: {game.stage || "unknown"} · Pending images: {stats?.pending || 0}
                     </p>
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <form action={revealReadyImages}>
+                        <input type="hidden" name="key" value={key} />
+                        <input type="hidden" name="roomCode" value={game.room_code} />
+                        <button className="w-full rounded-xl bg-orange-200 px-3 py-2 text-sm font-black text-orange-950">
+                          Reveal
+                        </button>
+                      </form>
+                      <form action={forceRoomToLobby}>
+                        <input type="hidden" name="key" value={key} />
+                        <input type="hidden" name="roomCode" value={game.room_code} />
+                        <button className="w-full rounded-xl bg-white px-3 py-2 text-sm font-black text-orange-950">
+                          Lobby
+                        </button>
+                      </form>
+                    </div>
                   </div>
                 );
               })}
@@ -436,6 +514,79 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
               </tbody>
             </table>
           </div>
+        )}
+      </AdminCard>
+
+      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <AdminCard title="Analytics: top events">
+          {gameEventsResult.error ? (
+            <EmptyText>Could not load game_events: {gameEventsResult.error.message}</EmptyText>
+          ) : topEvents.length ? (
+            <div className="space-y-3">
+              {topEvents.map(([eventName, count]) => (
+                <div
+                  key={eventName}
+                  className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
+                >
+                  <p className="font-black">{eventName}</p>
+                  <p className="rounded-full bg-white px-3 py-1 text-sm font-black">{count}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyText>No game events logged yet. Run the SQL script, then play a test room.</EmptyText>
+          )}
+        </AdminCard>
+
+        <AdminCard title="Analytics: where people played">
+          {topLocations.length ? (
+            <div className="space-y-3">
+              {topLocations.map(([location, count]) => (
+                <div
+                  key={location}
+                  className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-rose-50 p-4"
+                >
+                  <p className="font-black">{location}</p>
+                  <p className="rounded-full bg-white px-3 py-1 text-sm font-black">{count}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyText>Location data appears when Vercel sends geo headers for logged events.</EmptyText>
+          )}
+        </AdminCard>
+      </section>
+
+      <AdminCard title="Recent analytics events">
+        {gameEvents.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead>
+                <tr className="border-b-2 border-black">
+                  <th className="p-3">Time</th>
+                  <th className="p-3">Event</th>
+                  <th className="p-3">Room</th>
+                  <th className="p-3">Player</th>
+                  <th className="p-3">Location</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gameEvents.slice(0, 25).map((event) => (
+                  <tr key={event.id} className="border-b border-zinc-200">
+                    <td className="p-3 font-bold">{formatDate(event.created_at)}</td>
+                    <td className="p-3 font-black">{event.event_name}</td>
+                    <td className="p-3 font-bold">{event.room_code || "—"}</td>
+                    <td className="p-3 font-bold">{event.player_name || "—"}</td>
+                    <td className="p-3 font-bold">
+                      {[event.city, event.region, event.country].filter(Boolean).join(", ") || "Unknown"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyText>No recent analytics events yet.</EmptyText>
         )}
       </AdminCard>
     </AdminShell>

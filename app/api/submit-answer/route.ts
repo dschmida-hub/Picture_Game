@@ -1,6 +1,7 @@
 import {
   guardRequest,
   jsonError,
+  logGameEvent,
   normalizeRoomCode,
   parsePositiveInteger,
   routeError,
@@ -117,6 +118,18 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) throw insertError;
+
+    await logGameEvent(request, {
+      eventName: "answer_submitted",
+      gameId,
+      metadata: {
+        answerLength: answer.length,
+      },
+      playerId,
+      playerName: player.name,
+      roomCode,
+      stage: game.stage,
+    });
 
     return Response.json({ submissionId: submission.id });
   } catch (error) {

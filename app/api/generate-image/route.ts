@@ -7,6 +7,7 @@ import {
   guardRequest,
   isBadRequestError,
   jsonError,
+  logGameEvent,
   normalizeRoomCode,
   parsePositiveInteger,
   supabaseAdmin,
@@ -320,6 +321,14 @@ async function updateGameEstimatedCost(gameId: number) {
 }
 
 export async function POST(request: Request) {
+  let eventContext: {
+    gameId?: number | null;
+    playerId?: number | null;
+    playerName?: string | null;
+    roomCode?: string | null;
+    submissionId?: number | null;
+  } = {};
+
   try {
     const requestError = guardRequest(request, "generate-image", 8);
     if (requestError) return requestError;
@@ -334,6 +343,8 @@ export async function POST(request: Request) {
       return jsonError("Valid room, game, player, and submission are required", 400);
     }
 
+    eventContext = { gameId, playerId, roomCode, submissionId };
+
     const context = await loadGenerationContext({
       roomCode,
       gameId,
@@ -344,6 +355,7 @@ export async function POST(request: Request) {
     if (context.error) return context.error;
 
     const { game, generationPlayerName, players, submission } = context.data;
+    eventContext.playerName = generationPlayerName;
     const answer = sanitizeText(submission.prompt, 160);
     const roundPrompt = sanitizeText(game.prompt, 300);
 
@@ -377,6 +389,21 @@ export async function POST(request: Request) {
     });
     await updateGameEstimatedCost(gameId);
 
+    await logGameEvent(request, {
+      eventName: "image_generated",
+      gameId,
+      metadata: {
+        costCents: estimatedCostCents,
+        imageModel: getActiveImageModel(),
+        imageProvider: imageConfig.provider,
+        submissionId: submission.id,
+      },
+      playerId,
+      playerName: generationPlayerName,
+      roomCode,
+      stage: game.stage,
+    });
+
     return Response.json({
       imageUrl,
       thumbnailUrl,
@@ -392,6 +419,23 @@ export async function POST(request: Request) {
     const rejected = wasImageRejected(error);
     const detail =
       error instanceof Error ? error.message : "Unknown image generation error";
+
+    if (eventContext.roomCode) {
+      await logGameEvent(request, {
+        eventName: "image_generation_failed",
+        gameId: eventContext.gameId,
+        metadata: {
+          imageModel: getActiveImageModel(),
+          imageProvider: imageConfig.provider,
+          rejected,
+          submissionId: eventContext.submissionId,
+        },
+        playerId: eventContext.playerId,
+        playerName: eventContext.playerName,
+        roomCode: eventContext.roomCode,
+        stage: "submitting",
+      });
+    }
 
     return Response.json(
       {

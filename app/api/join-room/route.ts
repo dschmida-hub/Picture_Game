@@ -2,6 +2,7 @@ import {
   arePlayerNamesEqual,
   guardRequest,
   jsonError,
+  logGameEvent,
   normalizePlayerName,
   normalizeRoomCode,
   routeError,
@@ -93,6 +94,19 @@ export async function POST(request: Request) {
 
       throw insertError;
     }
+
+    await logGameEvent(request, {
+      eventName: isFirstPlayer && allowCreateRoom ? "game_created" : "player_joined",
+      metadata: {
+        allowCreateRoom,
+        isHost: Boolean(newPlayer.is_host),
+        playerCountBeforeJoin: players.length,
+      },
+      playerId: newPlayer.id,
+      playerName: newPlayer.name,
+      roomCode,
+      stage: "lobby",
+    });
 
     return Response.json({
       isHost: Boolean(newPlayer.is_host),

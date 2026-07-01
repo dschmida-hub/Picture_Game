@@ -55,3 +55,55 @@ export function routeError(error: unknown, logMessage: string, userMessage: stri
 
   return jsonError(userMessage, 500);
 }
+
+export type GameEventName =
+  | "game_created"
+  | "player_joined"
+  | "round_started"
+  | "answer_submitted"
+  | "image_generated"
+  | "image_generation_failed"
+  | "vote_submitted"
+  | "game_completed"
+  | "room_returned_to_lobby"
+  | "rematch_started";
+
+type GameEventInput = {
+  eventName: GameEventName;
+  gameId?: number | null;
+  metadata?: Record<string, unknown>;
+  playerId?: number | null;
+  playerName?: string | null;
+  roomCode?: string | null;
+  stage?: string | null;
+};
+
+function headerText(request: Request, headerName: string, maxLength = 200) {
+  return sanitizeText(request.headers.get(headerName), maxLength) || null;
+}
+
+export async function logGameEvent(request: Request, event: GameEventInput) {
+  try {
+    const { error } = await supabaseAdmin.from("game_events").insert([
+      {
+        city: headerText(request, "x-vercel-ip-city", 120),
+        country: headerText(request, "x-vercel-ip-country", 20),
+        event_name: event.eventName,
+        game_id: event.gameId || null,
+        metadata: event.metadata || {},
+        player_id: event.playerId || null,
+        player_name: event.playerName ? sanitizeText(event.playerName, 80) : null,
+        referrer: headerText(request, "referer", 500),
+        region: headerText(request, "x-vercel-ip-country-region", 80),
+        room_code: event.roomCode ? normalizeRoomCode(event.roomCode) : null,
+        stage: event.stage ? sanitizeText(event.stage, 40) : null,
+        timezone: headerText(request, "x-vercel-ip-timezone", 80),
+        user_agent: headerText(request, "user-agent", 500),
+      },
+    ]);
+
+    if (error) console.error("Failed to log game event:", error);
+  } catch (error) {
+    console.error("Failed to log game event:", error);
+  }
+}
