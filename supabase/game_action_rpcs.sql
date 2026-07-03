@@ -10,6 +10,9 @@ create table if not exists public.prompt_skip_votes (
   unique (game_id, voter_name)
 );
 
+alter table public.games
+  add column if not exists content_rating text not null default 'everyone';
+
 alter table public.prompt_skip_votes enable row level security;
 
 grant select on public.prompt_skip_votes to anon, authenticated;
@@ -198,6 +201,8 @@ begin
 end;
 $$;
 
+drop function if exists public.create_game_round(text, bigint, text, bigint, text, text, text, timestamptz, integer);
+
 create or replace function public.create_game_round(
   room_code_input text,
   host_player_id_input bigint,
@@ -207,7 +212,8 @@ create or replace function public.create_game_round(
   game_mode_input text,
   image_style_input text,
   submission_deadline_input timestamptz,
-  voting_duration_seconds_input integer
+  voting_duration_seconds_input integer,
+  content_rating_input text default 'everyone'
 )
 returns bigint
 language plpgsql
@@ -251,6 +257,7 @@ begin
     prompt_source,
     game_mode,
     image_style,
+    content_rating,
     submission_deadline,
     voting_duration_seconds,
     winner_awarded
@@ -263,6 +270,7 @@ begin
     prompt_source_input,
     game_mode_input,
     image_style_input,
+    case when content_rating_input = 'pg13' then 'pg13' else 'everyone' end,
     submission_deadline_input,
     voting_duration_seconds_input,
     false
@@ -551,6 +559,8 @@ begin
 end;
 $$;
 
+drop function if exists public.replace_skipped_round_prompt(text, bigint, bigint, text, bigint, text, text, text, timestamptz, integer, numeric);
+
 create or replace function public.replace_skipped_round_prompt(
   room_code_input text,
   skipped_game_id_input bigint,
@@ -562,7 +572,8 @@ create or replace function public.replace_skipped_round_prompt(
   image_style_input text,
   submission_deadline_input timestamptz,
   voting_duration_seconds_input integer,
-  threshold_ratio_input numeric default 0.75
+  threshold_ratio_input numeric default 0.75,
+  content_rating_input text default 'everyone'
 )
 returns bigint
 language plpgsql
@@ -645,6 +656,7 @@ begin
     prompt_source,
     game_mode,
     image_style,
+    content_rating,
     submission_deadline,
     voting_duration_seconds,
     winner_awarded
@@ -657,6 +669,7 @@ begin
     prompt_source_input,
     game_mode_input,
     image_style_input,
+    case when content_rating_input = 'pg13' then 'pg13' else 'everyone' end,
     submission_deadline_input,
     voting_duration_seconds_input,
     false
@@ -671,11 +684,11 @@ grant execute on function public.submit_room_prompt_suggestion(text, text, text,
 grant execute on function public.vote_for_room_prompt_suggestion(text, bigint, text) to anon, authenticated, service_role;
 grant execute on function public.remove_player_from_room(text, bigint, bigint) to anon, authenticated, service_role;
 grant execute on function public.start_rematch(text, bigint, bigint) to anon, authenticated, service_role;
-grant execute on function public.create_game_round(text, bigint, text, bigint, text, text, text, timestamptz, integer) to anon, authenticated, service_role;
+grant execute on function public.create_game_round(text, bigint, text, bigint, text, text, text, timestamptz, integer, text) to anon, authenticated, service_role;
 grant execute on function public.award_winners_once(text[], text, bigint) to anon, authenticated, service_role;
 grant execute on function public.delete_round_submission(text, bigint, bigint, bigint) to anon, authenticated, service_role;
 grant execute on function public.force_reveal_round(text, bigint, bigint, timestamptz) to anon, authenticated, service_role;
 grant execute on function public.return_round_to_lobby(text, bigint, bigint) to anon, authenticated, service_role;
 grant execute on function public.end_voting_now(text, bigint, bigint) to anon, authenticated, service_role;
 grant execute on function public.vote_to_skip_round_prompt(text, bigint, bigint, numeric) to anon, authenticated, service_role;
-grant execute on function public.replace_skipped_round_prompt(text, bigint, bigint, text, bigint, text, text, text, timestamptz, integer, numeric) to anon, authenticated, service_role;
+grant execute on function public.replace_skipped_round_prompt(text, bigint, bigint, text, bigint, text, text, text, timestamptz, integer, numeric, text) to anon, authenticated, service_role;

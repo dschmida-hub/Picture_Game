@@ -138,7 +138,7 @@ async function loadGenerationContext({
 
   const { data: game, error: gameError } = await supabase
     .from("games")
-    .select("id, room_code, stage, prompt, image_style")
+    .select("id, room_code, stage, prompt, image_style, content_rating")
     .eq("id", gameId)
     .eq("room_code", roomCode)
     .maybeSingle();
@@ -365,6 +365,7 @@ export async function POST(request: Request) {
 
     const prompt = buildImagePrompt({
       answer,
+      contentRating: game.content_rating === "pg13" ? "pg13" : "everyone",
       roundPrompt,
       imageStyle: game.image_style,
       players,

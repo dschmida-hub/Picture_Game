@@ -1,5 +1,5 @@
 import { HelpTooltip } from "./HelpTooltip";
-import type { Player, RoundHistoryItem, ScoreboardPlayer } from "./types";
+import type { BonusAwardSubmission, ContentRating, Player, RoundHistoryItem, ScoreboardPlayer } from "./types";
 
 type ConfettiPiece = {
   color: string;
@@ -19,6 +19,8 @@ type WinnerScreenProps = {
   scoreboardPlayers: ScoreboardPlayer[];
   finalWinner: string;
   roundHistory: RoundHistoryItem[];
+  bonusAwardSubmissions: BonusAwardSubmission[];
+  contentRating: ContentRating;
   isHost: boolean;
   hostName?: string;
   isPlayingAgain: boolean;
@@ -40,6 +42,141 @@ function EmptyAvatar() {
   );
 }
 
+type BonusAward = {
+  title: string;
+  playerName: string;
+  reason: string;
+};
+
+type AwardRule = {
+  title: string;
+  reason: string;
+  pattern: RegExp;
+};
+
+const everyoneAwardRules: AwardRule[] = [
+  {
+    title: "Animal Control MVP",
+    reason: "most animal nonsense",
+    pattern: /\b(raccoon|dog|cat|goose|bird|alligator|bear|horse|hamster|squirrel|fish|frog|cow|chicken|duck)\b/gi,
+  },
+  {
+    title: "Snack Crime Specialist",
+    reason: "most food-related chaos",
+    pattern: /\b(pizza|taco|sandwich|hot dog|cake|cookie|cheese|burger|fries|snack|spaghetti|soup|cereal)\b/gi,
+  },
+  {
+    title: "Drama Department Chair",
+    reason: "most theatrical overreaction energy",
+    pattern: /\b(scream|cry|panic|dramatic|betrayal|wedding|funeral|explosion|chaos|disaster|yell)\b/gi,
+  },
+  {
+    title: "Grandma Lore Keeper",
+    reason: "most suspicious family energy",
+    pattern: /\b(grandma|grandpa|aunt|uncle|cousin|family|reunion|dad)\b/gi,
+  },
+];
+
+const pg13AwardRules: AwardRule[] = [
+  {
+    title: "Potty Mouth Laureate",
+    reason: "most bathroom-adjacent references",
+    pattern: /\b(poop|poops|pooped|pooping|toilet|fart|farts|farting|pee|peed|peeing|butt|butts)\b/gi,
+  },
+  {
+    title: "Certified Mom Mentioner",
+    reason: "most mom-related nonsense",
+    pattern: /\b(mom|mommy|mother|mothers|mother-in-law|your mom|my mom)\b/gi,
+  },
+  {
+    title: "Questionable Life Choices Award",
+    reason: "most suspicious adult decision-making",
+    pattern: /\b(drunk|hangover|beer|wine|bar|dating|date|kiss|crush|ex|hot tub|regret)\b/gi,
+  },
+  {
+    title: "Roast Goblin",
+    reason: "most insult/roast energy",
+    pattern: /\b(loser|idiot|dummy|dumb|gross|stupid|weird|creepy|awkward|terrible)\b/gi,
+  },
+];
+
+function countMatches(text: string, pattern: RegExp) {
+  pattern.lastIndex = 0;
+  return text.match(pattern)?.length || 0;
+}
+
+function getFinalWinnerNames(finalWinner: string) {
+  return finalWinner
+    .replace(/^Tie:\s*/i, "")
+    .split(/\s+and\s+|,/i)
+    .map((name) => normalizeName(name))
+    .filter(Boolean);
+}
+
+function buildBonusAwards({
+  contentRating,
+  finalWinner,
+  scoreboardPlayers,
+  submissions,
+}: {
+  contentRating: ContentRating;
+  finalWinner: string;
+  scoreboardPlayers: ScoreboardPlayer[];
+  submissions: BonusAwardSubmission[];
+}) {
+  if (!finalWinner || submissions.length === 0) return [];
+
+  const finalWinnerNames = new Set(getFinalWinnerNames(finalWinner));
+  const nonWinnerNames = scoreboardPlayers
+    .map((player) => player.name)
+    .filter((playerName) => !finalWinnerNames.has(normalizeName(playerName)));
+  const nonWinnerSet = new Set(nonWinnerNames.map(normalizeName));
+
+  if (nonWinnerNames.length === 0) return [];
+
+  const submissionsByPlayer = submissions.reduce<Record<string, string[]>>((groups, submission) => {
+    const normalizedName = normalizeName(submission.player_name);
+    if (!nonWinnerSet.has(normalizedName)) return groups;
+
+    groups[normalizedName] = groups[normalizedName] || [];
+    groups[normalizedName].push(submission.prompt || "");
+    return groups;
+  }, {});
+  const rules = contentRating === "pg13" ? pg13AwardRules : everyoneAwardRules;
+  const usedPlayers = new Set<string>();
+  const awards: BonusAward[] = [];
+
+  for (const rule of rules) {
+    const winnerForRule = nonWinnerNames
+      .map((playerName) => {
+        const normalizedName = normalizeName(playerName);
+        const score = countMatches((submissionsByPlayer[normalizedName] || []).join(" "), rule.pattern);
+        return { playerName, normalizedName, score };
+      })
+      .filter((candidate) => candidate.score > 0 && !usedPlayers.has(candidate.normalizedName))
+      .sort((first, second) => second.score - first.score)[0];
+
+    if (!winnerForRule) continue;
+
+    usedPlayers.add(winnerForRule.normalizedName);
+    awards.push({
+      title: rule.title,
+      playerName: winnerForRule.playerName,
+      reason: rule.reason,
+    });
+
+    if (awards.length >= 3) break;
+  }
+
+  if (awards.length > 0) return awards;
+
+  return nonWinnerNames.slice(0, 2).map((playerName) => ({
+    title: "Chaos Participation Trophy",
+    playerName,
+    reason: "survived the image machine without winning",
+  }));
+}
+
 export function WinnerScreen({
   code,
   confettiPieces,
@@ -51,6 +188,8 @@ export function WinnerScreen({
   scoreboardPlayers,
   finalWinner,
   roundHistory,
+  bonusAwardSubmissions,
+  contentRating,
   isHost,
   hostName,
   isPlayingAgain,
@@ -76,6 +215,12 @@ export function WinnerScreen({
     .map((name) => ({ name, avatarUrl: findPlayerAvatar(name) }))
     .filter((winnerAvatar) => winnerAvatar.avatarUrl);
   const galleryUrl = `/game/${code}/gallery`;
+  const bonusAwards = buildBonusAwards({
+    contentRating,
+    finalWinner,
+    scoreboardPlayers,
+    submissions: bonusAwardSubmissions,
+  });
 
   return (
     <>
@@ -209,6 +354,36 @@ export function WinnerScreen({
         <div className="max-w-4xl rounded-[2rem] border-2 border-black bg-amber-100 p-5 text-center shadow-[8px_8px_0_#111827]">
           <h3 className="text-3xl font-black">Final Winner</h3>
           <p className="mt-2 text-xl font-black">{finalWinner}</p>
+
+          {bonusAwards.length > 0 && (
+            <div className="mt-6 rounded-[2rem] border-2 border-black bg-white p-4 text-left shadow-[4px_4px_0_#111827]">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-700">
+                Consolation chaos awards
+              </p>
+              <h4 className="mt-1 text-2xl font-black">Nobody leaves empty-handed</h4>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                {bonusAwards.map((award) => {
+                  const avatarUrl = findPlayerAvatar(award.playerName);
+
+                  return (
+                    <div key={`${award.title}-${award.playerName}`} className="rounded-2xl border-2 border-black bg-rose-50 p-4 text-center">
+                      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 border-black bg-white text-xl font-black">
+                        {avatarUrl ? (
+                          <img src={avatarUrl} alt={award.playerName} className="h-full w-full object-cover" />
+                        ) : (
+                          "?"
+                        )}
+                      </div>
+                      <p className="text-sm font-black uppercase tracking-wider text-rose-700">{award.title}</p>
+                      <p className="mt-1 text-xl font-black">{award.playerName}</p>
+                      <p className="mt-1 text-xs font-bold text-zinc-600">{award.reason}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="mt-8">
             <h4 className="mb-4 text-2xl font-black">Round History</h4>

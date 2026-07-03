@@ -3,6 +3,8 @@ type PromptPlayer = {
   avatar_description: string | null;
 };
 
+type ContentRating = "everyone" | "pg13";
+
 const imageStyleInstructions: Record<string, string> = {
   cartoon: "Bright, colorful cartoon illustration with big expressive faces",
   comic_book: "Dynamic comic-book art with bold ink outlines and dramatic color",
@@ -88,12 +90,14 @@ function shouldAllowVisibleText(answer: string) {
 
 export function buildImagePrompt({
   answer,
+  contentRating = "everyone",
   roundPrompt,
   imageStyle,
   players,
   playerName,
 }: {
   answer: string;
+  contentRating?: ContentRating;
   roundPrompt: string;
   imageStyle: string | null;
   players: PromptPlayer[];
@@ -112,11 +116,21 @@ The player's answer appears to ask for visible text. You may include ONE tiny pi
 ABSOLUTELY NO READABLE TEXT ANYWHERE IN THE IMAGE.
 Do not draw words, letters, captions, subtitles, labels, signs, posters, banners, logos, UI text, speech bubbles, fake writing, gibberish writing, or text-like marks.
 Communicate the joke only through characters, props, expressions, action, and composition.`;
+  const contentRatingInstruction =
+    contentRating === "pg13"
+      ? `Humor rating:
+PG-13 party mode. Bathroom humor, awkward family jokes, goofy roasts, slapstick embarrassment, and mild gross-out comedy are allowed.
+Keep everything non-explicit, non-sexual, non-hateful, and not graphically violent. Avoid nudity, fetish content, real injury, cruelty, or targeted harassment.`
+      : `Humor rating:
+Everyone mode. Keep the image clean, silly, and broadly family-friendly.
+Avoid bathroom humor, sexual innuendo, alcohol/drug references, profanity, graphic gross-out material, hate, real injury, or scary/disturbing imagery.`;
 
   return `
 Create one hilarious party game image.
 
 ${visibleTextInstruction}
+
+${contentRatingInstruction}
 
 The round prompt/question is private context only. Never write, quote, paraphrase, label, or display the round prompt/question anywhere in the image.
 

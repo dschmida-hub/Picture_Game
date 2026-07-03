@@ -1,4 +1,5 @@
 export type GameMode = "classic" | "cards";
+export type ContentRating = "everyone" | "pg13";
 export type RoundDuration = number | "unlimited";
 export type PromptRating = "good" | "ehhh" | "bad";
 
@@ -15,6 +16,11 @@ export type ScoreboardPlayer = {
   name: string;
   points: number;
   avatar_url: string | null;
+};
+
+export type BonusAwardSubmission = {
+  player_name: string;
+  prompt: string;
 };
 
 export type RoundHistoryItem = {

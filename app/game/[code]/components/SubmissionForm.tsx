@@ -1,8 +1,9 @@
 import { HelpTooltip } from "./HelpTooltip";
-import type { GameMode } from "./types";
+import type { ContentRating, GameMode } from "./types";
 
 type SubmissionFormProps = {
   gameMode: GameMode;
+  contentRating: ContentRating;
   submission: string;
   isSubmitting: boolean;
   isSubmissionTimeExpired: boolean;
@@ -20,6 +21,7 @@ type SubmissionFormProps = {
 
 export function SubmissionForm({
   gameMode,
+  contentRating,
   submission,
   isSubmitting,
   isSubmissionTimeExpired,
@@ -35,6 +37,10 @@ export function SubmissionForm({
   onReturnToLobby,
 }: SubmissionFormProps) {
   const isCards = gameMode === "cards";
+  const ratingHint =
+    contentRating === "pg13"
+      ? "PG-13 is on: roasts and bathroom-level chaos are fair game, but keep it non-explicit."
+      : "Everyone mode is on: keep it clean enough for the whole table.";
 
   return (
     <>
@@ -49,7 +55,7 @@ export function SubmissionForm({
             text={
               isCards
                 ? "Write only the fill-in-the-blank part. Keep it short so the image idea stays clear."
-                : "Write a short image idea or punchline. Specific answers usually generate funnier pictures."
+                : `Write a short image idea or punchline. ${ratingHint}`
             }
           />
         </label>
@@ -66,8 +72,8 @@ export function SubmissionForm({
             {isSubmissionTimeExpired
               ? "Time is up for this round."
               : isCards
-                ? "Short, specific, and delightfully wrong."
-                : "Think punchline, not paragraph."}
+                ? `Short, specific, and delightfully wrong. ${ratingHint}`
+                : `Think punchline, not paragraph. ${ratingHint}`}
           </p>
           <p className="text-sm font-black text-zinc-500">{submission.length}/120</p>
         </div>

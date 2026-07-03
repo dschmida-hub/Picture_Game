@@ -1,4 +1,4 @@
-import type { GameMode, PromptRating } from "../components/types";
+import type { ContentRating, GameMode, PromptRating } from "../components/types";
 
 export type PromptSource = GameMode | `custom_${GameMode}`;
 
@@ -13,6 +13,9 @@ export type PromptOption = {
 
 export const MAX_PLAYERS = 8;
 export const ROOM_LIFETIME_HOURS = 24;
+
+const PG13_PROMPT_PATTERN =
+  /\b(ass|butt|poop|pooping|toilet|fart|farting|pee|peeing|vomit|puke|barf|drunk|beer|wine|liquor|hangover|mom|mommy|mother-in-law|dating|kiss|crush|hot tub)\b/i;
 
 export const confettiPieces = Array.from({ length: 28 }, (_, index) => ({
   color: ["#9810fa", "#facc15", "#ec4899", "#22c55e", "#38bdf8"][index % 5],
@@ -48,6 +51,19 @@ export function normalizeImageStyle(style: string | null | undefined) {
 
 export function resolveImageStyle(promptStyle: string | null, selectedStyle: string) {
   return normalizeImageStyle(selectedStyle === "prompt" ? promptStyle || "cartoon" : selectedStyle);
+}
+
+export function normalizeContentRating(rating: string | null | undefined): ContentRating {
+  return rating === "pg13" ? "pg13" : "everyone";
+}
+
+export function isPromptAllowedForContentRating(prompt: string, contentRating: ContentRating) {
+  if (contentRating === "pg13") return true;
+  return !PG13_PROMPT_PATTERN.test(prompt);
+}
+
+export function getContentRatingLabel(contentRating: ContentRating) {
+  return contentRating === "pg13" ? "PG-13" : "Everyone";
 }
 
 export function formatCountdown(seconds: number) {

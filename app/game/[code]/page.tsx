@@ -22,6 +22,8 @@ import { ratePrompt } from "./components/promptQuality";
 import { gameApi } from "./utils/clientApi";
 import type {
   GameMode,
+  ContentRating,
+  BonusAwardSubmission,
   Player,
   PromptRating,
   PromptSuggestion,
@@ -33,9 +35,12 @@ import {
   confettiPieces,
   formatCountdown,
   formatRoomExpiration,
+  getContentRatingLabel,
   getImageStyleLabel,
   getPromptRatingTable,
+  isPromptAllowedForContentRating,
   MAX_PLAYERS,
+  normalizeContentRating,
   normalizePlayerName,
   pickBestRatedPromptDeck,
   resolveImageStyle,
@@ -96,6 +101,7 @@ export default function GameRoom() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("Random");
   const [selectedGameMode, setSelectedGameMode] = useState<GameMode>("classic");
+  const [selectedContentRating, setSelectedContentRating] = useState<ContentRating>("everyone");
   const [selectedImageStyle, setSelectedImageStyle] = useState("prompt");
   const [selectedRoundDuration, setSelectedRoundDuration] = useState<number | "unlimited">(90);
   const [selectedVotingDuration, setSelectedVotingDuration] = useState(45);
@@ -130,6 +136,7 @@ export default function GameRoom() {
   const hostName = players.find((player) => player.is_host)?.name;
   const isHost = joined && name === hostName;
   const [roundHistory, setRoundHistory] = useState<RoundHistoryItem[]>([]);
+  const [bonusAwardSubmissions, setBonusAwardSubmissions] = useState<BonusAwardSubmission[]>([]);
   const [pastImages, setPastImages] = useState<string[]>([]);
   const {
     hasCurrentRoundImage,
@@ -326,7 +333,9 @@ async function pickRoundPrompt(): Promise<PromptOption | null> {
       rating: suggestion.rating,
     }));
 
-  const allPrompts = [...basePrompts, ...approvedSuggestions];
+  const allPrompts = [...basePrompts, ...approvedSuggestions].filter((prompt) =>
+    isPromptAllowedForContentRating(prompt.prompt, selectedContentRating)
+  );
 
   if (!allPrompts.length) return null;
 
@@ -435,6 +444,21 @@ async function loadRoundHistory() {
   }
 
   setRoundHistory(data || []);
+}
+
+async function loadBonusAwardSubmissions() {
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("player_name, prompt")
+    .eq("room_code", code)
+    .not("prompt", "is", null);
+
+  if (error) {
+    console.error("Failed to load bonus award submissions:", error);
+    return;
+  }
+
+  setBonusAwardSubmissions((data || []) as BonusAwardSubmission[]);
 }
 
 async function loadPastImages() {
@@ -811,6 +835,7 @@ async function replaceSkippedRoundWithPrompt(
   const { data: newGameId, error } = await supabase.rpc("replace_skipped_round_prompt", {
     game_mode_input: selectedGameMode,
     image_style_input: activeImageStyle,
+    content_rating_input: selectedContentRating,
     player_id_input: Number(playerId),
     prompt_id_input: prompt.id,
     prompt_input: prompt.prompt,
@@ -839,7 +864,7 @@ async function loadGame() {
   
   const { data, error } = await supabase
     .from("games")
-    .select("id, created_at, stage, prompt, prompt_id, prompt_source, game_mode, image_style, submission_deadline, voting_deadline, voting_duration_seconds")
+    .select("id, created_at, stage, prompt, prompt_id, prompt_source, game_mode, image_style, content_rating, submission_deadline, voting_deadline, voting_duration_seconds")
     .eq("room_code", code)
     .order("id", { ascending: false })
     .limit(1)
@@ -858,6 +883,7 @@ async function loadGame() {
   setStage(data.stage as GameStage);
   setRoundPrompt(data.prompt);
   setSelectedGameMode(data.game_mode as "classic" | "cards");
+  setSelectedContentRating(normalizeContentRating(data.content_rating));
   setRoundImageStyle(data.image_style || "cartoon");
   setRoundDeadline(data.submission_deadline);
   setVotingDeadline(data.voting_deadline);
@@ -903,6 +929,7 @@ useEffect(() => {
   const timeout = window.setTimeout(() => {
     void loadWinner();
     void loadRoundHistory();
+    void loadBonusAwardSubmissions();
   }, 0);
 
   return () => window.clearTimeout(timeout);
@@ -938,6 +965,7 @@ useEffect(() => {
         loadScoreboard(),
         loadPastImages(),
         loadRoundHistory(),
+        loadBonusAwardSubmissions(),
         loadPromptSuggestions(),
       ]);
 
@@ -1133,6 +1161,7 @@ async function createRoundFromPrompt(prompt: PromptOption) {
       : new Date(Date.now() + selectedRoundDuration * 1000).toISOString();
 
   const { data: newGameId, error } = await supabase.rpc("create_game_round", {
+    content_rating_input: selectedContentRating,
     game_mode_input: selectedGameMode,
     host_player_id_input: Number(savedPlayerId),
     image_style_input: activeImageStyle,
@@ -1861,6 +1890,7 @@ if (!gameData.winner_awarded) {
 await loadPlayers();
 await loadScoreboard();
 await loadRoundHistory();
+await loadBonusAwardSubmissions();
 await loadPastImages();
 }
 
@@ -2116,6 +2146,7 @@ if (isPageLoading) {
     isHost={isHost}
     hostName={hostName}
     selectedGameMode={selectedGameMode}
+    selectedContentRating={selectedContentRating}
     selectedCategory={selectedCategory}
     selectedImageStyle={selectedImageStyle}
     selectedRoundDuration={selectedRoundDuration}
@@ -2130,6 +2161,7 @@ if (isPageLoading) {
     promptApprovalVotesNeeded={promptApprovalVotesNeeded}
     isSubmittingPromptSuggestion={isSubmittingPromptSuggestion}
     onGameModeChange={setSelectedGameMode}
+    onContentRatingChange={setSelectedContentRating}
     onCategoryChange={setSelectedCategory}
     onImageStyleChange={setSelectedImageStyle}
     onRoundDurationChange={setSelectedRoundDuration}
@@ -2158,6 +2190,7 @@ if (isPageLoading) {
     )}
     <RoundPromptCard
       gameMode={selectedGameMode}
+      contentRating={selectedContentRating}
       prompt={roundPrompt}
       imageStyle={roundImageStyle}
       timeRemainingSeconds={timeRemainingSeconds}
@@ -2169,6 +2202,7 @@ if (isPageLoading) {
       isVotingToSkip={isVotingToSkipPrompt}
       formatCountdown={formatCountdown}
       getImageStyleLabel={getImageStyleLabel}
+      getContentRatingLabel={getContentRatingLabel}
       onVoteToSkip={voteToSkipPrompt}
     />
 
@@ -2206,6 +2240,7 @@ if (isPageLoading) {
     ) : (
   <SubmissionForm
     gameMode={selectedGameMode}
+    contentRating={selectedContentRating}
     submission={submission}
     isSubmitting={isSubmitting}
     isSubmissionTimeExpired={isSubmissionTimeExpired}
@@ -2241,8 +2276,8 @@ if (isPageLoading) {
    ) : stage === "reveal" ? (
     <VotingScreen
       gameMode={selectedGameMode}
-      roundPrompt={roundPrompt}
-      roundImageStyle={roundImageStyle}
+  roundPrompt={roundPrompt}
+  roundImageStyle={roundImageStyle}
       votingTimeRemainingSeconds={votingTimeRemainingSeconds}
       isVotingTimeExpired={isVotingTimeExpired}
       voteMessage={voteMessage}
@@ -2280,6 +2315,8 @@ if (isPageLoading) {
   scoreboardPlayers={scoreboardPlayers}
   finalWinner={finalWinner}
   roundHistory={roundHistory}
+  bonusAwardSubmissions={bonusAwardSubmissions}
+  contentRating={selectedContentRating}
   isHost={isHost}
   hostName={hostName}
   isPlayingAgain={isPlayingAgain}

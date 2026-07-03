@@ -1,8 +1,9 @@
 import { HelpTooltip } from "./HelpTooltip";
-import type { GameMode } from "./types";
+import type { ContentRating, GameMode } from "./types";
 
 type RoundPromptCardProps = {
   gameMode: GameMode;
+  contentRating?: ContentRating;
   prompt: string;
   imageStyle: string;
   timeRemainingSeconds?: number | null;
@@ -14,11 +15,13 @@ type RoundPromptCardProps = {
   isVotingToSkip?: boolean;
   formatCountdown: (seconds: number) => string;
   getImageStyleLabel: (style: string) => string;
+  getContentRatingLabel?: (rating: ContentRating) => string;
   onVoteToSkip?: () => void;
 };
 
 export function RoundPromptCard({
   gameMode,
+  contentRating = "everyone",
   prompt,
   imageStyle,
   timeRemainingSeconds = null,
@@ -30,6 +33,7 @@ export function RoundPromptCard({
   isVotingToSkip = false,
   formatCountdown,
   getImageStyleLabel,
+  getContentRatingLabel = (rating) => (rating === "pg13" ? "PG-13" : "Everyone"),
   onVoteToSkip,
 }: RoundPromptCardProps) {
   const isCards = gameMode === "cards";
@@ -52,7 +56,7 @@ export function RoundPromptCard({
       <h2 className="break-words text-3xl font-black leading-tight">{prompt}</h2>
 
       <p className={`mt-3 text-sm font-bold ${isCards ? "text-gray-300" : "text-rose-700"}`}>
-        Art style: {getImageStyleLabel(imageStyle)}
+        Art style: {getImageStyleLabel(imageStyle)} · Humor: {getContentRatingLabel(contentRating)}
       </p>
 
       {timeRemainingSeconds !== null && (

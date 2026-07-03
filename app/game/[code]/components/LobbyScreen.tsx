@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { HelpTooltip } from "./HelpTooltip";
 import { PromptSuggestionPanel } from "./PromptSuggestionPanel";
-import type { GameMode, Player, PromptRating, PromptSuggestion, RoundDuration } from "./types";
+import type { ContentRating, GameMode, Player, PromptRating, PromptSuggestion, RoundDuration } from "./types";
 
 type LobbyScreenProps = {
   code: string;
@@ -11,6 +11,7 @@ type LobbyScreenProps = {
   isHost: boolean;
   hostName?: string;
   selectedGameMode: GameMode;
+  selectedContentRating: ContentRating;
   selectedCategory: string;
   selectedImageStyle: string;
   selectedRoundDuration: RoundDuration;
@@ -25,6 +26,7 @@ type LobbyScreenProps = {
   promptApprovalVotesNeeded: number;
   isSubmittingPromptSuggestion: boolean;
   onGameModeChange: (mode: GameMode) => void;
+  onContentRatingChange: (rating: ContentRating) => void;
   onCategoryChange: (category: string) => void;
   onImageStyleChange: (style: string) => void;
   onRoundDurationChange: (duration: RoundDuration) => void;
@@ -64,6 +66,7 @@ export function LobbyScreen({
   isHost,
   hostName,
   selectedGameMode,
+  selectedContentRating,
   selectedCategory,
   selectedImageStyle,
   selectedRoundDuration,
@@ -78,6 +81,7 @@ export function LobbyScreen({
   promptApprovalVotesNeeded,
   isSubmittingPromptSuggestion,
   onGameModeChange,
+  onContentRatingChange,
   onCategoryChange,
   onImageStyleChange,
   onRoundDurationChange,
@@ -265,6 +269,42 @@ export function LobbyScreen({
                     <span className={`text-sm font-bold ${selectedGameMode === "cards" ? "text-zinc-300" : "text-zinc-500"}`}>
                       Complete a prompt card
                     </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className={cardClass}>
+                <div className="mb-3 flex items-center gap-2">
+                  <p className="text-sm font-black uppercase tracking-[0.22em] text-rose-700">
+                    Humor rating
+                  </p>
+                  <HelpTooltip text="Everyone keeps prompts and image instructions cleaner. PG-13 allows bathroom jokes, roasts, and awkward-family chaos without going explicit." />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => onContentRatingChange("everyone")}
+                    className={`rounded-2xl border-2 p-4 text-left transition ${
+                      selectedContentRating === "everyone"
+                        ? "border-black bg-emerald-50 shadow-[4px_4px_0_#111827]"
+                        : "border-zinc-200 bg-white hover:border-black"
+                    }`}
+                  >
+                    <span className="block text-lg font-black">Everyone</span>
+                    <span className="text-sm font-bold text-zinc-500">Cleaner party chaos</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onContentRatingChange("pg13")}
+                    className={`rounded-2xl border-2 p-4 text-left transition ${
+                      selectedContentRating === "pg13"
+                        ? "border-black bg-amber-100 shadow-[4px_4px_0_#111827]"
+                        : "border-zinc-200 bg-white hover:border-black"
+                    }`}
+                  >
+                    <span className="block text-lg font-black">PG-13</span>
+                    <span className="text-sm font-bold text-zinc-500">Roasts, bathroom jokes, awkward family stuff</span>
                   </button>
                 </div>
               </div>
