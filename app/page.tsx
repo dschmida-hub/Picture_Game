@@ -10,6 +10,33 @@ const featureCards = [
   ["Built for chaos", "Classic prompts, fill-in-the-blank cards, avatars, voting, and winners."],
 ];
 
+const faqs = [
+  {
+    question: "How many people can play?",
+    answer: "Each room supports 2-8 players. Everyone joins from their own phone with a 5-letter room code.",
+  },
+  {
+    question: "Do we need to download anything?",
+    answer: "No app required. The whole game runs in your phone's browser, host included.",
+  },
+  {
+    question: "Is it free?",
+    answer: "Yes. Free games stay available. Paid Game Night Passes are coming for extra sessions and bigger nights.",
+  },
+  {
+    question: "Is the humor kid-friendly?",
+    answer: "You choose the rating per room: Everyone keeps it clean, PG-13 allows roasts and bathroom humor. Players must be 13+ or playing with a parent/guardian.",
+  },
+  {
+    question: "How long does a room stay open?",
+    answer: "Rooms expire 24 hours after the first round starts, so you can always pick up a game night later that day.",
+  },
+  {
+    question: "What actually draws the pictures?",
+    answer: "An AI image model turns each player's written answer into a picture in seconds, right inside the room.",
+  },
+];
+
 const howItWorksSteps = [
   {
     number: "1",
@@ -38,12 +65,13 @@ export default function Home() {
   const [joinError, setJoinError] = useState("");
   const [isJoining, setIsJoining] = useState(false);
   const [backgroundImages, setBackgroundImages] = useState<string[]>([]);
+  const [showcaseItems, setShowcaseItems] = useState<{ imageUrl: string; prompt: string }[]>([]);
 
   useEffect(() => {
     async function loadBackgroundImages() {
       const { data, error } = await supabase
         .from("round_history")
-        .select("gallery_thumbnail_url, winner_image_url")
+        .select("gallery_thumbnail_url, winner_image_url, winner_prompt")
         .not("winner_image_url", "is", null)
         .order("id", { ascending: false })
         .limit(8);
@@ -53,12 +81,27 @@ export default function Home() {
         return;
       }
 
+      const rounds = data || [];
+
       setBackgroundImages(
-        (data || [])
+        rounds
           .map((round) => round.gallery_thumbnail_url || round.winner_image_url)
           .filter((imageUrl): imageUrl is string =>
             Boolean(imageUrl && !imageUrl.startsWith("data:"))
           )
+      );
+
+      setShowcaseItems(
+        rounds
+          .map((round) => ({
+            imageUrl: round.gallery_thumbnail_url || round.winner_image_url,
+            prompt: round.winner_prompt,
+          }))
+          .filter(
+            (item): item is { imageUrl: string; prompt: string } =>
+              Boolean(item.imageUrl && !item.imageUrl.startsWith("data:"))
+          )
+          .slice(0, 6)
       );
     }
 
@@ -324,6 +367,40 @@ export default function Home() {
         </div>
       </section>
 
+      {showcaseItems.length > 0 && (
+        <section className="relative px-5 pb-4 pt-8 md:px-8">
+          <div className="mx-auto w-full max-w-7xl">
+            <p className="text-center text-sm font-extrabold uppercase tracking-[0.25em] text-rose-700">
+              Real rooms, real chaos
+            </p>
+            <h2 className="mt-2 text-center text-3xl font-black md:text-4xl">
+              Straight from actual game nights.
+            </h2>
+
+            <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {showcaseItems.map((item, index) => (
+                <div
+                  key={`${item.imageUrl}-${index}`}
+                  className="overflow-hidden rounded-3xl border-2 border-black bg-white shadow-[5px_5px_0_#111827]"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.imageUrl}
+                    alt={item.prompt || "Winning round image"}
+                    className="aspect-square w-full object-cover"
+                  />
+                  {item.prompt && (
+                    <p className="p-4 text-sm font-bold text-zinc-700">
+                      {`"${item.prompt}"`}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="relative px-5 pb-16 pt-8 md:px-8 md:pb-20 md:pt-12">
         <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 lg:grid-cols-[0.8fr_1fr]">
           <div className="rounded-[2rem] border-4 border-black bg-white/95 p-6 shadow-[8px_8px_0_#111827]">
@@ -357,6 +434,29 @@ export default function Home() {
                 Free trial · Party Pass · Party Night
               </p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="relative px-5 pb-16 md:px-8">
+        <div className="mx-auto w-full max-w-4xl">
+          <p className="text-center text-sm font-extrabold uppercase tracking-[0.25em] text-rose-700">
+            FAQ
+          </p>
+          <h2 className="mt-2 text-center text-3xl font-black md:text-4xl">
+            Quick questions, quick answers.
+          </h2>
+
+          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {faqs.map((faq) => (
+              <div
+                key={faq.question}
+                className="rounded-3xl border-2 border-black bg-white p-5 shadow-[5px_5px_0_#111827]"
+              >
+                <p className="font-black">{faq.question}</p>
+                <p className="mt-2 text-sm font-bold leading-relaxed text-zinc-600">{faq.answer}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
