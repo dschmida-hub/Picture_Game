@@ -19,6 +19,7 @@ type RecentGame = {
   prompt: string | null;
   game_mode: string | null;
   image_style: string | null;
+  content_rating?: string | null;
   estimated_image_cost_cents: number | string | null;
 };
 
@@ -67,9 +68,11 @@ type GameEventRow = {
   created_at: string;
   event_name: string;
   game_id: number | null;
+  metadata?: Record<string, unknown> | null;
   player_name: string | null;
   region: string | null;
   room_code: string | null;
+  user_agent?: string | null;
 };
 
 function getAdminKey() {
@@ -90,8 +93,49 @@ function formatMoney(cents?: number | string | null) {
   return `$${(numericCents / 100).toFixed(2)}`;
 }
 
+function formatPercent(value: number) {
+  if (!Number.isFinite(value)) return "0%";
+  return `${Math.round(value)}%`;
+}
+
+function formatNumber(value: number, digits = 1) {
+  if (!Number.isFinite(value)) return "0";
+  return value.toFixed(digits).replace(/\.0$/, "");
+}
+
 function roomKey(room?: string) {
   return (room || "").replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 12);
+}
+
+function isWithinLastHours(dateValue: string | null | undefined, hours: number) {
+  if (!dateValue) return false;
+  return Date.now() - new Date(dateValue).getTime() <= hours * 60 * 60 * 1000;
+}
+
+function deviceLabel(userAgent?: string | null) {
+  const agent = (userAgent || "").toLowerCase();
+  if (!agent) return "Unknown";
+  if (/iphone|android.*mobile|mobile/.test(agent)) return "Mobile";
+  if (/ipad|tablet/.test(agent)) return "Tablet";
+  return "Desktop";
+}
+
+function metadataNumber(metadata: Record<string, unknown> | null | undefined, key: string) {
+  const value = metadata?.[key];
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function countUniqueRooms(events: GameEventRow[], eventName: string) {
+  return new Set(
+    events.filter((event) => event.event_name === eventName && event.room_code).map((event) => event.room_code)
+  ).size;
+}
+
+function topEntries(map: Map<string, number>, limit: number) {
+  return Array.from(map.entries())
+    .sort((first, second) => second[1] - first[1])
+    .slice(0, limit);
 }
 
 function AdminShell({
@@ -160,10 +204,10 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     supabase
       .from("games")
       .select(
-        "id, room_code, created_at, stage, prompt, game_mode, image_style, estimated_image_cost_cents"
+        "id, room_code, created_at, stage, prompt, game_mode, image_style, content_rating, estimated_image_cost_cents"
       )
       .order("id", { ascending: false })
-      .limit(12),
+      .limit(200),
     supabase
       .from("players")
       .select("room_code, name, is_host, points, avatar_url")
@@ -174,25 +218,25 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         "id, room_code, game_id, player_name, image_url, estimated_image_cost_cents, image_provider, image_model, created_at"
       )
       .order("id", { ascending: false })
-      .limit(60),
+      .limit(500),
     supabase
       .from("image_reports")
       .select("id, room_code, status, reported_player_name, created_at")
       .eq("status", "open")
       .order("created_at", { ascending: false })
-      .limit(8),
+      .limit(25),
     supabase
       .from("game_cost_summary")
       .select(
         "game_id, room_code, game_mode, image_style, game_estimated_image_cost_cents, generated_image_count, submission_estimated_image_cost_cents"
       )
       .order("game_id", { ascending: false })
-      .limit(10),
+      .limit(100),
     supabase
       .from("game_events")
-      .select("id, city, country, created_at, event_name, game_id, player_name, region, room_code")
+      .select("id, city, country, created_at, event_name, game_id, metadata, player_name, region, room_code, user_agent")
       .order("created_at", { ascending: false })
-      .limit(200),
+      .limit(1000),
   ]);
 
   const recentGames = (recentGamesResult.data || []) as RecentGame[];
@@ -245,31 +289,149 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     (sum, submission) => sum + Number(submission.estimated_image_cost_cents || 0),
     0
   );
+  const eventsLast24Hours = gameEvents.filter((event) => isWithinLastHours(event.created_at, 24));
+  const submissionsLast24Hours = recentSubmissions.filter((submission) =>
+    isWithinLastHours(submission.created_at, 24)
+  );
+  const gamesLast24Hours = recentGames.filter((game) => isWithinLastHours(game.created_at, 24));
+  const roomsCreatedLast24Hours = countUniqueRooms(eventsLast24Hours, "game_created");
+  const roomsCompletedLast24Hours = countUniqueRooms(eventsLast24Hours, "game_completed");
+  const roomsStartedLast24Hours = countUniqueRooms(eventsLast24Hours, "round_started");
+  const playersJoinedLast24Hours = eventsLast24Hours.filter((event) => event.event_name === "player_joined").length;
+  const imagesGeneratedLast24Hours = eventsLast24Hours.filter((event) => event.event_name === "image_generated").length;
+  const imageFailuresLast24Hours = eventsLast24Hours.filter(
+    (event) => event.event_name === "image_generation_failed"
+  ).length;
+  const estimatedCostLast24Hours = eventsLast24Hours
+    .filter((event) => event.event_name === "image_generated")
+    .reduce((sum, event) => sum + metadataNumber(event.metadata, "costCents"), 0);
+  const fallbackCostLast24Hours = submissionsLast24Hours.reduce(
+    (sum, submission) => sum + Number(submission.estimated_image_cost_cents || 0),
+    0
+  );
+  const visibleCostLast24Hours = estimatedCostLast24Hours || fallbackCostLast24Hours;
+  const averagePlayersPerRoom =
+    playerCountByRoom.size > 0
+      ? Array.from(playerCountByRoom.values()).reduce((sum, count) => sum + count, 0) / playerCountByRoom.size
+      : 0;
+  const completedRoundCount = costSummary.filter((row) => Number(row.generated_image_count || 0) > 0).length;
+  const averageImagesPerRound =
+    completedRoundCount > 0
+      ? costSummary.reduce((sum, row) => sum + Number(row.generated_image_count || 0), 0) / completedRoundCount
+      : 0;
+  const completionRate =
+    roomsCreatedLast24Hours > 0 ? (roomsCompletedLast24Hours / roomsCreatedLast24Hours) * 100 : 0;
+  const startRate = roomsCreatedLast24Hours > 0 ? (roomsStartedLast24Hours / roomsCreatedLast24Hours) * 100 : 0;
+  const imageFailureRate =
+    imagesGeneratedLast24Hours + imageFailuresLast24Hours > 0
+      ? (imageFailuresLast24Hours / (imagesGeneratedLast24Hours + imageFailuresLast24Hours)) * 100
+      : 0;
+  const costPerCompletedRoom =
+    roomsCompletedLast24Hours > 0 ? visibleCostLast24Hours / roomsCompletedLast24Hours : 0;
 
   const eventCountByName = new Map<string, number>();
   const eventCountByLocation = new Map<string, number>();
+  const eventCountByDevice = new Map<string, number>();
+  const eventCountByHour = new Map<string, number>();
+  const modeCount = new Map<string, number>();
+  const styleCount = new Map<string, number>();
+  const hourFormatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", month: "short", day: "numeric" });
   for (const event of gameEvents) {
     eventCountByName.set(event.event_name, (eventCountByName.get(event.event_name) || 0) + 1);
     const locationLabel = [event.city, event.region, event.country].filter(Boolean).join(", ") || "Unknown";
     eventCountByLocation.set(locationLabel, (eventCountByLocation.get(locationLabel) || 0) + 1);
+    const device = deviceLabel(event.user_agent);
+    eventCountByDevice.set(device, (eventCountByDevice.get(device) || 0) + 1);
+    const eventHour = hourFormatter.format(new Date(event.created_at));
+    eventCountByHour.set(eventHour, (eventCountByHour.get(eventHour) || 0) + 1);
   }
 
-  const topEvents = Array.from(eventCountByName.entries())
-    .sort((first, second) => second[1] - first[1])
-    .slice(0, 8);
-  const topLocations = Array.from(eventCountByLocation.entries())
-    .sort((first, second) => second[1] - first[1])
-    .slice(0, 8);
+  for (const game of recentGames) {
+    const mode = game.game_mode || "unknown";
+    const style = game.image_style || "unknown";
+    modeCount.set(mode, (modeCount.get(mode) || 0) + 1);
+    styleCount.set(style, (styleCount.get(style) || 0) + 1);
+  }
+
+  const topEvents = topEntries(eventCountByName, 8);
+  const topLocations = topEntries(eventCountByLocation, 8);
+  const topDevices = topEntries(eventCountByDevice, 4);
+  const topModes = topEntries(modeCount, 4);
+  const topStyles = topEntries(styleCount, 6);
+  const hourlyEvents = Array.from(eventCountByHour.entries()).slice(0, 12).reverse();
 
   const roomLinkSuffix = `?key=${encodeURIComponent(key)}`;
 
   return (
     <AdminShell title="Admin Dashboard">
       <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <MetricCard label="Recent rooms" value={String(latestGameByRoom.size)} />
-        <MetricCard label="Players tracked" value={String(activePlayers.length)} />
-        <MetricCard label="Recent images" value={String(totalGeneratedImages)} />
-        <MetricCard label="Recent image cost" value={formatMoney(totalEstimatedCostCents)} />
+        <MetricCard
+          label="Rooms created · 24h"
+          value={String(roomsCreatedLast24Hours)}
+          detail={`${formatPercent(startRate)} started a round`}
+        />
+        <MetricCard
+          label="Completed games · 24h"
+          value={String(roomsCompletedLast24Hours)}
+          detail={`${formatPercent(completionRate)} room completion`}
+        />
+        <MetricCard
+          label="Images · 24h"
+          value={String(imagesGeneratedLast24Hours || submissionsLast24Hours.filter((submission) => submission.image_url).length)}
+          detail={`${formatPercent(imageFailureRate)} image failure rate`}
+        />
+        <MetricCard
+          label="Image cost · 24h"
+          value={formatMoney(visibleCostLast24Hours)}
+          detail={`${formatMoney(costPerCompletedRoom)} per completed room`}
+        />
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <MetricCard
+          label="Players joined · 24h"
+          value={String(playersJoinedLast24Hours)}
+          detail={`${formatNumber(averagePlayersPerRoom)} avg players / room`}
+        />
+        <MetricCard
+          label="Recent games scanned"
+          value={String(recentGames.length)}
+          detail={`${gamesLast24Hours.length} game rows in 24h`}
+        />
+        <MetricCard
+          label="Images per round"
+          value={formatNumber(averageImagesPerRound)}
+          detail={`${completedRoundCount} recent image rounds`}
+        />
+        <MetricCard
+          label="Open reports"
+          value={String(openReports.length)}
+          detail={openReports.length ? "Review these soon" : "No active report fires"}
+        />
+      </section>
+
+      <section className="grid grid-cols-1 gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+        <AdminCard title="Funnel visibility">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <FunnelStep label="Created" value={roomsCreatedLast24Hours} accent="bg-rose-100" />
+            <FunnelStep label="Started" value={roomsStartedLast24Hours} accent="bg-orange-100" />
+            <FunnelStep label="Generated" value={imagesGeneratedLast24Hours} accent="bg-sky-100" />
+            <FunnelStep label="Completed" value={roomsCompletedLast24Hours} accent="bg-emerald-100" />
+          </div>
+          <p className="mt-4 text-sm font-bold text-zinc-600">
+            This is the quick commercial-health read: rooms should move from created → started → generated → completed.
+          </p>
+        </AdminCard>
+
+        <AdminCard title="Failure watch">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <MiniPanel title="Image failures · 24h" value={String(imageFailuresLast24Hours)} />
+            <MiniPanel title="Stuck rooms" value={String(stuckRooms.length)} />
+          </div>
+          <p className="mt-4 text-sm font-bold text-zinc-600">
+            If this section is noisy after a friends test, prioritize image recovery before pricing.
+          </p>
+        </AdminCard>
       </section>
 
       <section className="grid grid-cols-1 gap-5 lg:grid-cols-[0.75fr_1.25fr]">
@@ -398,7 +560,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <AdminCard title="Recent rooms">
           <div className="space-y-3">
-            {recentGames.map((game) => {
+            {recentGames.slice(0, 20).map((game) => {
               const stats = submissionStatsByRoom.get(game.room_code);
               return (
                 <div key={game.id} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
@@ -497,7 +659,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 </tr>
               </thead>
               <tbody>
-                {costSummary.map((row) => (
+                {costSummary.slice(0, 30).map((row) => (
                   <tr key={row.game_id} className="border-b border-zinc-200">
                     <td className="p-3 font-black">{row.room_code}</td>
                     <td className="p-3 font-bold">{row.game_mode || "unknown"}</td>
@@ -557,6 +719,35 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         </AdminCard>
       </section>
 
+      <section className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <AdminCard title="Devices">
+          <BreakdownList rows={topDevices} emptyText="No device data yet." />
+        </AdminCard>
+
+        <AdminCard title="Game modes">
+          <BreakdownList rows={topModes} emptyText="No game mode data yet." />
+        </AdminCard>
+
+        <AdminCard title="Prompt styles">
+          <BreakdownList rows={topStyles} emptyText="No style data yet." />
+        </AdminCard>
+      </section>
+
+      <AdminCard title="Recent activity by hour">
+        {hourlyEvents.length ? (
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4">
+            {hourlyEvents.map(([hour, count]) => (
+              <div key={hour} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <p className="text-xs font-black uppercase tracking-wider text-zinc-500">{hour}</p>
+                <p className="mt-1 text-2xl font-black">{count}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyText>No hourly event data yet.</EmptyText>
+        )}
+      </AdminCard>
+
       <AdminCard title="Recent analytics events">
         {gameEvents.length ? (
           <div className="overflow-x-auto">
@@ -593,11 +784,29 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({ detail, label, value }: { detail?: string; label: string; value: string }) {
   return (
     <div className="rounded-3xl border-4 border-black bg-white p-5 shadow-[5px_5px_0_#111827]">
       <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-rose-700">{label}</p>
       <p className="mt-2 text-3xl font-black">{value}</p>
+      {detail && <p className="mt-2 text-sm font-bold text-zinc-500">{detail}</p>}
+    </div>
+  );
+}
+
+function FunnelStep({
+  accent,
+  label,
+  value,
+}: {
+  accent: string;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className={`rounded-2xl border-2 border-black p-4 ${accent}`}>
+      <p className="text-xs font-black uppercase tracking-wider text-zinc-600">{label}</p>
+      <p className="mt-1 text-4xl font-black">{value}</p>
     </div>
   );
 }
@@ -617,6 +826,37 @@ function AdminCard({ title, children }: { title: string; children: React.ReactNo
       <h2 className="text-2xl font-black">{title}</h2>
       <div className="mt-4">{children}</div>
     </section>
+  );
+}
+
+function BreakdownList({
+  emptyText,
+  rows,
+}: {
+  emptyText: string;
+  rows: Array<[string, number]>;
+}) {
+  if (!rows.length) return <EmptyText>{emptyText}</EmptyText>;
+
+  const maxCount = Math.max(...rows.map(([, count]) => count), 1);
+
+  return (
+    <div className="space-y-3">
+      {rows.map(([label, count]) => (
+        <div key={label} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-black">{label}</p>
+            <p className="rounded-full bg-white px-3 py-1 text-sm font-black">{count}</p>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-200">
+            <div
+              className="h-full rounded-full bg-rose-600"
+              style={{ width: `${Math.max(8, (count / maxCount) * 100)}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
