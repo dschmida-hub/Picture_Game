@@ -1,8 +1,14 @@
 import OpenAI from "openai";
 import sharp from "sharp";
-import { getActiveImageModel, getEstimatedImageCostCents, imageConfig } from "@/app/lib/imageConfig";
+import {
+  getActiveImageModel,
+  getEstimatedImageCostCents,
+  getMaxDailyImageSpendCents,
+  imageConfig,
+} from "@/app/lib/imageConfig";
 import { buildImagePrompt } from "@/app/lib/imagePrompt";
 import { generateImageBuffer } from "@/app/lib/imageProviders";
+import { getRolling24HourSpendCents } from "@/app/lib/imageSpend";
 import {
   guardRequest,
   isBadRequestError,
@@ -12,6 +18,7 @@ import {
   supabaseAdmin,
 } from "../_utils/api";
 import {
+  checkRoomRateLimit,
   readJsonWithLimit,
   sanitizeText,
 } from "../_utils/security";
@@ -150,6 +157,17 @@ export async function POST(request: Request) {
 
     if (!roomCode || !gameId || !playerId || !submissionId) {
       return jsonError("Valid room, game, player, and submission are required", 400);
+    }
+
+    const roomRateLimitError = checkRoomRateLimit("regenerate-image", roomCode, {
+      windowMs: 60_000,
+      maxRequests: 10,
+    });
+    if (roomRateLimitError) return roomRateLimitError;
+
+    const rolling24HourSpendCents = await getRolling24HourSpendCents();
+    if (rolling24HourSpendCents + getEstimatedImageCostCents() > getMaxDailyImageSpendCents()) {
+      return jsonError("Image generation is temporarily paused while we're over budget for the day. Please try again later.", 429);
     }
 
     const { data: host, error: hostError } = await supabase

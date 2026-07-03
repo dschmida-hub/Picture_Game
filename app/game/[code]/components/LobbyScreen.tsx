@@ -242,31 +242,31 @@ export function LobbyScreen({
                   </p>
                   <HelpTooltip text="Classic means everyone writes a full funny answer. Fill in the Blank gives a prompt-card style setup." />
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => onGameModeChange("classic")}
-                    className={`rounded-2xl border-2 p-4 text-left transition ${
+                    className={`rounded-2xl border-2 p-2.5 text-left transition sm:p-4 ${
                       selectedGameMode === "classic"
                         ? "border-black bg-rose-50 shadow-[4px_4px_0_#111827]"
                         : "border-zinc-200 bg-white hover:border-black"
                     }`}
                   >
-                    <span className="block text-lg font-black">Classic</span>
-                    <span className="text-sm font-bold text-zinc-500">Write a funny answer</span>
+                    <span className="block text-sm font-black sm:text-lg">Classic</span>
+                    <span className="text-xs font-bold text-zinc-500 sm:text-sm">Write a funny answer</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => onGameModeChange("cards")}
-                    className={`rounded-2xl border-2 p-4 text-left transition ${
+                    className={`rounded-2xl border-2 p-2.5 text-left transition sm:p-4 ${
                       selectedGameMode === "cards"
                         ? "border-black bg-zinc-950 text-white shadow-[4px_4px_0_#fb7185]"
                         : "border-zinc-200 bg-white hover:border-black"
                     }`}
                   >
-                    <span className="block text-lg font-black">Fill in the Blank</span>
-                    <span className={`text-sm font-bold ${selectedGameMode === "cards" ? "text-zinc-300" : "text-zinc-500"}`}>
+                    <span className="block text-sm font-black sm:text-lg">Fill in the Blank</span>
+                    <span className={`text-xs font-bold sm:text-sm ${selectedGameMode === "cards" ? "text-zinc-300" : "text-zinc-500"}`}>
                       Complete a prompt card
                     </span>
                   </button>
@@ -280,31 +280,31 @@ export function LobbyScreen({
                   </p>
                   <HelpTooltip text="Everyone keeps prompts and image instructions cleaner. PG-13 allows bathroom jokes, roasts, and awkward-family chaos without going explicit." />
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => onContentRatingChange("everyone")}
-                    className={`rounded-2xl border-2 p-4 text-left transition ${
+                    className={`rounded-2xl border-2 p-2.5 text-left transition sm:p-4 ${
                       selectedContentRating === "everyone"
                         ? "border-black bg-emerald-50 shadow-[4px_4px_0_#111827]"
                         : "border-zinc-200 bg-white hover:border-black"
                     }`}
                   >
-                    <span className="block text-lg font-black">Everyone</span>
-                    <span className="text-sm font-bold text-zinc-500">Cleaner party chaos</span>
+                    <span className="block text-sm font-black sm:text-lg">Everyone</span>
+                    <span className="text-xs font-bold text-zinc-500 sm:text-sm">Cleaner party chaos</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => onContentRatingChange("pg13")}
-                    className={`rounded-2xl border-2 p-4 text-left transition ${
+                    className={`rounded-2xl border-2 p-2.5 text-left transition sm:p-4 ${
                       selectedContentRating === "pg13"
                         ? "border-black bg-amber-100 shadow-[4px_4px_0_#111827]"
                         : "border-zinc-200 bg-white hover:border-black"
                     }`}
                   >
-                    <span className="block text-lg font-black">PG-13</span>
-                    <span className="text-sm font-bold text-zinc-500">Roasts, bathroom jokes, awkward family stuff</span>
+                    <span className="block text-sm font-black sm:text-lg">PG-13</span>
+                    <span className="text-xs font-bold text-zinc-500 sm:text-sm">Roasts, bathroom jokes, awkward family stuff</span>
                   </button>
                 </div>
               </div>
@@ -439,7 +439,7 @@ export function LobbyScreen({
                   Invite your friends
                 </p>
                 <p className="mt-1 text-4xl font-black tracking-widest text-rose-700">{code}</p>
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="mt-3 grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={onCopyRoomCode}

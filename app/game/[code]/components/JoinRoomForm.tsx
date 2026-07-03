@@ -3,8 +3,10 @@ type JoinRoomFormProps = {
   name: string;
   backgroundImages?: string[];
   isJoining: boolean;
+  ageConfirmed: boolean;
   onNameChange: (name: string) => void;
   onAvatarFileChange: (file: File | null) => void;
+  onAgeConfirmedChange: (confirmed: boolean) => void;
   onJoinGame: () => void;
 };
 
@@ -13,8 +15,10 @@ export function JoinRoomForm({
   name,
   backgroundImages = [],
   isJoining,
+  ageConfirmed,
   onNameChange,
   onAvatarFileChange,
+  onAgeConfirmedChange,
   onJoinGame,
 }: JoinRoomFormProps) {
   const collageImages = backgroundImages.slice(0, 8);
@@ -96,13 +100,33 @@ export function JoinRoomForm({
               value={name}
               onChange={(event) => onNameChange(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && name.trim() && !isJoining) {
+                if (event.key === "Enter" && name.trim() && ageConfirmed && !isJoining) {
                   onJoinGame();
                 }
               }}
-            
+
               className="w-full rounded-2xl border-2 border-black bg-white p-4 text-lg font-bold outline-none transition focus:border-rose-600 focus:shadow-[0_0_0_4px_rgba(225,29,72,0.18)]"
             />
+          </label>
+
+          <label className="flex items-start gap-3 rounded-2xl border-2 border-black bg-zinc-50 p-4">
+            <input
+              type="checkbox"
+              checked={ageConfirmed}
+              onChange={(event) => onAgeConfirmedChange(event.target.checked)}
+              className="mt-1 h-5 w-5 shrink-0 accent-rose-600"
+            />
+            <span className="text-sm font-bold text-zinc-700">
+              I&apos;m 13 or older, or a parent/guardian is playing with me. I agree to the{" "}
+              <a href="/terms" target="_blank" rel="noreferrer" className="underline">
+                Terms
+              </a>{" "}
+              and{" "}
+              <a href="/privacy" target="_blank" rel="noreferrer" className="underline">
+                Privacy Policy
+              </a>
+              .
+            </span>
           </label>
 
           <label className="block rounded-2xl border-2 border-dashed border-rose-300 bg-rose-50 p-4">
@@ -122,7 +146,7 @@ export function JoinRoomForm({
 
           <button
             onClick={onJoinGame}
-            disabled={isJoining || !name.trim()}
+            disabled={isJoining || !name.trim() || !ageConfirmed}
             className="w-full rounded-2xl bg-rose-600 px-6 py-4 text-lg font-black text-white shadow-[5px_5px_0_#111827] transition hover:-translate-y-0.5 hover:bg-rose-700 disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isJoining ? "Joining Room..." : "Join Room"}

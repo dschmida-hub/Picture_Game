@@ -72,6 +72,7 @@ const emptyHostDebugStats: HostDebugStats = {
 };
 
 const PROMPT_SKIP_THRESHOLD = 0.75;
+const AGE_GATE_STORAGE_KEY = "picture-this:age-confirmed-at";
 
 export default function GameRoom() {
   const params = useParams();
@@ -80,6 +81,7 @@ export default function GameRoom() {
 
   const [name, setName] = useState("");
   const [joined, setJoined] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [stage, setStage] = useState<GameStage>("lobby");
@@ -213,6 +215,19 @@ export default function GameRoom() {
     const timeout = window.setTimeout(() => setToast(null), 4200);
     return () => window.clearTimeout(timeout);
   }, [toast]);
+
+  useEffect(() => {
+    setAgeConfirmed(Boolean(window.localStorage.getItem(AGE_GATE_STORAGE_KEY)));
+  }, []);
+
+  function confirmAgeGate(confirmed: boolean) {
+    setAgeConfirmed(confirmed);
+    if (confirmed) {
+      window.localStorage.setItem(AGE_GATE_STORAGE_KEY, new Date().toISOString());
+    } else {
+      window.localStorage.removeItem(AGE_GATE_STORAGE_KEY);
+    }
+  }
 
   useEffect(() => {
     if (!isHost || stage !== "submitting" || !currentGameId) return;
@@ -393,6 +408,21 @@ async function loadRandomPrompt() {
   }
 
   setPlayers(data);
+}
+
+async function heartbeatAndCheckHost() {
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+  if (!savedPlayerId) return;
+
+  try {
+    await supabase.rpc("heartbeat_player", {
+      room_code_input: code,
+      player_id_input: Number(savedPlayerId),
+    });
+    await supabase.rpc("promote_next_host_if_stale", { room_code_input: code });
+  } catch (error) {
+    console.error("Host heartbeat failed:", error);
+  }
 }
 
 async function removePlayer(player: Player) {
@@ -594,6 +624,7 @@ async function loadSubmissions(gameId = currentGameId) {
     .select("id, player_name, prompt, image_url, gallery_thumbnail_url, image_caption")
     .eq("room_code", code)
     .eq("game_id", gameId)
+    .is("hidden_at", null)
     .order("id", { ascending: true });
 
   if (error) {
@@ -1003,6 +1034,7 @@ useEffect(() => {
   loadVotes();
   loadScoreboard();
   loadPromptSuggestions();
+  heartbeatAndCheckHost();
 }, 2000);
   return () => {
     isMounted = false;
@@ -1011,9 +1043,11 @@ useEffect(() => {
 }, []);
 
 async function joinGame() {
-  
+
   if (!name.trim()) return;
-  
+
+  if (!ageConfirmed) return;
+
   if (isJoining) return;
 
   setIsJoining(true);
@@ -2133,8 +2167,10 @@ if (isPageLoading) {
     name={name}
     backgroundImages={pastImages}
     isJoining={isJoining}
+    ageConfirmed={ageConfirmed}
     onNameChange={setName}
     onAvatarFileChange={setAvatarFile}
+    onAgeConfirmedChange={confirmAgeGate}
     onJoinGame={joinGame}
   />
 ) : stage === "lobby" ? (
@@ -2316,6 +2352,10 @@ if (isPageLoading) {
   finalWinner={finalWinner}
   roundHistory={roundHistory}
   bonusAwardSubmissions={bonusAwardSubmissions}
+  roundSubmissions={submissions.map((item) => {
+    const parsed = parseSubmission(item);
+    return { player_name: parsed.playerName, prompt: parsed.text };
+  })}
   contentRating={selectedContentRating}
   isHost={isHost}
   hostName={hostName}

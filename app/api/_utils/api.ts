@@ -53,6 +53,12 @@ export function routeError(error: unknown, logMessage: string, userMessage: stri
     return jsonError(error instanceof Error ? error.message : "Invalid request", 400);
   }
 
+  if (process.env.SENTRY_DSN) {
+    import("@sentry/node")
+      .then((Sentry) => Sentry.captureException(error, { extra: { logMessage } }))
+      .catch(() => {});
+  }
+
   return jsonError(userMessage, 500);
 }
 

@@ -20,6 +20,7 @@ type WinnerScreenProps = {
   finalWinner: string;
   roundHistory: RoundHistoryItem[];
   bonusAwardSubmissions: BonusAwardSubmission[];
+  roundSubmissions: BonusAwardSubmission[];
   contentRating: ContentRating;
   isHost: boolean;
   hostName?: string;
@@ -57,46 +58,86 @@ type AwardRule = {
 const everyoneAwardRules: AwardRule[] = [
   {
     title: "Animal Control MVP",
-    reason: "most animal nonsense",
+    reason: "somehow made it about animals again",
     pattern: /\b(raccoon|dog|cat|goose|bird|alligator|bear|horse|hamster|squirrel|fish|frog|cow|chicken|duck)\b/gi,
   },
   {
     title: "Snack Crime Specialist",
-    reason: "most food-related chaos",
+    reason: "can't answer without a side of fries",
     pattern: /\b(pizza|taco|sandwich|hot dog|cake|cookie|cheese|burger|fries|snack|spaghetti|soup|cereal)\b/gi,
   },
   {
     title: "Drama Department Chair",
-    reason: "most theatrical overreaction energy",
+    reason: "turned a prompt into a full theatrical breakdown",
     pattern: /\b(scream|cry|panic|dramatic|betrayal|wedding|funeral|explosion|chaos|disaster|yell)\b/gi,
   },
   {
     title: "Grandma Lore Keeper",
-    reason: "most suspicious family energy",
+    reason: "keeps bringing the whole family into this",
     pattern: /\b(grandma|grandpa|aunt|uncle|cousin|family|reunion|dad)\b/gi,
+  },
+  {
+    title: "Vehicular Mayhem Chief",
+    reason: "every answer ends in a high-speed chase",
+    pattern: /\b(car|truck|plane|airplane|boat|rocket|bike|bicycle|train|scooter|helicopter|submarine)\b/gi,
+  },
+  {
+    title: "Certified Natural Disaster",
+    reason: "personally responsible for the weather today",
+    pattern: /\b(tornado|hurricane|earthquake|volcano|blizzard|meteor|tsunami|avalanche|lightning|flood)\b/gi,
+  },
+  {
+    title: "Backyard Superhero",
+    reason: "self-appointed defender of the neighborhood",
+    pattern: /\b(superhero|villain|cape|mask|superpower|superpowers|laser|sidekick|nemesis)\b/gi,
+  },
+  {
+    title: "Monster Mash Liaison",
+    reason: "on a first-name basis with every cryptid in town",
+    pattern: /\b(robot|alien|zombie|ghost|monster|ufo|dinosaur|dragon|vampire|werewolf)\b/gi,
   },
 ];
 
 const pg13AwardRules: AwardRule[] = [
   {
     title: "Potty Mouth Laureate",
-    reason: "most bathroom-adjacent references",
+    reason: "earned a PhD in bathroom humor",
     pattern: /\b(poop|poops|pooped|pooping|toilet|fart|farts|farting|pee|peed|peeing|butt|butts)\b/gi,
   },
   {
     title: "Certified Mom Mentioner",
-    reason: "most mom-related nonsense",
+    reason: "can't answer without dragging mom into it",
     pattern: /\b(mom|mommy|mother|mothers|mother-in-law|your mom|my mom)\b/gi,
   },
   {
     title: "Questionable Life Choices Award",
-    reason: "most suspicious adult decision-making",
+    reason: "living their absolute worst best life",
     pattern: /\b(drunk|hangover|beer|wine|bar|dating|date|kiss|crush|ex|hot tub|regret)\b/gi,
   },
   {
     title: "Roast Goblin",
-    reason: "most insult/roast energy",
+    reason: "never met an insult they didn't love",
     pattern: /\b(loser|idiot|dummy|dumb|gross|stupid|weird|creepy|awkward|terrible)\b/gi,
+  },
+  {
+    title: "Group Chat Menace",
+    reason: "left everyone on read with zero regrets",
+    pattern: /\b(text|texting|dm|snap|snapchat|block|blocked|ghosted|group chat)\b/gi,
+  },
+  {
+    title: "Reality TV Villain",
+    reason: "here for the drama, not the friendship",
+    pattern: /\b(scandal|messy|petty|toxic|receipts|shady|villain arc|cancelled)\b/gi,
+  },
+  {
+    title: "Group Project Nightmare",
+    reason: "deadline-induced meltdown, right on schedule",
+    pattern: /\b(deadline|boss|fired|quit|meeting|overtime|spreadsheet|coworker)\b/gi,
+  },
+  {
+    title: "Gym Bro Energy",
+    reason: "it's always leg day in this answer",
+    pattern: /\b(gains|protein|deadlift|flex|six pack|leg day|bench press|pre-workout)\b/gi,
   },
 ];
 
@@ -113,30 +154,24 @@ function getFinalWinnerNames(finalWinner: string) {
     .filter(Boolean);
 }
 
-function buildBonusAwards({
+function buildAwards({
+  candidateNames,
   contentRating,
-  finalWinner,
-  scoreboardPlayers,
+  limit,
   submissions,
 }: {
+  candidateNames: string[];
   contentRating: ContentRating;
-  finalWinner: string;
-  scoreboardPlayers: ScoreboardPlayer[];
+  limit: number;
   submissions: BonusAwardSubmission[];
 }) {
-  if (!finalWinner || submissions.length === 0) return [];
+  if (candidateNames.length === 0 || submissions.length === 0) return [];
 
-  const finalWinnerNames = new Set(getFinalWinnerNames(finalWinner));
-  const nonWinnerNames = scoreboardPlayers
-    .map((player) => player.name)
-    .filter((playerName) => !finalWinnerNames.has(normalizeName(playerName)));
-  const nonWinnerSet = new Set(nonWinnerNames.map(normalizeName));
-
-  if (nonWinnerNames.length === 0) return [];
+  const candidateSet = new Set(candidateNames.map(normalizeName));
 
   const submissionsByPlayer = submissions.reduce<Record<string, string[]>>((groups, submission) => {
     const normalizedName = normalizeName(submission.player_name);
-    if (!nonWinnerSet.has(normalizedName)) return groups;
+    if (!candidateSet.has(normalizedName)) return groups;
 
     groups[normalizedName] = groups[normalizedName] || [];
     groups[normalizedName].push(submission.prompt || "");
@@ -147,7 +182,7 @@ function buildBonusAwards({
   const awards: BonusAward[] = [];
 
   for (const rule of rules) {
-    const winnerForRule = nonWinnerNames
+    const winnerForRule = candidateNames
       .map((playerName) => {
         const normalizedName = normalizeName(playerName);
         const score = countMatches((submissionsByPlayer[normalizedName] || []).join(" "), rule.pattern);
@@ -165,12 +200,12 @@ function buildBonusAwards({
       reason: rule.reason,
     });
 
-    if (awards.length >= 3) break;
+    if (awards.length >= limit) break;
   }
 
   if (awards.length > 0) return awards;
 
-  return nonWinnerNames.slice(0, 2).map((playerName) => ({
+  return candidateNames.slice(0, limit).map((playerName) => ({
     title: "Chaos Participation Trophy",
     playerName,
     reason: "survived the image machine without winning",
@@ -189,6 +224,7 @@ export function WinnerScreen({
   finalWinner,
   roundHistory,
   bonusAwardSubmissions,
+  roundSubmissions,
   contentRating,
   isHost,
   hostName,
@@ -215,12 +251,34 @@ export function WinnerScreen({
     .map((name) => ({ name, avatarUrl: findPlayerAvatar(name) }))
     .filter((winnerAvatar) => winnerAvatar.avatarUrl);
   const galleryUrl = `/game/${code}/gallery`;
-  const bonusAwards = buildBonusAwards({
-    contentRating,
-    finalWinner,
-    scoreboardPlayers,
-    submissions: bonusAwardSubmissions,
-  });
+  const winnerNameSet = new Set(winnerNames.map(normalizeName));
+
+  const finalWinnerNames = getFinalWinnerNames(finalWinner);
+  const finalBonusAwards = finalWinner
+    ? buildAwards({
+        candidateNames: scoreboardPlayers
+          .map((player) => player.name)
+          .filter((playerName) => !finalWinnerNames.includes(normalizeName(playerName))),
+        contentRating,
+        limit: 3,
+        submissions: bonusAwardSubmissions,
+      })
+    : [];
+
+  const roundBonusAwards = !finalWinner
+    ? buildAwards({
+        candidateNames: Array.from(
+          new Set(
+            roundSubmissions
+              .map((submission) => submission.player_name)
+              .filter((playerName) => !winnerNameSet.has(normalizeName(playerName)))
+          )
+        ),
+        contentRating,
+        limit: 1,
+        submissions: roundSubmissions,
+      })
+    : [];
 
   return (
     <>
@@ -287,6 +345,33 @@ export function WinnerScreen({
           </p>
           <p className="mt-4 text-lg font-black">{`"${winnerPrompt || winner}"`}</p>
         </div>
+
+        {roundBonusAwards.length > 0 && (
+          <div className="mt-5 rounded-2xl border-2 border-black bg-amber-50 p-4">
+            {roundBonusAwards.map((award) => {
+              const avatarUrl = findPlayerAvatar(award.playerName);
+
+              return (
+                <div key={`${award.title}-${award.playerName}`} className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-black bg-white text-lg font-black">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={award.playerName} className="h-full w-full object-cover" />
+                    ) : (
+                      "?"
+                    )}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs font-black uppercase tracking-wider text-rose-700">{award.title}</p>
+                    <p className="text-lg font-black">
+                      {award.playerName}
+                      <span className="ml-2 text-xs font-bold text-zinc-600">{award.reason}</span>
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="w-full max-w-md rounded-[2rem] border-2 border-black bg-white p-5 shadow-[8px_8px_0_#111827]">
@@ -355,7 +440,7 @@ export function WinnerScreen({
           <h3 className="text-3xl font-black">Final Winner</h3>
           <p className="mt-2 text-xl font-black">{finalWinner}</p>
 
-          {bonusAwards.length > 0 && (
+          {finalBonusAwards.length > 0 && (
             <div className="mt-6 rounded-[2rem] border-2 border-black bg-white p-4 text-left shadow-[4px_4px_0_#111827]">
               <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-700">
                 Consolation chaos awards
@@ -363,7 +448,7 @@ export function WinnerScreen({
               <h4 className="mt-1 text-2xl font-black">Nobody leaves empty-handed</h4>
 
               <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-                {bonusAwards.map((award) => {
+                {finalBonusAwards.map((award) => {
                   const avatarUrl = findPlayerAvatar(award.playerName);
 
                   return (

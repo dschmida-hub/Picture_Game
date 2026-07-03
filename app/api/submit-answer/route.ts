@@ -1,3 +1,4 @@
+import { containsBannedContent } from "@/app/lib/contentPolicy";
 import {
   guardRequest,
   jsonError,
@@ -13,6 +14,7 @@ import {
 } from "../_utils/security";
 
 const MAX_ANSWER_LENGTH = 120;
+const IMAGE_REPORT_STRIKE_LIMIT = 3;
 
 type SubmitAnswerRequest = {
   answer?: unknown;
@@ -75,6 +77,10 @@ export async function POST(request: Request) {
       return jsonError("Valid room, game, player, and answer are required", 400);
     }
 
+    if (containsBannedContent(answer)) {
+      return jsonError("That answer isn't allowed. Please try something else.", 400);
+    }
+
     const context = await loadPlayerAndGame({ gameId, playerId, roomCode });
     if (context.error) return context.error;
 
@@ -82,6 +88,19 @@ export async function POST(request: Request) {
 
     if (game.stage !== "submitting") {
       return jsonError("This round is not accepting answers", 409);
+    }
+
+    const { count: reportCount, error: reportCountError } = await supabaseAdmin
+      .from("image_reports")
+      .select("id", { count: "exact", head: true })
+      .eq("room_code", roomCode)
+      .eq("reported_player_name", player.name)
+      .neq("status", "dismissed");
+
+    if (reportCountError) throw reportCountError;
+
+    if ((reportCount || 0) >= IMAGE_REPORT_STRIKE_LIMIT) {
+      return jsonError("You've been restricted from submitting in this room due to repeated image reports", 403);
     }
 
     if (game.submission_deadline && new Date(game.submission_deadline).getTime() <= Date.now()) {

@@ -1,8 +1,15 @@
 import OpenAI from "openai";
 import sharp from "sharp";
-import { getActiveImageModel, getEstimatedImageCostCents, imageConfig } from "@/app/lib/imageConfig";
+import { containsBannedContent } from "@/app/lib/contentPolicy";
+import {
+  getActiveImageModel,
+  getEstimatedImageCostCents,
+  getMaxDailyImageSpendCents,
+  imageConfig,
+} from "@/app/lib/imageConfig";
 import { buildImagePrompt } from "@/app/lib/imagePrompt";
 import { generateImageBuffer } from "@/app/lib/imageProviders";
+import { getRolling24HourSpendCents } from "@/app/lib/imageSpend";
 import {
   guardRequest,
   isBadRequestError,
@@ -13,6 +20,7 @@ import {
   supabaseAdmin,
 } from "../_utils/api";
 import {
+  checkRoomRateLimit,
   readJsonWithLimit,
   sanitizeText,
 } from "../_utils/security";
@@ -343,6 +351,12 @@ export async function POST(request: Request) {
       return jsonError("Valid room, game, player, and submission are required", 400);
     }
 
+    const roomRateLimitError = checkRoomRateLimit("generate-image", roomCode, {
+      windowMs: 60_000,
+      maxRequests: 20,
+    });
+    if (roomRateLimitError) return roomRateLimitError;
+
     eventContext = { gameId, playerId, roomCode, submissionId };
 
     const context = await loadGenerationContext({
@@ -361,6 +375,15 @@ export async function POST(request: Request) {
 
     if (!answer || !roundPrompt) {
       return jsonError("Submission and round prompt are required", 400);
+    }
+
+    if (containsBannedContent(answer) || containsBannedContent(roundPrompt)) {
+      return jsonError("That request isn't allowed. Please adjust the answer or prompt and try again.", 400);
+    }
+
+    const rolling24HourSpendCents = await getRolling24HourSpendCents();
+    if (rolling24HourSpendCents + getEstimatedImageCostCents() > getMaxDailyImageSpendCents()) {
+      return jsonError("Image generation is temporarily paused while we're over budget for the day. Please try again later.", 429);
     }
 
     const prompt = buildImagePrompt({

@@ -10,6 +10,29 @@ const featureCards = [
   ["Built for chaos", "Classic prompts, fill-in-the-blank cards, avatars, voting, and winners."],
 ];
 
+const howItWorksSteps = [
+  {
+    number: "1",
+    title: "Create or join a room",
+    description: "One player starts a room, shares the code, and everyone joins from their own phone.",
+  },
+  {
+    number: "2",
+    title: "Answer the prompt",
+    description: "Write a short answer that gives the AI something weird, specific, and funny to draw.",
+  },
+  {
+    number: "3",
+    title: "Watch the chaos cook",
+    description: "The game turns everyone's answers into anonymous images while the room waits together.",
+  },
+  {
+    number: "4",
+    title: "Vote for the funniest image",
+    description: "Players vote on the images without knowing who wrote what. The winner gets the points.",
+  },
+];
+
 export default function Home() {
   const [roomCode, setRoomCode] = useState("");
   const [joinError, setJoinError] = useState("");
@@ -154,8 +177,7 @@ export default function Home() {
             </h1>
 
             <p className="mx-auto mt-6 max-w-2xl text-lg font-black leading-relaxed text-zinc-700 lg:mx-0">
-              Picture This is a room-code party game where friends answer chaotic prompts,
-              AI draws the anonymous masterpieces, and everyone votes for the biggest laugh.
+              Finally, a card game that&apos;s as funny as you are.
             </p>
 
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
@@ -274,6 +296,34 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="relative px-5 pb-4 pt-2 md:px-8">
+        <div className="mx-auto w-full max-w-7xl">
+          <p className="text-center text-sm font-extrabold uppercase tracking-[0.25em] text-rose-700">
+            How it works
+          </p>
+          <h2 className="mt-2 text-center text-3xl font-black md:text-4xl">
+            Understand it in about 10 seconds.
+          </h2>
+
+          <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+            {howItWorksSteps.map((step) => (
+              <div
+                key={step.number}
+                className="rounded-3xl border-2 border-black bg-white p-5 shadow-[5px_5px_0_#111827]"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-black bg-rose-600 text-lg font-black text-white">
+                  {step.number}
+                </div>
+                <h3 className="mt-4 text-xl font-black">{step.title}</h3>
+                <p className="mt-2 text-sm font-bold leading-relaxed text-zinc-600">
+                  {step.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="relative px-5 pb-16 pt-8 md:px-8 md:pb-20 md:pt-12">
         <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 lg:grid-cols-[0.8fr_1fr]">
           <div className="rounded-[2rem] border-4 border-black bg-white/95 p-6 shadow-[8px_8px_0_#111827]">
@@ -310,6 +360,16 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <footer className="relative mx-auto mt-8 flex w-full max-w-6xl flex-wrap items-center justify-center gap-4 pb-4 text-sm font-bold text-zinc-600">
+        <Link href="/terms" className="underline-offset-4 hover:underline">
+          Terms of Service
+        </Link>
+        <span aria-hidden="true">·</span>
+        <Link href="/privacy" className="underline-offset-4 hover:underline">
+          Privacy Policy
+        </Link>
+      </footer>
     </main>
   );
 }

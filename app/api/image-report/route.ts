@@ -7,6 +7,7 @@ import {
   supabaseAdmin,
 } from "../_utils/api";
 import {
+  checkRoomRateLimit,
   readJsonWithLimit,
 } from "../_utils/security";
 
@@ -31,6 +32,12 @@ export async function POST(request: Request) {
     if (!roomCode || !gameId || !playerId || !submissionId) {
       return jsonError("Valid room, game, player, and submission are required", 400);
     }
+
+    const roomRateLimitError = checkRoomRateLimit("image-report", roomCode, {
+      windowMs: 60_000,
+      maxRequests: 15,
+    });
+    if (roomRateLimitError) return roomRateLimitError;
 
     const { data: player, error: playerError } = await supabaseAdmin
       .from("players")

@@ -116,12 +116,23 @@ export async function updateReportStatus(formData: FormData) {
   }
 
   const supabase = getSupabaseAdmin();
-  const { error } = await supabase
+  const { data: report, error } = await supabase
     .from("image_reports")
     .update({ status })
-    .eq("id", reportId);
+    .eq("id", reportId)
+    .select("submission_id")
+    .single();
 
   if (error) throw error;
+
+  if (status === "removed" && report?.submission_id) {
+    const { error: hideError } = await supabase
+      .from("submissions")
+      .update({ hidden_at: new Date().toISOString() })
+      .eq("id", report.submission_id);
+
+    if (hideError) throw hideError;
+  }
 
   revalidatePath("/admin");
   revalidatePath("/admin/reports");

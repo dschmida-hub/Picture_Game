@@ -119,8 +119,8 @@ Communicate the joke only through characters, props, expressions, action, and co
   const contentRatingInstruction =
     contentRating === "pg13"
       ? `Humor rating:
-PG-13 party mode. Bathroom humor, awkward family jokes, goofy roasts, slapstick embarrassment, and mild gross-out comedy are allowed.
-Keep everything non-explicit, non-sexual, non-hateful, and not graphically violent. Avoid nudity, fetish content, real injury, cruelty, or targeted harassment.`
+PG-13 party mode: crude, roast-heavy, and a little unhinged. Bathroom humor, savage roasts, awkward family drama, sexual innuendo, embarrassing dating/hookup mishaps, drinking-related chaos, and gross-out slapstick are all fair game. Push the joke as far as it can go while staying suggestive rather than explicit.
+Hard limits, no exceptions: no nudity, no explicit sexual content, no fetish content, real injury, gore, hate speech, or targeted harassment of real people.`
       : `Humor rating:
 Everyone mode. Keep the image clean, silly, and broadly family-friendly.
 Avoid bathroom humor, sexual innuendo, alcohol/drug references, profanity, graphic gross-out material, hate, real injury, or scary/disturbing imagery.`;

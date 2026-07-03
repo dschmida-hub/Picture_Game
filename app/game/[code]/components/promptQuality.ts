@@ -1,12 +1,9 @@
+import { containsBannedContent } from "@/app/lib/contentPolicy";
 import type { GameMode, PromptRating } from "./types";
 
 const lowEffortPatterns = [
   /^(hi|hello|test|asdf|lol|idk|nothing|none)$/i,
   /^[?.!,\s]+$/,
-];
-
-const bannedPatterns = [
-  /\b(kill yourself|suicide|rape|nazi)\b/i,
 ];
 
 function hasFillBlankCue(prompt: string) {
@@ -24,7 +21,7 @@ export function ratePrompt(prompt: string, gameMode: GameMode): PromptRating {
   const wordCount = trimmedPrompt.split(/\s+/).filter(Boolean).length;
 
   if (!trimmedPrompt) return "ehhh";
-  if (bannedPatterns.some((pattern) => pattern.test(trimmedPrompt))) return "bad";
+  if (containsBannedContent(trimmedPrompt)) return "bad";
   if (lowEffortPatterns.some((pattern) => pattern.test(trimmedPrompt))) return "bad";
   if (trimmedPrompt.length < 18 || wordCount < 4) return "bad";
   if (trimmedPrompt.length > 150) return "ehhh";

@@ -34,18 +34,26 @@ export function checkSameOrigin(request: Request) {
 }
 
 export function checkRateLimit(request: Request, key: string, options: RateLimitOptions) {
+  return checkBucketedRateLimit(`${key}:${getClientIp(request)}`, options);
+}
+
+export function checkRoomRateLimit(key: string, roomCode: string, options: RateLimitOptions) {
+  return checkBucketedRateLimit(`${key}:room:${roomCode}`, options, "Too many requests from this room. Please wait a moment and try again.");
+}
+
+function checkBucketedRateLimit(
+  bucketKey: string,
+  options: RateLimitOptions,
+  message = "Too many requests. Please wait a moment and try again."
+) {
   const now = Date.now();
-  const bucketKey = `${key}:${getClientIp(request)}`;
   const recentRequests = (requestBuckets.get(bucketKey) || []).filter(
     (timestamp) => now - timestamp < options.windowMs
   );
 
   if (recentRequests.length >= options.maxRequests) {
     requestBuckets.set(bucketKey, recentRequests);
-    return Response.json(
-      { error: "Too many requests. Please wait a moment and try again." },
-      { status: 429 }
-    );
+    return Response.json({ error: message }, { status: 429 });
   }
 
   requestBuckets.set(bucketKey, [...recentRequests, now]);

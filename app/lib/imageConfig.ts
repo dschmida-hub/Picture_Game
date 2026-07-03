@@ -41,3 +41,8 @@ export function getEstimatedImageCostCents() {
     ? imageConfig.estimatedCostCents
     : 1;
 }
+
+export function getMaxDailyImageSpendCents() {
+  const configuredValue = Number(process.env.MAX_DAILY_IMAGE_SPEND_CENTS || "5000");
+  return Number.isFinite(configuredValue) && configuredValue > 0 ? configuredValue : 5000;
+}
