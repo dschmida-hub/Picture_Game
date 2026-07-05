@@ -65,12 +65,92 @@ const howItWorksSteps = [
   },
 ];
 
+type ShowcaseItem = {
+  imageUrl: string;
+  prompt: string;
+};
+
+function DemoShowcaseCard({
+  demoIndex,
+  item,
+}: {
+  demoIndex: number;
+  item?: ShowcaseItem;
+}) {
+  return (
+    <div className="rounded-[1.5rem] border-2 border-black bg-[#fff7ed] p-5 text-zinc-950 shadow-[6px_6px_0_#111827]">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-rose-700">
+            Picture This
+          </p>
+          <h2 className="mt-1 text-3xl font-black">A tiny chaos machine.</h2>
+        </div>
+        <div className="rounded-2xl border-2 border-black bg-white px-3 py-2 text-xl font-black shadow-[4px_4px_0_#111827]">
+          AI
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-2xl border-2 border-black bg-white p-4 text-black shadow-[4px_4px_0_#111827]">
+        <p className="text-xs font-extrabold uppercase tracking-wider text-rose-700">
+          Prompt
+        </p>
+        <p className="mt-1 text-2xl font-black">
+          The worst thing to bring to a family reunion
+        </p>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="rounded-2xl border-2 border-black bg-white p-3 shadow-[3px_3px_0_#111827]">
+          <p className="text-xs font-extrabold uppercase text-rose-700">Answer</p>
+          <p className="mt-1 font-black">A lie detector test</p>
+        </div>
+        <div className="rounded-2xl border-2 border-black bg-white p-3 shadow-[3px_3px_0_#111827]">
+          <p className="text-xs font-extrabold uppercase text-rose-700">AI picture</p>
+          <p className="mt-1 font-black">Family truth hour</p>
+        </div>
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-2xl border-2 border-black bg-white shadow-[4px_4px_0_#111827]">
+        {item ? (
+          <>
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                key={demoIndex}
+                src={item.imageUrl}
+                alt={item.prompt || "Recent winning image"}
+                className="animate-demo-fade aspect-[4/3] w-full object-cover"
+              />
+              <span className="absolute left-3 top-3 rounded-full border-2 border-black bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wider text-rose-700">
+                Recent winner
+              </span>
+            </div>
+            {item.prompt && (
+              <p className="border-t-2 border-black px-4 py-3 text-sm font-bold text-zinc-700">
+                {`"${item.prompt}"`}
+              </p>
+            )}
+          </>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src="/demo-images/lie-detector-test.png"
+            alt="Puppet-style lie detector test scene"
+            className="aspect-[4/3] w-full object-cover"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [roomCode, setRoomCode] = useState("");
   const [joinError, setJoinError] = useState("");
   const [isJoining, setIsJoining] = useState(false);
   const [backgroundImages, setBackgroundImages] = useState<string[]>([]);
-  const [showcaseItems, setShowcaseItems] = useState<{ imageUrl: string; prompt: string }[]>([]);
+  const [showcaseItems, setShowcaseItems] = useState<ShowcaseItem[]>([]);
   const [stats, setStats] = useState<{ games: number; images: number; players: number } | null>(null);
   const [demoIndex, setDemoIndex] = useState(0);
 
@@ -161,6 +241,8 @@ export default function Home() {
     const code = Math.random().toString(36).substring(2, 7).toUpperCase();
     window.location.href = `/game/${code}?create=1`;
   }
+
+  const activeShowcaseItem = showcaseItems[demoIndex];
 
   async function joinGame() {
     const cleanCode = formatRoomCode(roomCode);
@@ -263,6 +345,10 @@ export default function Home() {
               Finally, a card game that&apos;s as funny as you are.
             </p>
 
+            <div className="mx-auto mt-7 max-w-xl lg:hidden">
+              <DemoShowcaseCard demoIndex={demoIndex} item={activeShowcaseItem} />
+            </div>
+
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
               <button
                 type="button"
@@ -308,74 +394,13 @@ export default function Home() {
           </div>
 
           <div className="rounded-[2rem] border-4 border-black bg-white/95 p-5 shadow-[10px_10px_0_#111827] md:p-6">
-            <div className="rounded-[1.5rem] border-2 border-black bg-[#fff7ed] p-5 text-zinc-950 shadow-[6px_6px_0_#111827]">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-rose-700">
-                    Picture This
-                  </p>
-                  <h2 className="mt-1 text-3xl font-black">A tiny chaos machine.</h2>
-                </div>
-                <div className="rounded-2xl border-2 border-black bg-white px-3 py-2 text-xl font-black shadow-[4px_4px_0_#111827]">
-                  AI
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-2xl border-2 border-black bg-white p-4 text-black shadow-[4px_4px_0_#111827]">
-                <p className="text-xs font-extrabold uppercase tracking-wider text-rose-700">
-                  Prompt
-                </p>
-                <p className="mt-1 text-2xl font-black">
-                  The worst thing to bring to a family reunion
-                </p>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl border-2 border-black bg-white p-3 shadow-[3px_3px_0_#111827]">
-                  <p className="text-xs font-extrabold uppercase text-rose-700">Answer</p>
-                  <p className="mt-1 font-black">A lie detector test</p>
-                </div>
-                <div className="rounded-2xl border-2 border-black bg-white p-3 shadow-[3px_3px_0_#111827]">
-                  <p className="text-xs font-extrabold uppercase text-rose-700">AI picture</p>
-                  <p className="mt-1 font-black">Family truth hour</p>
-                </div>
-              </div>
-
-              <div className="mt-4 overflow-hidden rounded-2xl border-2 border-black bg-white shadow-[4px_4px_0_#111827]">
-                {showcaseItems.length > 0 ? (
-                  <>
-                    <div className="relative">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        key={demoIndex}
-                        src={showcaseItems[demoIndex]?.imageUrl}
-                        alt={showcaseItems[demoIndex]?.prompt || "Recent winning image"}
-                        className="animate-demo-fade aspect-[4/3] w-full object-cover"
-                      />
-                      <span className="absolute left-3 top-3 rounded-full border-2 border-black bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wider text-rose-700">
-                        Recent winner
-                      </span>
-                    </div>
-                    {showcaseItems[demoIndex]?.prompt && (
-                      <p className="border-t-2 border-black px-4 py-3 text-sm font-bold text-zinc-700">
-                        {`"${showcaseItems[demoIndex].prompt}"`}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src="/demo-images/lie-detector-test.png"
-                    alt="Puppet-style lie detector test scene"
-                    className="aspect-[4/3] w-full object-cover"
-                  />
-                )}
-              </div>
+            <div className="hidden lg:block">
+              <DemoShowcaseCard demoIndex={demoIndex} item={activeShowcaseItem} />
             </div>
 
             <div
               id="join"
-              className="mt-6 rounded-3xl border-2 border-black bg-rose-50 p-5 shadow-[5px_5px_0_#111827]"
+              className="rounded-3xl border-2 border-black bg-rose-50 p-5 shadow-[5px_5px_0_#111827] lg:mt-6"
             >
               <p className="text-sm font-extrabold uppercase tracking-wider text-rose-700">
                 Join friends
