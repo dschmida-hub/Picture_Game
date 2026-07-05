@@ -5,7 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 const featureCards = [
-  ["No app required", "Everyone joins from their phone with a room code."],
+  ["Easy room codes", "Everyone joins the same game with a simple shared code."],
   ["AI draws the joke", "Answers become anonymous images for the whole table to judge."],
   ["Built for chaos", "Classic prompts, fill-in-the-blank cards, avatars, voting, and winners."],
 ];
@@ -21,8 +21,8 @@ const faqs = [
     answer: "Each room supports 2-8 players. Everyone joins from their own phone with a 5-letter room code.",
   },
   {
-    question: "Do we need to download anything?",
-    answer: "No app required. The whole game runs in your phone's browser, host included.",
+    question: "Where can people play?",
+    answer: "Right now, everyone can join from a browser with a room code. A dedicated app is something I want to support later.",
   },
   {
     question: "Is it free?",
@@ -77,6 +77,8 @@ function DemoShowcaseCard({
   demoIndex: number;
   item?: ShowcaseItem;
 }) {
+  const isLiveWinner = Boolean(item);
+
   return (
     <div className="rounded-[1.5rem] border-2 border-black bg-[#fff7ed] p-5 text-zinc-950 shadow-[6px_6px_0_#111827]">
       <div className="flex items-center justify-between gap-3">
@@ -93,21 +95,27 @@ function DemoShowcaseCard({
 
       <div className="mt-5 rounded-2xl border-2 border-black bg-white p-4 text-black shadow-[4px_4px_0_#111827]">
         <p className="text-xs font-extrabold uppercase tracking-wider text-rose-700">
-          Prompt
+          {isLiveWinner ? "Recent winning answer" : "Prompt"}
         </p>
         <p className="mt-1 text-2xl font-black">
-          The worst thing to bring to a family reunion
+          {isLiveWinner ? item?.prompt : "The worst thing to bring to a family reunion"}
         </p>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div className="rounded-2xl border-2 border-black bg-white p-3 shadow-[3px_3px_0_#111827]">
-          <p className="text-xs font-extrabold uppercase text-rose-700">Answer</p>
-          <p className="mt-1 font-black">A lie detector test</p>
+          <p className="text-xs font-extrabold uppercase text-rose-700">
+            {isLiveWinner ? "What happened" : "Answer"}
+          </p>
+          <p className="mt-1 font-black">
+            {isLiveWinner ? "The AI turned it into a visual joke" : "A lie detector test"}
+          </p>
         </div>
         <div className="rounded-2xl border-2 border-black bg-white p-3 shadow-[3px_3px_0_#111827]">
           <p className="text-xs font-extrabold uppercase text-rose-700">AI picture</p>
-          <p className="mt-1 font-black">Family truth hour</p>
+          <p className="mt-1 font-black">
+            {isLiveWinner ? "Actual game winner" : "Family truth hour"}
+          </p>
         </div>
       </div>
 
@@ -128,7 +136,7 @@ function DemoShowcaseCard({
             </div>
             {item.prompt && (
               <p className="border-t-2 border-black px-4 py-3 text-sm font-bold text-zinc-700">
-                {`"${item.prompt}"`}
+                Winning answer: {`"${item.prompt}"`}
               </p>
             )}
           </>
@@ -470,7 +478,7 @@ export default function Home() {
       </section>
 
       {showcaseItems.length > 0 && (
-        <section className="relative px-5 pb-4 pt-8 md:px-8">
+        <section className="relative hidden px-5 pb-4 pt-8 md:block md:px-8">
           <div className="mx-auto w-full max-w-7xl">
             <p className="text-center text-sm font-extrabold uppercase tracking-[0.25em] text-rose-700">
               Real rooms, real chaos
