@@ -66,8 +66,9 @@ const howItWorksSteps = [
 ];
 
 type ShowcaseItem = {
+  answer: string;
   imageUrl: string;
-  prompt: string;
+  question: string;
 };
 
 function DemoShowcaseCard({
@@ -94,21 +95,21 @@ function DemoShowcaseCard({
       </div>
 
       <div className="mt-5 rounded-2xl border-2 border-black bg-white p-4 text-black shadow-[4px_4px_0_#111827]">
-        <p className="text-xs font-extrabold uppercase tracking-wider text-rose-700">
-          {isLiveWinner ? "Recent winning answer" : "Prompt"}
+          <p className="text-xs font-extrabold uppercase tracking-wider text-rose-700">
+          Prompt
         </p>
         <p className="mt-1 text-2xl font-black">
-          {isLiveWinner ? item?.prompt : "The worst thing to bring to a family reunion"}
+          {isLiveWinner ? item?.question : "The worst thing to bring to a family reunion"}
         </p>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div className="rounded-2xl border-2 border-black bg-white p-3 shadow-[3px_3px_0_#111827]">
           <p className="text-xs font-extrabold uppercase text-rose-700">
-            {isLiveWinner ? "What happened" : "Answer"}
+            Answer
           </p>
           <p className="mt-1 font-black">
-            {isLiveWinner ? "The AI turned it into a visual joke" : "A lie detector test"}
+            {isLiveWinner ? item?.answer : "A lie detector test"}
           </p>
         </div>
         <div className="rounded-2xl border-2 border-black bg-white p-3 shadow-[3px_3px_0_#111827]">
@@ -127,16 +128,16 @@ function DemoShowcaseCard({
               <img
                 key={demoIndex}
                 src={item.imageUrl}
-                alt={item.prompt || "Recent winning image"}
+                alt={item.answer || "Recent winning image"}
                 className="animate-demo-fade aspect-[4/3] w-full object-cover"
               />
               <span className="absolute left-3 top-3 rounded-full border-2 border-black bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wider text-rose-700">
                 Recent winner
               </span>
             </div>
-            {item.prompt && (
+            {item.answer && (
               <p className="border-t-2 border-black px-4 py-3 text-sm font-bold text-zinc-700">
-                Winning answer: {`"${item.prompt}"`}
+                Winning answer: {`"${item.answer}"`}
               </p>
             )}
           </>
@@ -166,7 +167,7 @@ export default function Home() {
     async function loadBackgroundImages() {
       const { data, error } = await supabase
         .from("round_history")
-        .select("gallery_thumbnail_url, winner_image_url, winner_prompt")
+        .select("game_id, gallery_thumbnail_url, winner_image_url, winner_prompt")
         .not("winner_image_url", "is", null)
         .order("id", { ascending: false })
         .limit(8);
@@ -177,6 +178,29 @@ export default function Home() {
       }
 
       const rounds = data || [];
+      const gameIds = Array.from(
+        new Set(
+          rounds
+            .map((round) => Number(round.game_id))
+            .filter((gameId) => Number.isInteger(gameId) && gameId > 0)
+        )
+      );
+      const questionByGameId = new Map<number, string>();
+
+      if (gameIds.length > 0) {
+        const { data: games, error: gamesError } = await supabase
+          .from("games")
+          .select("id, prompt")
+          .in("id", gameIds);
+
+        if (gamesError) {
+          console.error("Failed to load homepage showcase prompts:", gamesError);
+        } else {
+          (games || []).forEach((game) => {
+            questionByGameId.set(Number(game.id), game.prompt || "");
+          });
+        }
+      }
 
       setBackgroundImages(
         rounds
@@ -189,12 +213,13 @@ export default function Home() {
       setShowcaseItems(
         rounds
           .map((round) => ({
+            answer: round.winner_prompt,
             imageUrl: round.gallery_thumbnail_url || round.winner_image_url,
-            prompt: round.winner_prompt,
+            question: questionByGameId.get(Number(round.game_id)) || "A recent winning prompt",
           }))
           .filter(
-            (item): item is { imageUrl: string; prompt: string } =>
-              Boolean(item.imageUrl && !item.imageUrl.startsWith("data:"))
+            (item): item is ShowcaseItem =>
+              Boolean(item.imageUrl && !item.imageUrl.startsWith("data:") && item.answer)
           )
           .slice(0, 6)
       );
@@ -476,40 +501,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      {showcaseItems.length > 0 && (
-        <section className="relative hidden px-5 pb-4 pt-8 md:block md:px-8">
-          <div className="mx-auto w-full max-w-7xl">
-            <p className="text-center text-sm font-extrabold uppercase tracking-[0.25em] text-rose-700">
-              Real rooms, real chaos
-            </p>
-            <h2 className="mt-2 text-center text-3xl font-black md:text-4xl">
-              Straight from actual game nights.
-            </h2>
-
-            <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {showcaseItems.map((item, index) => (
-                <div
-                  key={`${item.imageUrl}-${index}`}
-                  className="overflow-hidden rounded-3xl border-2 border-black bg-white shadow-[5px_5px_0_#111827]"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.imageUrl}
-                    alt={item.prompt || "Winning round image"}
-                    className="aspect-square w-full object-cover"
-                  />
-                  {item.prompt && (
-                    <p className="p-4 text-sm font-bold text-zinc-700">
-                      {`"${item.prompt}"`}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
 
       <section className="relative px-5 pb-16 pt-8 md:px-8 md:pb-20 md:pt-12">
         <div className="mx-auto w-full max-w-3xl rounded-[2rem] border-4 border-black bg-rose-100 p-6 shadow-[8px_8px_0_#111827] md:p-8">
