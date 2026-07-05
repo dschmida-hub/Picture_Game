@@ -966,6 +966,48 @@ useEffect(() => {
   return () => window.clearTimeout(timeout);
 }, [stage]);
 
+// Host safety net: while a round is in progress, re-check readiness on a timer
+// so the round reliably advances to reveal once every image is ready, even if
+// the client that finished the last image never fired its own readiness check.
+useEffect(() => {
+  if (!isHost || stage !== "submitting" || !currentGameId) return;
+
+  const interval = window.setInterval(async () => {
+    await loadSubmissions(currentGameId);
+    await revealRoundIfReady(currentGameId);
+  }, 3000);
+
+  return () => window.clearInterval(interval);
+}, [isHost, stage, currentGameId]);
+
+// Host safety net: when the voting timer runs out, auto-advance to the winner
+// with whatever votes are in instead of stalling on "waiting for the host".
+// Skips the zero-vote case (loadWinner needs at least one vote to pick a winner).
+useEffect(() => {
+  if (!isHost || stage !== "reveal" || !currentGameId) return;
+  if (!isVotingTimeExpired || votedPlayerNames.length < 1) return;
+
+  let cancelled = false;
+  (async () => {
+    const { error } = await supabase
+      .from("games")
+      .update({ stage: "winner" })
+      .eq("id", currentGameId)
+      .eq("room_code", code);
+
+    if (error) {
+      console.error("Failed to auto-advance to winner:", error);
+      return;
+    }
+
+    if (!cancelled) setStage("winner");
+  })();
+
+  return () => {
+    cancelled = true;
+  };
+}, [isHost, stage, currentGameId, isVotingTimeExpired, votedPlayerNames.length]);
+
 useEffect(() => {
   if (stage !== "submitting") return;
 
@@ -1034,11 +1076,18 @@ useEffect(() => {
   loadVotes();
   loadScoreboard();
   loadPromptSuggestions();
-  heartbeatAndCheckHost();
 }, 2000);
+
+  // Host liveness only needs occasional checks (staleness threshold is 45s),
+  // so keep it off the fast 2s data poll to cut request volume.
+  const heartbeatInterval = setInterval(() => {
+    heartbeatAndCheckHost();
+  }, 10000);
+
   return () => {
     isMounted = false;
     clearInterval(interval);
+    clearInterval(heartbeatInterval);
   };
 }, []);
 
