@@ -11,6 +11,7 @@ type PromptSuggestionPanelProps = {
   suggestions: PromptSuggestion[];
   suggestionText: string;
   suggestionMode: GameMode;
+  hasSelectedGameMode: boolean;
   suggestionRating: PromptSuggestion["rating"];
   approvalVotesNeeded: number;
   isSubmittingSuggestion: boolean;
@@ -24,6 +25,7 @@ export function PromptSuggestionPanel({
   suggestions,
   suggestionText,
   suggestionMode,
+  hasSelectedGameMode,
   suggestionRating,
   approvalVotesNeeded,
   isSubmittingSuggestion,
@@ -32,6 +34,7 @@ export function PromptSuggestionPanel({
   onVoteSuggestion,
 }: PromptSuggestionPanelProps) {
   const suggestionModeLabel = suggestionMode === "cards" ? "Fill in Blank" : "Classic";
+  const isPromptPitchingDisabled = !hasSelectedGameMode;
 
   return (
     <div className="w-full max-w-5xl rounded-[2rem] border-2 border-black bg-white p-5 shadow-[8px_8px_0_#111827]">
@@ -55,28 +58,33 @@ export function PromptSuggestionPanel({
           value={suggestionText}
           onChange={(event) => onSuggestionTextChange(event.target.value)}
           placeholder={
-            suggestionMode === "cards"
+            !hasSelectedGameMode
+              ? "Choose a game mode first..."
+              : suggestionMode === "cards"
               ? "Example: The real treasure was _____ all along."
               : "Example: The worst thing to hear from your dentist is..."
           }
           maxLength={160}
-          className="min-h-24 resize-none rounded-2xl border-2 border-black p-3 font-bold outline-none focus:border-rose-600 focus:shadow-[0_0_0_4px_rgba(225,29,72,0.16)]"
+          disabled={isPromptPitchingDisabled}
+          className="min-h-24 resize-none rounded-2xl border-2 border-black p-3 font-bold outline-none focus:border-rose-600 focus:shadow-[0_0_0_4px_rgba(225,29,72,0.16)] disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500"
         />
 
         <div className="rounded-2xl border-2 border-black bg-rose-50 p-3">
           <p className="text-[0.7rem] font-black uppercase tracking-[0.18em] text-rose-700">
             Locked to
           </p>
-          <p className="mt-1 font-black text-zinc-950">{suggestionModeLabel}</p>
+          <p className="mt-1 font-black text-zinc-950">
+            {hasSelectedGameMode ? suggestionModeLabel : "Choose mode first"}
+          </p>
           <p className="mt-1 text-xs font-bold text-zinc-500">
-            Follows the room mode.
+            {hasSelectedGameMode ? "Follows the room mode." : "Classic or Fill in the Blank."}
           </p>
         </div>
 
         <button
           type="button"
           onClick={onSubmitSuggestion}
-          disabled={isSubmittingSuggestion || !suggestionText.trim() || !playerName}
+          disabled={isSubmittingSuggestion || isPromptPitchingDisabled || !suggestionText.trim() || !playerName}
           className="rounded-2xl bg-rose-600 px-5 py-3 font-black text-white shadow-[4px_4px_0_#111827] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSubmittingSuggestion ? "Submitting..." : "Submit"}
@@ -87,7 +95,13 @@ export function PromptSuggestionPanel({
         {suggestionText.length}/160
       </p>
 
-      {suggestionText.trim() && (
+      {!hasSelectedGameMode && (
+        <p className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-black text-amber-900">
+          The host needs to choose Classic or Fill in the Blank before players can pitch prompts.
+        </p>
+      )}
+
+      {hasSelectedGameMode && suggestionText.trim() && (
         <div className="mt-2 flex flex-col gap-1 rounded-2xl border border-rose-200 bg-rose-50 p-3 md:flex-row md:items-center md:justify-between">
           <span
             className={`w-fit rounded-full border px-3 py-1 text-xs font-extrabold ${getPromptRatingClasses(

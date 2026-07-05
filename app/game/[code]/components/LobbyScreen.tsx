@@ -11,6 +11,7 @@ type LobbyScreenProps = {
   isHost: boolean;
   hostName?: string;
   selectedGameMode: GameMode;
+  hasSelectedGameMode: boolean;
   selectedContentRating: ContentRating;
   selectedCategory: string;
   selectedImageStyle: string;
@@ -66,6 +67,7 @@ export function LobbyScreen({
   isHost,
   hostName,
   selectedGameMode,
+  hasSelectedGameMode,
   selectedContentRating,
   selectedCategory,
   selectedImageStyle,
@@ -247,7 +249,7 @@ export function LobbyScreen({
                     type="button"
                     onClick={() => onGameModeChange("classic")}
                     className={`rounded-2xl border-2 p-2.5 text-left transition sm:p-4 ${
-                      selectedGameMode === "classic"
+                      hasSelectedGameMode && selectedGameMode === "classic"
                         ? "border-black bg-rose-50 shadow-[4px_4px_0_#111827]"
                         : "border-zinc-200 bg-white hover:border-black"
                     }`}
@@ -260,17 +262,22 @@ export function LobbyScreen({
                     type="button"
                     onClick={() => onGameModeChange("cards")}
                     className={`rounded-2xl border-2 p-2.5 text-left transition sm:p-4 ${
-                      selectedGameMode === "cards"
+                      hasSelectedGameMode && selectedGameMode === "cards"
                         ? "border-black bg-zinc-950 text-white shadow-[4px_4px_0_#fb7185]"
                         : "border-zinc-200 bg-white hover:border-black"
                     }`}
                   >
                     <span className="block text-sm font-black sm:text-lg">Fill in the Blank</span>
-                    <span className={`text-xs font-bold sm:text-sm ${selectedGameMode === "cards" ? "text-zinc-300" : "text-zinc-500"}`}>
+                    <span className={`text-xs font-bold sm:text-sm ${hasSelectedGameMode && selectedGameMode === "cards" ? "text-zinc-300" : "text-zinc-500"}`}>
                       Complete a prompt card
                     </span>
                   </button>
                 </div>
+                {!hasSelectedGameMode && (
+                  <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-900">
+                    Pick a game mode to unlock player-made prompts and start the game.
+                  </p>
+                )}
               </div>
 
               <div className={cardClass}>
@@ -340,13 +347,17 @@ export function LobbyScreen({
               <div className={cardClass}>
                 <button
                   onClick={onStartGame}
-                  disabled={isStarting || players.length < 2}
+                  disabled={isStarting || players.length < 2 || !hasSelectedGameMode}
                   className="w-full rounded-2xl bg-rose-600 px-6 py-4 text-lg font-black text-white shadow-[4px_4px_0_#111827] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isStarting ? "Starting..." : "Start Game"}
                 </button>
 
-                {players.length < 2 && (
+                {!hasSelectedGameMode ? (
+                  <p className="mt-3 text-center text-sm font-black text-rose-700">
+                    Choose Classic or Fill in the Blank first.
+                  </p>
+                ) : players.length < 2 && (
                   <p className="mt-3 text-center text-sm font-black text-rose-700">
                     Waiting for one more player to join.
                   </p>
@@ -466,7 +477,9 @@ export function LobbyScreen({
                 You&apos;re in
               </p>
               <p className="mt-2 text-xl font-black">
-                {selectedGameMode === "cards" ? "Fill in the Blank" : "Classic"} mode
+                {hasSelectedGameMode
+                  ? `${selectedGameMode === "cards" ? "Fill in the Blank" : "Classic"} mode`
+                  : "Waiting for the host to choose a mode"}
               </p>
               <p className="mt-2 text-sm font-bold text-zinc-500">
                 Waiting for {hostName || "the host"} to start the game...
@@ -481,6 +494,7 @@ export function LobbyScreen({
         suggestions={promptSuggestions}
         suggestionText={promptSuggestionText}
         suggestionMode={selectedGameMode}
+        hasSelectedGameMode={hasSelectedGameMode}
         suggestionRating={promptSuggestionRating}
         approvalVotesNeeded={promptApprovalVotesNeeded}
         isSubmittingSuggestion={isSubmittingPromptSuggestion}

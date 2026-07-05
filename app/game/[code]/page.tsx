@@ -103,6 +103,7 @@ export default function GameRoom() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("Random");
   const [selectedGameMode, setSelectedGameMode] = useState<GameMode>("classic");
+  const [hasSelectedGameMode, setHasSelectedGameMode] = useState(false);
   const [selectedContentRating, setSelectedContentRating] = useState<ContentRating>("everyone");
   const [selectedImageStyle, setSelectedImageStyle] = useState("prompt");
   const [selectedRoundDuration, setSelectedRoundDuration] = useState<number | "unlimited">(90);
@@ -177,6 +178,15 @@ export default function GameRoom() {
   const promptApprovalVotesNeeded = Math.max(2, Math.ceil(players.length / 2));
   const promptSuggestionRating = ratePrompt(promptSuggestionText, selectedGameMode);
   const roomExpirationMessage = formatRoomExpiration(roomCreatedAt);
+
+  function chooseGameMode(mode: GameMode) {
+    if (hasSelectedGameMode && selectedGameMode !== mode) {
+      setPromptSuggestionText("");
+    }
+
+    setSelectedGameMode(mode);
+    setHasSelectedGameMode(true);
+  }
 
   function showToast(message: string, tone: ToastTone = "error") {
     setToast({ message, tone });
@@ -571,6 +581,10 @@ async function loadPromptSuggestions() {
 async function submitPromptSuggestion() {
   const prompt = promptSuggestionText.trim();
   if (!joined || !name || !prompt || isSubmittingPromptSuggestion) return;
+  if (!hasSelectedGameMode) {
+    showToast("Choose Classic or Fill in the Blank before pitching a prompt.");
+    return;
+  }
 
   setIsSubmittingPromptSuggestion(true);
 
@@ -914,6 +928,7 @@ async function loadGame() {
   setStage(data.stage as GameStage);
   setRoundPrompt(data.prompt);
   setSelectedGameMode(data.game_mode as "classic" | "cards");
+  setHasSelectedGameMode(Boolean(data.game_mode));
   setSelectedContentRating(normalizeContentRating(data.content_rating));
   setRoundImageStyle(data.image_style || "cartoon");
   setRoundDeadline(data.submission_deadline);
@@ -1297,6 +1312,10 @@ async function logClientGameEvent({
 
 async function startGame() {
   if (!isHost || isStarting) return;
+  if (!hasSelectedGameMode) {
+    showToast("Choose a game mode before starting.");
+    return;
+  }
   if (players.length < 2) {
     showToast("Wait for at least one more player before starting.");
     return;
@@ -2231,6 +2250,7 @@ if (isPageLoading) {
     isHost={isHost}
     hostName={hostName}
     selectedGameMode={selectedGameMode}
+    hasSelectedGameMode={hasSelectedGameMode}
     selectedContentRating={selectedContentRating}
     selectedCategory={selectedCategory}
     selectedImageStyle={selectedImageStyle}
@@ -2245,7 +2265,7 @@ if (isPageLoading) {
     promptSuggestionRating={promptSuggestionRating}
     promptApprovalVotesNeeded={promptApprovalVotesNeeded}
     isSubmittingPromptSuggestion={isSubmittingPromptSuggestion}
-    onGameModeChange={setSelectedGameMode}
+    onGameModeChange={chooseGameMode}
     onContentRatingChange={setSelectedContentRating}
     onCategoryChange={setSelectedCategory}
     onImageStyleChange={setSelectedImageStyle}
@@ -2420,6 +2440,3 @@ if (isPageLoading) {
 </main>
   );
 }
-
-
-
