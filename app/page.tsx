@@ -10,6 +10,11 @@ const featureCards = [
   ["Built for chaos", "Classic prompts, fill-in-the-blank cards, avatars, voting, and winners."],
 ];
 
+function formatCount(value: number) {
+  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1).replace(/\.0$/, "")}k`;
+  return String(value);
+}
+
 const faqs = [
   {
     question: "How many people can play?",
@@ -66,6 +71,8 @@ export default function Home() {
   const [isJoining, setIsJoining] = useState(false);
   const [backgroundImages, setBackgroundImages] = useState<string[]>([]);
   const [showcaseItems, setShowcaseItems] = useState<{ imageUrl: string; prompt: string }[]>([]);
+  const [stats, setStats] = useState<{ games: number; images: number; players: number } | null>(null);
+  const [demoIndex, setDemoIndex] = useState(0);
 
   useEffect(() => {
     async function loadBackgroundImages() {
@@ -105,8 +112,41 @@ export default function Home() {
       );
     }
 
+    async function loadStats() {
+      const [games, images, players] = await Promise.all([
+        supabase.from("round_history").select("id", { count: "exact", head: true }),
+        supabase
+          .from("submissions")
+          .select("id", { count: "exact", head: true })
+          .not("image_url", "is", null),
+        supabase.from("players").select("id", { count: "exact", head: true }),
+      ]);
+
+      if (games.error || images.error || players.error) {
+        console.error("Failed to load homepage stats:", games.error || images.error || players.error);
+        return;
+      }
+
+      setStats({
+        games: games.count || 0,
+        images: images.count || 0,
+        players: players.count || 0,
+      });
+    }
+
     loadBackgroundImages();
+    loadStats();
   }, []);
+
+  useEffect(() => {
+    if (showcaseItems.length < 2) return;
+
+    const interval = window.setInterval(() => {
+      setDemoIndex((current) => (current + 1) % showcaseItems.length);
+    }, 3500);
+
+    return () => window.clearInterval(interval);
+  }, [showcaseItems.length]);
 
   function formatRoomCode(value: string) {
     return value.replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 5);
@@ -239,6 +279,21 @@ export default function Home() {
               </Link>
             </div>
 
+            {stats && stats.images >= 20 && (
+              <div className="mt-8 flex flex-wrap justify-center gap-6 lg:justify-start">
+                {[
+                  ["Images conjured", formatCount(stats.images)],
+                  ["Rounds played", formatCount(stats.games)],
+                  ["Players in on it", formatCount(stats.players)],
+                ].map(([label, value]) => (
+                  <div key={label} className="text-center lg:text-left">
+                    <p className="text-3xl font-black text-rose-600">{value}</p>
+                    <p className="text-xs font-black uppercase tracking-wider text-zinc-500">{label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-3">
               {featureCards.map(([title, description]) => (
                 <div
@@ -287,12 +342,34 @@ export default function Home() {
               </div>
 
               <div className="mt-4 overflow-hidden rounded-2xl border-2 border-black bg-white shadow-[4px_4px_0_#111827]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/demo-images/lie-detector-test.png"
-                  alt="Puppet-style lie detector test scene"
-                  className="aspect-[4/3] w-full object-cover"
-                />
+                {showcaseItems.length > 0 ? (
+                  <>
+                    <div className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        key={demoIndex}
+                        src={showcaseItems[demoIndex]?.imageUrl}
+                        alt={showcaseItems[demoIndex]?.prompt || "Recent winning image"}
+                        className="animate-demo-fade aspect-[4/3] w-full object-cover"
+                      />
+                      <span className="absolute left-3 top-3 rounded-full border-2 border-black bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wider text-rose-700">
+                        Recent winner
+                      </span>
+                    </div>
+                    {showcaseItems[demoIndex]?.prompt && (
+                      <p className="border-t-2 border-black px-4 py-3 text-sm font-bold text-zinc-700">
+                        {`"${showcaseItems[demoIndex].prompt}"`}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src="/demo-images/lie-detector-test.png"
+                    alt="Puppet-style lie detector test scene"
+                    className="aspect-[4/3] w-full object-cover"
+                  />
+                )}
               </div>
             </div>
 
@@ -402,38 +479,20 @@ export default function Home() {
       )}
 
       <section className="relative px-5 pb-16 pt-8 md:px-8 md:pb-20 md:pt-12">
-        <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 lg:grid-cols-[0.8fr_1fr]">
-          <div className="rounded-[2rem] border-4 border-black bg-white/95 p-6 shadow-[8px_8px_0_#111827]">
-            <p className="text-sm font-extrabold uppercase tracking-[0.25em] text-rose-700">
-              New here?
+        <div className="mx-auto w-full max-w-3xl rounded-[2rem] border-4 border-black bg-rose-100 p-6 shadow-[8px_8px_0_#111827] md:p-8">
+          <p className="text-sm font-extrabold uppercase tracking-[0.25em] text-rose-700">
+            Coming next
+          </p>
+          <h2 className="mt-2 text-3xl font-black">Party passes</h2>
+          <p className="mt-3 font-bold text-zinc-700">
+            Free games stay available while paid party passes will unlock longer sessions,
+            more rounds, and bigger group nights.
+          </p>
+          <div className="mt-5 rounded-2xl border-2 border-black bg-white p-4 shadow-[4px_4px_0_#111827]">
+            <p className="font-black">Early plan</p>
+            <p className="mt-1 text-sm font-bold text-zinc-600">
+              Free trial · Party Pass · Party Night
             </p>
-            <h2 className="mt-2 text-3xl font-black">Learn the game in 30 seconds.</h2>
-            <p className="mt-3 font-bold text-zinc-700">
-              See how rooms, prompts, images, voting, and scoring work before you start.
-            </p>
-            <Link
-              href="/how-to-play"
-              className="mt-5 inline-flex rounded-2xl bg-zinc-950 px-6 py-4 font-black text-white shadow-[5px_5px_0_#fb7185] transition active:scale-[0.99] md:hover:-translate-y-0.5"
-            >
-              Open How to Play
-            </Link>
-          </div>
-
-          <div className="rounded-[2rem] border-4 border-black bg-rose-100 p-6 shadow-[8px_8px_0_#111827]">
-            <p className="text-sm font-extrabold uppercase tracking-[0.25em] text-rose-700">
-              Coming next
-            </p>
-            <h2 className="mt-2 text-3xl font-black">Party passes</h2>
-            <p className="mt-3 font-bold text-zinc-700">
-              Free games stay available while paid party passes will unlock longer sessions,
-              more rounds, and bigger group nights.
-            </p>
-            <div className="mt-5 rounded-2xl border-2 border-black bg-white p-4 shadow-[4px_4px_0_#111827]">
-              <p className="font-black">Early plan</p>
-              <p className="mt-1 text-sm font-bold text-zinc-600">
-                Free trial · Party Pass · Party Night
-              </p>
-            </div>
           </div>
         </div>
       </section>
@@ -458,6 +517,24 @@ export default function Home() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="relative px-5 pb-16 md:px-8">
+        <div className="mx-auto w-full max-w-4xl rounded-[2rem] border-4 border-black bg-zinc-950 p-8 text-center text-white shadow-[10px_10px_0_#fb7185] md:p-12">
+          <h2 className="text-4xl font-black md:text-5xl">
+            Your group chat deserves this.
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-lg font-bold text-zinc-300">
+            Start a free room, send the code, and find out whose brain is the most broken.
+          </p>
+          <button
+            type="button"
+            onClick={createGame}
+            className="mt-8 rounded-2xl bg-rose-600 px-10 py-5 text-xl font-black text-white shadow-[6px_6px_0_#fff] transition active:scale-[0.99] md:hover:-translate-y-0.5"
+          >
+            Start Free Game
+          </button>
         </div>
       </section>
 
