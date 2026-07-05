@@ -138,3 +138,68 @@ export async function updateReportStatus(formData: FormData) {
   revalidatePath("/admin/reports");
   redirect(`/admin/reports?key=${encodeURIComponent(key)}`);
 }
+
+const PROMPT_TABLES = ["prompts", "cah_prompts"] as const;
+type PromptTable = (typeof PROMPT_TABLES)[number];
+const PROMPT_RATINGS = ["good", "ehhh", "bad"] as const;
+
+function promptsRedirect(key: string, formData: FormData) {
+  const params = new URLSearchParams({ key });
+  const table = String(formData.get("table") || "");
+  const rating = String(formData.get("filterRating") || "");
+  const show = String(formData.get("filterShow") || "");
+  if (table) params.set("table", table);
+  if (rating) params.set("rating", rating);
+  if (show) params.set("show", show);
+  redirect(`/admin/prompts?${params.toString()}`);
+}
+
+function requirePromptTable(formData: FormData): PromptTable {
+  const table = String(formData.get("table") || "");
+  if (!PROMPT_TABLES.includes(table as PromptTable)) {
+    throw new Error("Invalid prompt table");
+  }
+  return table as PromptTable;
+}
+
+export async function togglePromptActive(formData: FormData) {
+  const key = requireAdminKey(formData);
+  const table = requirePromptTable(formData);
+  const promptId = Number(formData.get("promptId"));
+  const active = String(formData.get("active")) === "true";
+
+  if (!Number.isFinite(promptId) || promptId <= 0) {
+    throw new Error("Missing prompt id");
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase.from(table).update({ active }).eq("id", promptId);
+
+  if (error) throw error;
+
+  revalidatePath("/admin/prompts");
+  promptsRedirect(key, formData);
+}
+
+export async function setPromptRating(formData: FormData) {
+  const key = requireAdminKey(formData);
+  const table = requirePromptTable(formData);
+  const promptId = Number(formData.get("promptId"));
+  const rating = String(formData.get("rating") || "");
+
+  if (!Number.isFinite(promptId) || promptId <= 0) {
+    throw new Error("Missing prompt id");
+  }
+
+  if (!PROMPT_RATINGS.includes(rating as (typeof PROMPT_RATINGS)[number])) {
+    throw new Error("Invalid prompt rating");
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase.from(table).update({ prompt_rating: rating }).eq("id", promptId);
+
+  if (error) throw error;
+
+  revalidatePath("/admin/prompts");
+  promptsRedirect(key, formData);
+}
