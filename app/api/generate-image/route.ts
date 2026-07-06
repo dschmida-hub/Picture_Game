@@ -1,5 +1,12 @@
 import OpenAI from "openai";
 import sharp from "sharp";
+
+// Image generation (OpenAI/Replicate) has been observed taking 15-20s.
+// Without this, Vercel kills the function at its platform default (10s
+// on Hobby), causing generations that were still succeeding upstream to
+// time out client-side. 60 is the max allowed on Hobby; raise further
+// if you're on Pro and still see timeouts.
+export const maxDuration = 60;
 import { containsBannedContent } from "@/app/lib/contentPolicy";
 import {
   getActiveImageModel,

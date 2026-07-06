@@ -1,5 +1,9 @@
 import OpenAI from "openai";
 import sharp from "sharp";
+
+// See app/api/generate-image/route.ts for why this is needed - same
+// slow upstream call, same risk of Vercel killing the function first.
+export const maxDuration = 60;
 import {
   getActiveImageModel,
   getEstimatedImageCostCents,

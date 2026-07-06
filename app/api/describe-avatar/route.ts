@@ -1,5 +1,9 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+
+// Calls an external vision API; give it headroom above the 10s platform
+// default in case of a slow response.
+export const maxDuration = 30;
 import {
   checkRateLimit,
   checkSameOrigin,

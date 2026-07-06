@@ -1,5 +1,9 @@
 import crypto from "crypto";
 import sharp from "sharp";
+
+// Image decode/re-encode plus a storage upload; give it headroom above
+// the 10s platform default for larger uploads.
+export const maxDuration = 30;
 import {
   guardRequest,
   jsonError,
