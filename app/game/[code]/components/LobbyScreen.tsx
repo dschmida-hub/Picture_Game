@@ -355,7 +355,7 @@ export function LobbyScreen({
               <div className={cardClass}>
                 <button
                   onClick={onStartGame}
-                  disabled={isStarting || players.length < 2 || !hasSelectedGameMode}
+                  disabled={isStarting || !hasSelectedGameMode}
                   className="w-full rounded-2xl bg-rose-600 px-6 py-4 text-lg font-black text-white shadow-[4px_4px_0_#111827] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isStarting ? "Starting..." : "Start Game"}
@@ -365,10 +365,13 @@ export function LobbyScreen({
                   <p className="mt-3 text-center text-sm font-black text-rose-700">
                     Choose Classic or Fill in the Blank first.
                   </p>
-                ) : players.length < 2 && (
-                  <p className="mt-3 text-center text-sm font-black text-rose-700">
-                    Waiting for one more player to join.
-                  </p>
+                ) : (
+                  players.length === 1 && (
+                    <p className="mt-3 text-center text-sm font-black text-zinc-500">
+                      Playing solo - you&apos;ll be crowned the winner automatically. Share the room
+                      code anytime to bring in friends.
+                    </p>
+                  )
                 )}
               </div>
 

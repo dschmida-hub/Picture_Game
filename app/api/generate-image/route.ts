@@ -20,6 +20,7 @@ import {
   supabaseAdmin,
 } from "../_utils/api";
 import {
+  checkRateLimit,
   checkRoomRateLimit,
   readJsonWithLimit,
   sanitizeText,
@@ -39,6 +40,7 @@ function parseLimit(value: string | undefined, fallback: number) {
 const MAX_IMAGES_PER_GAME = parseLimit(process.env.MAX_IMAGES_PER_GAME, 8);
 const MAX_IMAGES_PER_ROOM = parseLimit(process.env.MAX_IMAGES_PER_ROOM, 300);
 const MAX_IMAGES_PER_PLAYER_PER_GAME = parseLimit(process.env.MAX_IMAGES_PER_PLAYER_PER_GAME, 1);
+const MAX_SOLO_DEMO_IMAGES_PER_DAY = parseLimit(process.env.MAX_SOLO_DEMO_IMAGES_PER_DAY, 3);
 
 type GenerateImageRequest = {
   roomCode?: unknown;
@@ -379,6 +381,22 @@ export async function POST(request: Request) {
 
     if (containsBannedContent(answer) || containsBannedContent(roundPrompt)) {
       return jsonError("That request isn't allowed. Please adjust the answer or prompt and try again.", 400);
+    }
+
+    // Solo rooms (no one else to play with) are the public demo path linked
+    // from marketing/Reddit, so cap real generations per visitor IP on top of
+    // the normal per-room/per-game limits below.
+    if (players.length === 1) {
+      const soloDemoRateLimitError = checkRateLimit(request, "solo-demo-generate-image", {
+        windowMs: 24 * 60 * 60 * 1000,
+        maxRequests: MAX_SOLO_DEMO_IMAGES_PER_DAY,
+      });
+      if (soloDemoRateLimitError) {
+        return jsonError(
+          "You've hit the free demo limit for today. Grab some friends and start a full room to keep playing!",
+          429
+        );
+      }
     }
 
     const rolling24HourSpendCents = await getRolling24HourSpendCents();

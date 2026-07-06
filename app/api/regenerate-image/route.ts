@@ -18,6 +18,7 @@ import {
   supabaseAdmin,
 } from "../_utils/api";
 import {
+  checkRateLimit,
   checkRoomRateLimit,
   readJsonWithLimit,
   sanitizeText,
@@ -31,6 +32,7 @@ const supabase = supabaseAdmin;
 const MAX_REGENERATIONS_PER_SUBMISSION = Number(
   process.env.MAX_REGENERATIONS_PER_SUBMISSION || "2"
 );
+const MAX_SOLO_DEMO_IMAGES_PER_DAY = Number(process.env.MAX_SOLO_DEMO_IMAGES_PER_DAY || "3");
 
 type RegenerateImageRequest = {
   gameId?: unknown;
@@ -215,6 +217,19 @@ export async function POST(request: Request) {
       .eq("room_code", roomCode);
 
     if (playersError) throw playersError;
+
+    if ((players || []).length === 1) {
+      const soloDemoRateLimitError = checkRateLimit(request, "solo-demo-generate-image", {
+        windowMs: 24 * 60 * 60 * 1000,
+        maxRequests: MAX_SOLO_DEMO_IMAGES_PER_DAY,
+      });
+      if (soloDemoRateLimitError) {
+        return jsonError(
+          "You've hit the free demo limit for today. Grab some friends and start a full room to keep playing!",
+          429
+        );
+      }
+    }
 
     const answer = sanitizeText(submission.prompt, 160);
     const roundPrompt = sanitizeText(game.prompt, 300);

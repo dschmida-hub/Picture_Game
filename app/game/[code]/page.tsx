@@ -1316,11 +1316,6 @@ async function startGame() {
     showToast("Choose a game mode before starting.");
     return;
   }
-  if (players.length < 2) {
-    showToast("Wait for at least one more player before starting.");
-    return;
-  }
-
   setIsStarting(true);
 
   try {
@@ -1411,6 +1406,25 @@ async function revealRoundIfReady(gameId = currentGameId) {
 
   if (!everyoneSubmitted || !allImagesReady) return;
 
+  // Solo rooms have no one to vote against - skip straight to the winner
+  // screen instead of stalling on a voting phase nobody can complete.
+  if (allPlayers.length === 1) {
+    const { error: gameError } = await supabase
+      .from("games")
+      .update({ stage: "winner" })
+      .eq("id", gameId);
+
+    if (gameError) {
+      console.error(gameError);
+      return;
+    }
+
+    setStage("winner");
+    setVotingDeadline(null);
+    await completeSoloRound(gameId);
+    return;
+  }
+
   const nextVotingDeadline = new Date(
     Date.now() + selectedVotingDuration * 1000
   ).toISOString();
@@ -1426,6 +1440,90 @@ async function revealRoundIfReady(gameId = currentGameId) {
 
   setStage("reveal");
   setVotingDeadline(nextVotingDeadline);
+}
+
+async function completeSoloRound(gameId: number) {
+  const { data: submission, error: submissionError } = await supabase
+    .from("submissions")
+    .select("player_name, prompt, image_url, gallery_thumbnail_url")
+    .eq("game_id", gameId)
+    .eq("room_code", code)
+    .maybeSingle();
+
+  if (submissionError || !submission) {
+    console.error("Failed to load solo submission:", submissionError);
+    return;
+  }
+
+  setWinnerImages(submission.image_url ? [submission.image_url] : []);
+  setWinnerName(submission.player_name);
+  setWinnerPrompt(submission.prompt);
+  setWinner(`${submission.player_name}: ${submission.prompt} (solo run - nice work!)`);
+
+  const { data: gameData, error: gameLookupError } = await supabase
+    .from("games")
+    .select("id, winner_awarded")
+    .eq("id", gameId)
+    .maybeSingle();
+
+  if (gameLookupError || !gameData) {
+    console.error("Failed to load game for solo award:", gameLookupError);
+    return;
+  }
+
+  if (!gameData.winner_awarded) {
+    const { error: awardError } = await supabase.rpc("award_winners_once", {
+      winner_names_input: [submission.player_name],
+      room_code_input: code,
+      game_id_input: gameData.id,
+    });
+
+    if (awardError) {
+      console.error("Solo award error:", awardError);
+      showToast(`Could not award points: ${awardError.message || "Unknown database error"}`);
+      return;
+    }
+
+    const { data: latestHistory, error: historyError } = await supabase
+      .from("round_history")
+      .select("round_number")
+      .eq("room_code", code)
+      .order("round_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (historyError) {
+      console.error("Failed to load round history:", historyError);
+      return;
+    }
+
+    const nextRoundNumber = (latestHistory?.round_number ?? 0) + 1;
+
+    const { error: roundHistoryError } = await supabase.from("round_history").upsert(
+      [
+        {
+          room_code: code,
+          game_id: gameData.id,
+          round_number: nextRoundNumber,
+          winner_name: submission.player_name,
+          winner_prompt: submission.prompt,
+          winner_image_url: submission.image_url,
+          gallery_thumbnail_url: submission.gallery_thumbnail_url,
+        },
+      ],
+      { onConflict: "room_code,game_id,winner_name,winner_prompt" }
+    );
+
+    if (roundHistoryError) {
+      console.error("Failed to save solo round history:", roundHistoryError);
+    }
+  }
+
+  await loadPlayers();
+  await loadScoreboard();
+  await loadRoundHistory();
+  await loadBonusAwardSubmissions();
+  await loadPastImages();
 }
 
  async function submitPrompt() {
