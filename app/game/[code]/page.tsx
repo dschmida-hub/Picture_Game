@@ -132,7 +132,7 @@ export default function GameRoom() {
   const [winnerPrompt, setWinnerPrompt] = useState("");
   const [winnerImages, setWinnerImages] = useState<string[]>([]);
   const [roundPrompt, setRoundPrompt] = useState("");
-  const [roundImageStyle, setRoundImageStyle] = useState("cartoon");
+  const [roundImageStyle, setRoundImageStyle] = useState("clay_animation");
   const [hostDebugStats, setHostDebugStats] = useState<HostDebugStats>(emptyHostDebugStats);
   const [toast, setToast] = useState<ToastState | null>(null);
   const rescuingSubmissionIds = useRef(new Set<number>());
@@ -399,7 +399,7 @@ async function loadRandomPrompt() {
   if (!randomPrompt) return null;
 
   setRoundPrompt(randomPrompt.prompt);
-  setRoundImageStyle(randomPrompt.image_style || "cartoon");
+  setRoundImageStyle(randomPrompt.image_style || "clay_animation");
 
   return randomPrompt;
 }
@@ -591,7 +591,7 @@ async function submitPromptSuggestion() {
   try {
     const { error } = await supabase.rpc("submit_room_prompt_suggestion", {
       game_mode_input: selectedGameMode,
-      image_style_input: selectedImageStyle === "prompt" ? "cartoon" : selectedImageStyle,
+      image_style_input: selectedImageStyle === "prompt" ? "clay_animation" : selectedImageStyle,
       prompt_input: prompt,
       room_code_input: code,
       submitted_by_input: name,
@@ -930,7 +930,7 @@ async function loadGame() {
   setSelectedGameMode(data.game_mode as "classic" | "cards");
   setHasSelectedGameMode(Boolean(data.game_mode));
   setSelectedContentRating(normalizeContentRating(data.content_rating));
-  setRoundImageStyle(data.image_style || "cartoon");
+  setRoundImageStyle(data.image_style || "clay_animation");
   setRoundDeadline(data.submission_deadline);
   setVotingDeadline(data.voting_deadline);
   setSelectedVotingDuration(data.voting_duration_seconds || 45);

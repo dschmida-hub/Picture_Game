@@ -25,7 +25,7 @@ export const confettiPieces = Array.from({ length: 28 }, (_, index) => ({
 }));
 
 export function normalizeImageStyle(style: string | null | undefined) {
-  const normalizedStyle = (style || "cartoon")
+  const normalizedStyle = (style || "clay_animation")
     .trim()
     .toLowerCase()
     .replace(/['’]/g, "")
@@ -41,16 +41,14 @@ export function normalizeImageStyle(style: string | null | undefined) {
     childrens_picturebook: "childrens_picture_book",
     lego: "lego_stop_motion",
     lego_stopmotion: "lego_stop_motion",
-    low_budget_90s: "low_budget_90s_cgi",
-    nineties_cgi: "low_budget_90s_cgi",
     renaissance: "renaissance_painting",
   };
 
-  return aliases[normalizedStyle] || normalizedStyle || "cartoon";
+  return aliases[normalizedStyle] || normalizedStyle || "clay_animation";
 }
 
 export function resolveImageStyle(promptStyle: string | null, selectedStyle: string) {
-  return normalizeImageStyle(selectedStyle === "prompt" ? promptStyle || "cartoon" : selectedStyle);
+  return normalizeImageStyle(selectedStyle === "prompt" ? promptStyle || "clay_animation" : selectedStyle);
 }
 
 export function normalizeContentRating(rating: string | null | undefined): ContentRating {
@@ -81,7 +79,6 @@ export function getImageStyleLabel(style: string) {
     storybook: "Storybook",
     pixel_art: "Pixel Art",
     puppet_show: "Puppet Show",
-    low_budget_90s_cgi: "Low Budget 90s CGI",
     childrens_picture_book: "Children's Picture Book",
     lego_stop_motion: "LEGO Stop-Motion",
     minecraft: "Minecraft",
