@@ -134,7 +134,8 @@ export function JoinRoomForm({
               Optional avatar photo
             </span>
             <span className="mt-1 block text-xs font-bold text-rose-800/70">
-              Helps the AI know what you look like when your friends mention you.
+              Helps the AI know what you look like when you or a friend mention you by name in an
+              answer.
             </span>
             <input
               type="file"

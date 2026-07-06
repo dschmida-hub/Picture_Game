@@ -203,3 +203,25 @@ export async function setPromptRating(formData: FormData) {
   revalidatePath("/admin/prompts");
   promptsRedirect(key, formData);
 }
+
+export async function toggleRoundHistoryVisibility(formData: FormData) {
+  const key = requireAdminKey(formData);
+  const entryId = Number(formData.get("entryId"));
+  const hide = String(formData.get("hide")) === "true";
+
+  if (!Number.isFinite(entryId) || entryId <= 0) {
+    throw new Error("Missing round history entry id");
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase
+    .from("round_history")
+    .update({ hidden_at: hide ? new Date().toISOString() : null })
+    .eq("id", entryId);
+
+  if (error) throw error;
+
+  revalidatePath("/admin/showcase");
+  revalidatePath("/");
+  redirect(`/admin/showcase?key=${encodeURIComponent(key)}`);
+}

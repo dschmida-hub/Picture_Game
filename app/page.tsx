@@ -165,12 +165,25 @@ export default function Home() {
 
   useEffect(() => {
     async function loadBackgroundImages() {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("round_history")
         .select("game_id, gallery_thumbnail_url, winner_image_url, winner_prompt")
         .not("winner_image_url", "is", null)
+        .is("hidden_at", null)
         .order("id", { ascending: false })
         .limit(8);
+
+      // Fall back to the pre-migration query if hidden_at doesn't exist yet
+      // (supabase/round_history_moderation.sql not applied), so the homepage
+      // still shows recent winners instead of nothing.
+      if (error?.code === "42703") {
+        ({ data, error } = await supabase
+          .from("round_history")
+          .select("game_id, gallery_thumbnail_url, winner_image_url, winner_prompt")
+          .not("winner_image_url", "is", null)
+          .order("id", { ascending: false })
+          .limit(8));
+      }
 
       if (error) {
         console.error("Failed to load homepage images:", error);

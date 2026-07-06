@@ -76,6 +76,10 @@ export default function HowToPlayPage() {
                 <li>Keep answers short so the image is easier to understand.</li>
                 <li>Images are anonymous while voting.</li>
                 <li>Win rounds by getting votes. First to 3 points wins the game.</li>
+                <li>
+                  Upload an avatar, then say &quot;I&quot;/&quot;me&quot; or a player&apos;s name in
+                  your answer to put their likeness in the picture.
+                </li>
               </ul>
             </div>
           </div>

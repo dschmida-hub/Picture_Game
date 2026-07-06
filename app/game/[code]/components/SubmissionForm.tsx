@@ -55,7 +55,7 @@ export function SubmissionForm({
             text={
               isCards
                 ? "Write only the fill-in-the-blank part. Keep it short so the image idea stays clear."
-                : `Write a short image idea or punchline. ${ratingHint}`
+                : `Write a short image idea or punchline. Mention yourself (I/me/my) or a player's name to put their avatar in the picture. ${ratingHint}`
             }
           />
         </label>
@@ -77,6 +77,9 @@ export function SubmissionForm({
           </p>
           <p className="text-sm font-black text-zinc-500">{submission.length}/120</p>
         </div>
+        <p className="mt-2 text-xs font-bold text-zinc-400">
+          Tip: say &quot;I&quot;/&quot;me&quot; or a player&apos;s name to put their avatar in the picture.
+        </p>
       </div>
 
       <button

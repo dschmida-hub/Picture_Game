@@ -461,6 +461,9 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             <Link className="underline" href={`/admin/prompts${roomLinkSuffix}`}>
               Manage prompts
             </Link>
+            <Link className="underline" href={`/admin/showcase${roomLinkSuffix}`}>
+              Homepage showcase
+            </Link>
             <Link className="underline" href={`/${roomLinkSuffix}`}>
               Home
             </Link>

@@ -272,6 +272,16 @@ export function LobbyScreen({
                     </span>
                   </button>
                 </div>
+                {hasSelectedGameMode && selectedGameMode === "classic" && !isRoundCustomizationOpen && (
+                  <button
+                    type="button"
+                    onClick={onToggleRoundCustomization}
+                    className="mt-3 flex w-full items-center justify-between gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-left text-sm font-black text-rose-900"
+                  >
+                    <span>Classic mode has 12 topic categories to pick from</span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                )}
                 {!hasSelectedGameMode && (
                   <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-900">
                     Pick a game mode to unlock player-made prompts and start the game.
