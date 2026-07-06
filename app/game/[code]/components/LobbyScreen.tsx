@@ -395,9 +395,12 @@ export function LobbyScreen({
                           <option value="sports">Sports</option>
                           <option value="food">Food</option>
                           <option value="work">Work</option>
-                          <option value="general">General</option>
                           <option value="chaos">Chaos</option>
                           <option value="dating">Dating</option>
+                          <option value="fantasy">Fantasy</option>
+                          <option value="school">School</option>
+                          <option value="tech">Tech</option>
+                          <option value="travel">Travel</option>
                         </select>
                       </div>
                     )}
