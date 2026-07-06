@@ -289,6 +289,37 @@ export function LobbyScreen({
                 )}
               </div>
 
+              {hasSelectedGameMode && selectedGameMode === "classic" && (
+                <div className={cardClass}>
+                  <label className="mb-2 flex items-center gap-2 text-sm font-black uppercase tracking-[0.22em] text-rose-700">
+                    Prompt category
+                    <HelpTooltip text="Random pulls from every active classic prompt. Categories narrow the type of prompt for this room." />
+                  </label>
+                  <select
+                    value={selectedCategory}
+                    onChange={(event) => onCategoryChange(event.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="Random">Random</option>
+                    <option value="personal">Personal</option>
+                    <option value="history">History</option>
+                    <option value="animals">Animals</option>
+                    <option value="sports">Sports</option>
+                    <option value="food">Food</option>
+                    <option value="work">Work</option>
+                    <option value="chaos">Chaos</option>
+                    <option value="dating">Dating</option>
+                    <option value="fantasy">Fantasy</option>
+                    <option value="school">School</option>
+                    <option value="tech">Tech</option>
+                    <option value="travel">Travel</option>
+                  </select>
+                  <p className="mt-2 text-sm font-bold leading-snug text-zinc-500">
+                    Pick a theme for Classic prompts, or keep Random for the full chaos deck.
+                  </p>
+                </div>
+              )}
+
               <div className={cardClass}>
                 <div className="mb-3 flex items-center gap-2">
                   <p className="text-sm font-black uppercase tracking-[0.22em] text-rose-700">
