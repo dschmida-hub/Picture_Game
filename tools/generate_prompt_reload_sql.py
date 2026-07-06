@@ -17,8 +17,16 @@ EXPECTED_HEADERS = [
     "prompt_rating",
 ]
 
+# public.prompts has a check constraint (prompts_prompt_rating_check) that
+# only allows these values (or null). Anything else - e.g. a content-batch
+# tag like "fast_scene_v2" left in the sheet by mistake - must be coerced to
+# null rather than inserted as-is, or the reload script fails the constraint.
+VALID_PROMPT_RATINGS = {"good", "ehhh", "bad"}
 
-def sql_value(value: object) -> str:
+
+def sql_value(value: object, *, column: str | None = None) -> str:
+    if column == "prompt_rating" and value is not None and value not in VALID_PROMPT_RATINGS:
+        return "null"
     if value is None:
         return "null"
     if isinstance(value, bool):
@@ -73,7 +81,7 @@ def main() -> int:
 
     for index, row in enumerate(rows):
         suffix = "," if index < len(rows) - 1 else ";"
-        values = ", ".join(sql_value(row[column]) for column in EXPECTED_HEADERS)
+        values = ", ".join(sql_value(row[column], column=column) for column in EXPECTED_HEADERS)
         lines.append(f"  ({values}){suffix}")
 
     lines.extend(
