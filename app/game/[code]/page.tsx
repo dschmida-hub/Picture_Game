@@ -1148,30 +1148,23 @@ async function joinGame() {
   let avatarDescription = null;
 
   if (avatarFile) {
-    const avatarExtension = avatarFile.name
-      .split(".")
-      .pop()
-      ?.toLowerCase()
-      .replace(/[^a-z0-9]/g, "") || "jpg";
-    const filePath = `${code}/${cleanName}-${Date.now()}.${avatarExtension}`;
+    const avatarFormData = new FormData();
+    avatarFormData.append("avatar", avatarFile);
+    avatarFormData.append("roomCode", code);
 
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(filePath, avatarFile, {
-        contentType: avatarFile.type || "image/jpeg",
-      });
+    const uploadResponse = await fetch("/api/upload-avatar", {
+      method: "POST",
+      body: avatarFormData,
+    });
+    const uploadResult = await uploadResponse.json().catch(() => null);
 
-    if (uploadError) {
-      console.error(uploadError);
-      showToast("Failed to upload avatar");
+    if (!uploadResponse.ok || !uploadResult?.avatarUrl) {
+      console.error(uploadResult?.error || "Avatar upload failed");
+      showToast(uploadResult?.error || "Failed to upload avatar");
       return;
     }
 
-    const { data } = supabase.storage
-      .from("avatars")
-      .getPublicUrl(filePath);
-
-    avatarUrl = data.publicUrl;
+    avatarUrl = uploadResult.avatarUrl;
 
     try {
       const { data: descData } = await gameApi.describeAvatar(avatarUrl);
