@@ -14,6 +14,7 @@ type LobbyScreenProps = {
   hasSelectedGameMode: boolean;
   selectedContentRating: ContentRating;
   selectedCategory: string;
+  promptCategories: string[];
   selectedImageStyle: string;
   selectedRoundDuration: RoundDuration;
   selectedVotingDuration: number;
@@ -58,6 +59,16 @@ const imageStyleDescriptions: Record<string, string> = {
   renaissance_painting: "Dramatic old-master lighting for maximum unnecessary seriousness.",
 };
 
+function formatCategoryLabel(category: string) {
+  if (category === "Random") return category;
+
+  return category
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 export function LobbyScreen({
   code,
   players,
@@ -69,6 +80,7 @@ export function LobbyScreen({
   hasSelectedGameMode,
   selectedContentRating,
   selectedCategory,
+  promptCategories,
   selectedImageStyle,
   selectedRoundDuration,
   selectedVotingDuration,
@@ -98,6 +110,7 @@ export function LobbyScreen({
 }: LobbyScreenProps) {
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
   const openSlots = maxPlayers - players.length;
+  const categoryOptions = ["Random", ...promptCategories];
 
   return (
     <>
@@ -272,16 +285,6 @@ export function LobbyScreen({
                     </span>
                   </button>
                 </div>
-                {hasSelectedGameMode && selectedGameMode === "classic" && !isRoundCustomizationOpen && (
-                  <button
-                    type="button"
-                    onClick={onToggleRoundCustomization}
-                    className="mt-3 flex w-full items-center justify-between gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-left text-sm font-black text-rose-900"
-                  >
-                    <span>Classic mode has 12 topic categories to pick from</span>
-                    <span aria-hidden="true">→</span>
-                  </button>
-                )}
                 {!hasSelectedGameMode && (
                   <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-900">
                     Pick a game mode to unlock player-made prompts and start the game.
@@ -300,19 +303,11 @@ export function LobbyScreen({
                     onChange={(event) => onCategoryChange(event.target.value)}
                     className={selectClass}
                   >
-                    <option value="Random">Random</option>
-                    <option value="personal">Personal</option>
-                    <option value="history">History</option>
-                    <option value="animals">Animals</option>
-                    <option value="sports">Sports</option>
-                    <option value="food">Food</option>
-                    <option value="work">Work</option>
-                    <option value="chaos">Chaos</option>
-                    <option value="dating">Dating</option>
-                    <option value="fantasy">Fantasy</option>
-                    <option value="school">School</option>
-                    <option value="tech">Tech</option>
-                    <option value="travel">Travel</option>
+                    {categoryOptions.map((category) => (
+                      <option key={category} value={category}>
+                        {formatCategoryLabel(category)}
+                      </option>
+                    ))}
                   </select>
                   <p className="mt-2 text-sm font-bold leading-snug text-zinc-500">
                     Pick a theme for Classic prompts, or keep Random for the full chaos deck.
@@ -419,34 +414,6 @@ export function LobbyScreen({
 
                 {isRoundCustomizationOpen && (
                   <div className="mt-3 grid grid-cols-1 gap-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 sm:grid-cols-2">
-                    {selectedGameMode === "classic" && (
-                      <div>
-                        <label className="mb-2 flex items-center gap-2 text-sm font-black text-rose-700">
-                          Prompt category
-                          <HelpTooltip text="Random pulls from every active classic prompt. Categories narrow the type of prompt for this room." />
-                        </label>
-                        <select
-                          value={selectedCategory}
-                          onChange={(event) => onCategoryChange(event.target.value)}
-                          className={selectClass}
-                        >
-                          <option value="Random">Random</option>
-                          <option value="personal">Personal</option>
-                          <option value="history">History</option>
-                          <option value="animals">Animals</option>
-                          <option value="sports">Sports</option>
-                          <option value="food">Food</option>
-                          <option value="work">Work</option>
-                          <option value="chaos">Chaos</option>
-                          <option value="dating">Dating</option>
-                          <option value="fantasy">Fantasy</option>
-                          <option value="school">School</option>
-                          <option value="tech">Tech</option>
-                          <option value="travel">Travel</option>
-                        </select>
-                      </div>
-                    )}
-
                     <div>
                       <label className="mb-2 flex items-center gap-2 text-sm font-black text-rose-700">
                         Answer timer

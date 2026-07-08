@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { toggleRoundHistoryVisibility } from "../actions";
+import { SubmitButton } from "../SubmitButton";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 type RoundHistoryRow = {
   id: number;
@@ -170,14 +172,14 @@ export default async function AdminShowcasePage({ searchParams }: AdminShowcaseP
                       <input type="hidden" name="key" value={key} />
                       <input type="hidden" name="entryId" value={row.id} />
                       <input type="hidden" name="hide" value={isHidden ? "false" : "true"} />
-                      <button
-                        type="submit"
+                      <SubmitButton
+                        pendingText={isHidden ? "Unhiding..." : "Hiding..."}
                         className={`mt-2 w-full rounded-xl px-4 py-2 text-sm font-black text-white ${
                           isHidden ? "bg-green-600" : "bg-red-600"
                         }`}
                       >
                         {isHidden ? "Unhide from homepage" : "Hide from homepage"}
-                      </button>
+                      </SubmitButton>
                     </form>
                   </div>
                 </article>

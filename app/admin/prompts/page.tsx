@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { setPromptRating, togglePromptActive } from "../actions";
+import { SubmitButton } from "../SubmitButton";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 type PromptRow = {
   id: number;
@@ -221,14 +223,14 @@ export default async function AdminPromptsPage({ searchParams }: AdminPromptsPag
                     <input type="hidden" name="active" value={row.active ? "false" : "true"} />
                     <input type="hidden" name="filterRating" value={rating} />
                     <input type="hidden" name="filterShow" value={show} />
-                    <button
-                      type="submit"
+                    <SubmitButton
+                      pendingText={row.active ? "Deactivating..." : "Reactivating..."}
                       className={`rounded-xl px-4 py-2 text-sm font-black text-white ${
                         row.active ? "bg-red-600" : "bg-green-600"
                       }`}
                     >
                       {row.active ? "Deactivate" : "Reactivate"}
-                    </button>
+                    </SubmitButton>
                   </form>
 
                   <span className="text-xs font-black uppercase tracking-wider text-gray-400">
@@ -242,9 +244,9 @@ export default async function AdminPromptsPage({ searchParams }: AdminPromptsPag
                       <input type="hidden" name="rating" value={ratingOption} />
                       <input type="hidden" name="filterRating" value={rating} />
                       <input type="hidden" name="filterShow" value={show} />
-                      <button
-                        type="submit"
+                      <SubmitButton
                         disabled={row.prompt_rating === ratingOption}
+                        pendingText="Rating..."
                         className={`rounded-xl px-3 py-2 text-sm font-black capitalize ${
                           row.prompt_rating === ratingOption
                             ? "cursor-default bg-gray-200 text-gray-500"
@@ -252,7 +254,7 @@ export default async function AdminPromptsPage({ searchParams }: AdminPromptsPag
                         }`}
                       >
                         {ratingOption}
-                      </button>
+                      </SubmitButton>
                     </form>
                   ))}
                 </div>

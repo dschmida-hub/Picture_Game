@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { forceRoomToLobby, revealReadyImages } from "./actions";
+import { SubmitButton } from "./SubmitButton";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 type AdminPageProps = {
   searchParams: Promise<{
@@ -485,22 +487,22 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 <form action={revealReadyImages}>
                   <input type="hidden" name="key" value={key} />
                   <input type="hidden" name="roomCode" value={selectedRoom} />
-                  <button
-                    type="submit"
+                  <SubmitButton
+                    pendingText="Revealing..."
                     className="w-full rounded-2xl border-2 border-black bg-orange-100 px-5 py-4 font-black text-orange-900 shadow-[4px_4px_0_#111827]"
                   >
                     Reveal Ready Images
-                  </button>
+                  </SubmitButton>
                 </form>
                 <form action={forceRoomToLobby}>
                   <input type="hidden" name="key" value={key} />
                   <input type="hidden" name="roomCode" value={selectedRoom} />
-                  <button
-                    type="submit"
+                  <SubmitButton
+                    pendingText="Sending back..."
                     className="w-full rounded-2xl border-2 border-black bg-rose-100 px-5 py-4 font-black text-rose-900 shadow-[4px_4px_0_#111827]"
                   >
                     Force Back to Lobby
-                  </button>
+                  </SubmitButton>
                 </form>
               </div>
               <p className="mt-3 text-xs font-bold text-zinc-500">
@@ -616,16 +618,22 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                       <form action={revealReadyImages}>
                         <input type="hidden" name="key" value={key} />
                         <input type="hidden" name="roomCode" value={game.room_code} />
-                        <button className="w-full rounded-xl bg-orange-200 px-3 py-2 text-sm font-black text-orange-950">
+                        <SubmitButton
+                          pendingText="Revealing..."
+                          className="w-full rounded-xl bg-orange-200 px-3 py-2 text-sm font-black text-orange-950"
+                        >
                           Reveal
-                        </button>
+                        </SubmitButton>
                       </form>
                       <form action={forceRoomToLobby}>
                         <input type="hidden" name="key" value={key} />
                         <input type="hidden" name="roomCode" value={game.room_code} />
-                        <button className="w-full rounded-xl bg-white px-3 py-2 text-sm font-black text-orange-950">
+                        <SubmitButton
+                          pendingText="Sending..."
+                          className="w-full rounded-xl bg-white px-3 py-2 text-sm font-black text-orange-950"
+                        >
                           Lobby
-                        </button>
+                        </SubmitButton>
                       </form>
                     </div>
                   </div>

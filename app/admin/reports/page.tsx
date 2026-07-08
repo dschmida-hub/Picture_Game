@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { updateReportStatus } from "../actions";
+import { SubmitButton } from "../SubmitButton";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 type AdminReportsPageProps = {
   searchParams: Promise<{
@@ -209,12 +211,12 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
                         <input type="hidden" name="key" value={key} />
                         <input type="hidden" name="reportId" value={report.id} />
                         <input type="hidden" name="status" value={status} />
-                        <button
-                          type="submit"
+                        <SubmitButton
+                          pendingText="Saving..."
                           className="w-full rounded-xl bg-purple-100 px-3 py-2 text-sm font-black capitalize text-purple-900"
                         >
                           {status}
-                        </button>
+                        </SubmitButton>
                       </form>
                     ))}
                   </div>

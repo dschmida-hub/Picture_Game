@@ -102,6 +102,7 @@ export default function GameRoom() {
   const [loadingMessage, setLoadingMessage] = useState("Generating chaos...");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("Random");
+  const [promptCategories, setPromptCategories] = useState<string[]>([]);
   const [selectedGameMode, setSelectedGameMode] = useState<GameMode>("classic");
   const [hasSelectedGameMode, setHasSelectedGameMode] = useState(false);
   const [selectedContentRating, setSelectedContentRating] = useState<ContentRating>("everyone");
@@ -576,6 +577,34 @@ async function loadPromptSuggestions() {
       has_voted: votedByCurrentPlayer.has(suggestion.id),
     }))
   );
+}
+
+async function loadPromptCategories() {
+  const { data, error } = await supabase
+    .from("prompts")
+    .select("category")
+    .eq("active", true)
+    .not("category", "is", null);
+
+  if (error) {
+    console.error("Failed to load prompt categories:", error);
+    return;
+  }
+
+  const categories = Array.from(
+    new Set(
+      (data || [])
+        .map((row) => row.category)
+        .filter((category): category is string => Boolean(category?.trim()))
+        .map((category) => category.trim())
+    )
+  ).sort((first, second) => first.localeCompare(second));
+
+  setPromptCategories(categories);
+
+  if (selectedCategory !== "Random" && !categories.includes(selectedCategory)) {
+    setSelectedCategory("Random");
+  }
 }
 
 async function submitPromptSuggestion() {
@@ -1055,6 +1084,7 @@ useEffect(() => {
         loadRoundHistory(),
         loadBonusAwardSubmissions(),
         loadPromptSuggestions(),
+        loadPromptCategories(),
       ]);
 
       const timeout = new Promise<"timeout">((resolve) => {
@@ -2344,6 +2374,7 @@ if (isPageLoading) {
     hasSelectedGameMode={hasSelectedGameMode}
     selectedContentRating={selectedContentRating}
     selectedCategory={selectedCategory}
+    promptCategories={promptCategories}
     selectedImageStyle={selectedImageStyle}
     selectedRoundDuration={selectedRoundDuration}
     selectedVotingDuration={selectedVotingDuration}
