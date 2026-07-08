@@ -54,6 +54,7 @@ export const gameApi = {
     sendJson<{ description?: string }>("/api/describe-avatar", { avatarUrl }),
 
   joinRoom: (body: {
+    accessToken: string | null;
     allowCreateRoom: boolean;
     avatarDescription: string | null;
     avatarUrl: string | null;

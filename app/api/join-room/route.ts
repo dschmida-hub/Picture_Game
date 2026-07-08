@@ -17,6 +17,7 @@ import {
 const MAX_PLAYERS = 8;
 
 type JoinRoomRequest = {
+  accessToken?: unknown;
   allowCreateRoom?: unknown;
   avatarDescription?: unknown;
   avatarUrl?: unknown;
@@ -35,9 +36,26 @@ export async function POST(request: Request) {
     const allowCreateRoom = body.allowCreateRoom === true;
     const avatarUrl = sanitizeText(body.avatarUrl, 600);
     const avatarDescription = sanitizeText(body.avatarDescription, 240);
+    const accessToken = typeof body.accessToken === "string" ? body.accessToken : "";
 
     if (!roomCode || !name) {
       return jsonError("Valid room code and player name are required", 400);
+    }
+
+    // Never trust a client-supplied user id - verify the token against
+    // Supabase Auth itself. A failure here doesn't block the join (this
+    // must never be the reason a real player can't get into a room); it
+    // just means this player's browser won't be linked to a verified
+    // identity, so direct-write RLS checks that key off room membership
+    // won't recognize them until they have a valid session.
+    let authUserId: string | null = null;
+    if (accessToken) {
+      const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+      if (userError) {
+        console.error("Failed to verify anonymous session token:", userError);
+      } else {
+        authUserId = userData.user?.id ?? null;
+      }
     }
 
     if (avatarUrl && !validatePublicSupabaseUrl(avatarUrl)) {
@@ -82,6 +100,7 @@ export async function POST(request: Request) {
           avatar_description: avatarDescription || null,
           points: 0,
           is_host: isFirstPlayer,
+          auth_user_id: authUserId,
         },
       ])
       .select("id, name, is_host")

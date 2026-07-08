@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { ensureAnonymousSession, supabase } from "@/lib/supabase";
 import { GeneratingScreen } from "./components/GeneratingScreen";
 import { GameLogo } from "./components/GameLogo";
 import { HostDebugPanel } from "./components/HostDebugPanel";
@@ -976,6 +976,8 @@ async function restoreJoinedPlayer() {
 
   if (!savedPlayerId) return;
 
+  await ensureAnonymousSession();
+
   const { data, error } = await supabase
     .from("players")
     .select("id, name")
@@ -1150,6 +1152,7 @@ async function joinGame() {
 
   const cleanName = normalizePlayerName(name);
   const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+  const accessToken = await ensureAnonymousSession();
 
   if (savedPlayerId) {
     const { data: savedPlayer, error: savedPlayerError } = await supabase
@@ -1207,6 +1210,7 @@ async function joinGame() {
     const cameFromCreateGame = new URLSearchParams(window.location.search).get("create") === "1";
 
     const { data: joinData, error: joinError } = await gameApi.joinRoom({
+      accessToken,
       allowCreateRoom: cameFromCreateGame,
       avatarDescription,
       avatarUrl,
