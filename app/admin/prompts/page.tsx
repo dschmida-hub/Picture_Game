@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { setPromptRating, togglePromptActive } from "../actions";
 import { SubmitButton } from "../SubmitButton";
+import { adminLoginUrl, getAdminKey, hasAdminSession } from "../auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -36,15 +38,26 @@ const RATING_STYLES: Record<string, string> = {
   unrated: "bg-gray-100 text-gray-600",
 };
 
-function getAdminKey() {
-  return process.env.ADMIN_KEY || process.env.ADMIN_REPORTS_KEY;
-}
-
 export default async function AdminPromptsPage({ searchParams }: AdminPromptsPageProps) {
   const { key, table: tableParam, rating = "all", show = "all" } = await searchParams;
   const adminKey = getAdminKey();
 
-  if (!adminKey || key !== adminKey) {
+  if (!adminKey) {
+    return (
+      <main className="min-h-screen bg-purple-50 p-6 text-black">
+        <section className="mx-auto max-w-2xl rounded-3xl border border-red-200 bg-white p-6 text-center shadow-xl">
+          <h1 className="text-3xl font-black">Not found</h1>
+          <p className="mt-3 font-bold text-gray-600">That admin page is not available.</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (!(await hasAdminSession())) {
+    if (key && key === adminKey) {
+      redirect(adminLoginUrl(key, "/admin/prompts"));
+    }
+
     return (
       <main className="min-h-screen bg-purple-50 p-6 text-black">
         <section className="mx-auto max-w-2xl rounded-3xl border border-red-200 bg-white p-6 text-center shadow-xl">
@@ -90,7 +103,7 @@ export default async function AdminPromptsPage({ searchParams }: AdminPromptsPag
   if (show === "inactive") visibleRows = visibleRows.filter((row) => !row.active);
 
   const buildHref = (next: { table?: string; rating?: string; show?: string }) => {
-    const params = new URLSearchParams({ key });
+    const params = new URLSearchParams();
     params.set("table", next.table ?? table);
     const nextRating = next.rating ?? rating;
     const nextShow = next.show ?? show;
@@ -114,10 +127,7 @@ export default async function AdminPromptsPage({ searchParams }: AdminPromptsPag
             Deactivating a prompt removes it from the game entirely. Rating only affects how often a
             prompt is picked (&quot;bad&quot; is used last).
           </p>
-          <Link
-            href={`/admin?key=${encodeURIComponent(key)}`}
-            className="mt-4 inline-flex font-black text-purple-700 underline"
-          >
+          <Link href="/admin" className="mt-4 inline-flex font-black text-purple-700 underline">
             Back to admin dashboard
           </Link>
         </section>
@@ -217,7 +227,6 @@ export default async function AdminPromptsPage({ searchParams }: AdminPromptsPag
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <form action={togglePromptActive}>
-                    <input type="hidden" name="key" value={key} />
                     <input type="hidden" name="table" value={table} />
                     <input type="hidden" name="promptId" value={row.id} />
                     <input type="hidden" name="active" value={row.active ? "false" : "true"} />
@@ -238,7 +247,6 @@ export default async function AdminPromptsPage({ searchParams }: AdminPromptsPag
                   </span>
                   {(["good", "ehhh", "bad"] as const).map((ratingOption) => (
                     <form key={ratingOption} action={setPromptRating}>
-                      <input type="hidden" name="key" value={key} />
                       <input type="hidden" name="table" value={table} />
                       <input type="hidden" name="promptId" value={row.id} />
                       <input type="hidden" name="rating" value={ratingOption} />

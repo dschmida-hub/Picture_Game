@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { toggleRoundHistoryVisibility } from "../actions";
 import { SubmitButton } from "../SubmitButton";
+import { adminLoginUrl, getAdminKey, hasAdminSession } from "../auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -24,15 +26,26 @@ type AdminShowcasePageProps = {
   }>;
 };
 
-function getAdminKey() {
-  return process.env.ADMIN_KEY || process.env.ADMIN_REPORTS_KEY;
-}
-
 export default async function AdminShowcasePage({ searchParams }: AdminShowcasePageProps) {
   const { key, show = "all" } = await searchParams;
   const adminKey = getAdminKey();
 
-  if (!adminKey || key !== adminKey) {
+  if (!adminKey) {
+    return (
+      <main className="min-h-screen bg-purple-50 p-6 text-black">
+        <section className="mx-auto max-w-2xl rounded-3xl border border-red-200 bg-white p-6 text-center shadow-xl">
+          <h1 className="text-3xl font-black">Not found</h1>
+          <p className="mt-3 font-bold text-gray-600">That admin page is not available.</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (!(await hasAdminSession())) {
+    if (key && key === adminKey) {
+      redirect(adminLoginUrl(key, "/admin/showcase"));
+    }
+
     return (
       <main className="min-h-screen bg-purple-50 p-6 text-black">
         <section className="mx-auto max-w-2xl rounded-3xl border border-red-200 bg-white p-6 text-center shadow-xl">
@@ -65,9 +78,8 @@ export default async function AdminShowcasePage({ searchParams }: AdminShowcaseP
   if (show === "hidden") visibleRows = rows.filter((row) => Boolean(row.hidden_at));
 
   const buildHref = (nextShow: string) => {
-    const params = new URLSearchParams({ key });
-    if (nextShow !== "all") params.set("show", nextShow);
-    return `/admin/showcase?${params.toString()}`;
+    if (nextShow === "all") return "/admin/showcase";
+    return `/admin/showcase?show=${nextShow}`;
   };
 
   const filterPill = (active: boolean) =>
@@ -85,10 +97,7 @@ export default async function AdminShowcasePage({ searchParams }: AdminShowcaseP
             These are the most recent round winners. Anything not hidden can appear in the
             homepage&apos;s background collage, recent-winner demo card, and showcase gallery.
           </p>
-          <Link
-            href={`/admin?key=${encodeURIComponent(key)}`}
-            className="mt-4 inline-flex font-black text-purple-700 underline"
-          >
+          <Link href="/admin" className="mt-4 inline-flex font-black text-purple-700 underline">
             Back to admin dashboard
           </Link>
         </section>
@@ -169,7 +178,6 @@ export default async function AdminShowcasePage({ searchParams }: AdminShowcaseP
                     <p className="text-sm font-bold text-gray-600">{row.winner_prompt}</p>
 
                     <form action={toggleRoundHistoryVisibility}>
-                      <input type="hidden" name="key" value={key} />
                       <input type="hidden" name="entryId" value={row.id} />
                       <input type="hidden" name="hide" value={isHidden ? "false" : "true"} />
                       <SubmitButton

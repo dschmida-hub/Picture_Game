@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { forceRoomToLobby, revealReadyImages } from "./actions";
 import { SubmitButton } from "./SubmitButton";
+import { adminLoginUrl, getAdminKey, hasAdminSession } from "./auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -76,10 +78,6 @@ type GameEventRow = {
   room_code: string | null;
   user_agent?: string | null;
 };
-
-function getAdminKey() {
-  return process.env.ADMIN_KEY || process.env.ADMIN_REPORTS_KEY;
-}
 
 function formatDate(value?: string | null) {
   if (!value) return "Unknown";
@@ -180,7 +178,11 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     );
   }
 
-  if (key !== adminKey) {
+  if (!(await hasAdminSession())) {
+    if (key && key === adminKey) {
+      redirect(adminLoginUrl(key, selectedRoom ? `/admin?room=${selectedRoom}` : "/admin"));
+    }
+
     return (
       <AdminShell title="Not found">
         <section className="rounded-3xl border-2 border-red-300 bg-white p-6 text-center shadow-lg">
@@ -362,8 +364,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   const topStyles = topEntries(styleCount, 6);
   const hourlyEvents = Array.from(eventCountByHour.entries()).slice(0, 12).reverse();
 
-  const roomLinkSuffix = `?key=${encodeURIComponent(key)}`;
-
   return (
     <AdminShell title="Admin Dashboard">
       <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -440,7 +440,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         <div className="rounded-3xl border-4 border-black bg-white p-5 shadow-[6px_6px_0_#111827]">
           <h2 className="text-2xl font-black">Room lookup</h2>
           <form className="mt-4 flex flex-col gap-3" action="/admin">
-            <input type="hidden" name="key" value={key} />
             <label className="text-sm font-black text-rose-700" htmlFor="room">
               Room code
             </label>
@@ -457,16 +456,16 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           </form>
 
           <div className="mt-5 flex flex-wrap gap-3 text-sm font-black">
-            <Link className="underline" href={`/admin/reports${roomLinkSuffix}`}>
+            <Link className="underline" href="/admin/reports">
               Image reports
             </Link>
-            <Link className="underline" href={`/admin/prompts${roomLinkSuffix}`}>
+            <Link className="underline" href="/admin/prompts">
               Manage prompts
             </Link>
-            <Link className="underline" href={`/admin/showcase${roomLinkSuffix}`}>
+            <Link className="underline" href="/admin/showcase">
               Homepage showcase
             </Link>
-            <Link className="underline" href={`/${roomLinkSuffix}`}>
+            <Link className="underline" href="/">
               Home
             </Link>
           </div>
@@ -485,7 +484,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
               </div>
               <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
                 <form action={revealReadyImages}>
-                  <input type="hidden" name="key" value={key} />
                   <input type="hidden" name="roomCode" value={selectedRoom} />
                   <SubmitButton
                     pendingText="Revealing..."
@@ -495,7 +493,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                   </SubmitButton>
                 </form>
                 <form action={forceRoomToLobby}>
-                  <input type="hidden" name="key" value={key} />
                   <input type="hidden" name="roomCode" value={selectedRoom} />
                   <SubmitButton
                     pendingText="Sending back..."
@@ -574,7 +571,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 <div key={game.id} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <Link
-                      href={`/admin?key=${encodeURIComponent(key)}&room=${game.room_code}`}
+                      href={`/admin?room=${game.room_code}`}
                       className="text-xl font-black text-rose-700 underline"
                     >
                       {game.room_code}
@@ -616,7 +613,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     </p>
                     <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <form action={revealReadyImages}>
-                        <input type="hidden" name="key" value={key} />
                         <input type="hidden" name="roomCode" value={game.room_code} />
                         <SubmitButton
                           pendingText="Revealing..."
@@ -626,7 +622,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                         </SubmitButton>
                       </form>
                       <form action={forceRoomToLobby}>
-                        <input type="hidden" name="key" value={key} />
                         <input type="hidden" name="roomCode" value={game.room_code} />
                         <SubmitButton
                           pendingText="Sending..."

@@ -3,22 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import { hasAdminSession } from "./auth";
 
 type ReportStatus = "reviewed" | "dismissed" | "removed";
 
-function getAdminKey() {
-  return process.env.ADMIN_KEY || process.env.ADMIN_REPORTS_KEY;
-}
-
-function requireAdminKey(formData: FormData) {
-  const submittedKey = String(formData.get("key") || "");
-  const adminKey = getAdminKey();
-
-  if (!adminKey || submittedKey !== adminKey) {
+async function requireAdminSession() {
+  if (!(await hasAdminSession())) {
     throw new Error("Unauthorized admin action");
   }
-
-  return submittedKey;
 }
 
 function getSupabaseAdmin() {
@@ -51,14 +43,12 @@ async function getLatestGameId(roomCode: string) {
   return Number(data.id);
 }
 
-function adminRedirect(key: string, roomCode?: string) {
-  const params = new URLSearchParams({ key });
-  if (roomCode) params.set("room", roomCode);
-  redirect(`/admin?${params.toString()}`);
+function adminRedirect(roomCode?: string) {
+  redirect(roomCode ? `/admin?room=${roomCode}` : "/admin");
 }
 
 export async function forceRoomToLobby(formData: FormData) {
-  const key = requireAdminKey(formData);
+  await requireAdminSession();
   const roomCode = cleanRoomCode(formData);
   if (!roomCode) throw new Error("Missing room code");
 
@@ -77,11 +67,11 @@ export async function forceRoomToLobby(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath(`/game/${roomCode}`);
-  adminRedirect(key, roomCode);
+  adminRedirect(roomCode);
 }
 
 export async function revealReadyImages(formData: FormData) {
-  const key = requireAdminKey(formData);
+  await requireAdminSession();
   const roomCode = cleanRoomCode(formData);
   if (!roomCode) throw new Error("Missing room code");
 
@@ -99,11 +89,11 @@ export async function revealReadyImages(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath(`/game/${roomCode}`);
-  adminRedirect(key, roomCode);
+  adminRedirect(roomCode);
 }
 
 export async function updateReportStatus(formData: FormData) {
-  const key = requireAdminKey(formData);
+  await requireAdminSession();
   const reportId = Number(formData.get("reportId"));
   const status = String(formData.get("status") || "") as ReportStatus;
 
@@ -136,22 +126,23 @@ export async function updateReportStatus(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/admin/reports");
-  redirect(`/admin/reports?key=${encodeURIComponent(key)}`);
+  redirect("/admin/reports");
 }
 
 const PROMPT_TABLES = ["prompts", "cah_prompts"] as const;
 type PromptTable = (typeof PROMPT_TABLES)[number];
 const PROMPT_RATINGS = ["good", "ehhh", "bad"] as const;
 
-function promptsRedirect(key: string, formData: FormData) {
-  const params = new URLSearchParams({ key });
+function promptsRedirect(formData: FormData) {
+  const params = new URLSearchParams();
   const table = String(formData.get("table") || "");
   const rating = String(formData.get("filterRating") || "");
   const show = String(formData.get("filterShow") || "");
   if (table) params.set("table", table);
   if (rating) params.set("rating", rating);
   if (show) params.set("show", show);
-  redirect(`/admin/prompts?${params.toString()}`);
+  const query = params.toString();
+  redirect(query ? `/admin/prompts?${query}` : "/admin/prompts");
 }
 
 function requirePromptTable(formData: FormData): PromptTable {
@@ -163,7 +154,7 @@ function requirePromptTable(formData: FormData): PromptTable {
 }
 
 export async function togglePromptActive(formData: FormData) {
-  const key = requireAdminKey(formData);
+  await requireAdminSession();
   const table = requirePromptTable(formData);
   const promptId = Number(formData.get("promptId"));
   const active = String(formData.get("active")) === "true";
@@ -178,11 +169,11 @@ export async function togglePromptActive(formData: FormData) {
   if (error) throw error;
 
   revalidatePath("/admin/prompts");
-  promptsRedirect(key, formData);
+  promptsRedirect(formData);
 }
 
 export async function setPromptRating(formData: FormData) {
-  const key = requireAdminKey(formData);
+  await requireAdminSession();
   const table = requirePromptTable(formData);
   const promptId = Number(formData.get("promptId"));
   const rating = String(formData.get("rating") || "");
@@ -201,11 +192,11 @@ export async function setPromptRating(formData: FormData) {
   if (error) throw error;
 
   revalidatePath("/admin/prompts");
-  promptsRedirect(key, formData);
+  promptsRedirect(formData);
 }
 
 export async function toggleRoundHistoryVisibility(formData: FormData) {
-  const key = requireAdminKey(formData);
+  await requireAdminSession();
   const entryId = Number(formData.get("entryId"));
   const hide = String(formData.get("hide")) === "true";
 
@@ -223,5 +214,5 @@ export async function toggleRoundHistoryVisibility(formData: FormData) {
 
   revalidatePath("/admin/showcase");
   revalidatePath("/");
-  redirect(`/admin/showcase?key=${encodeURIComponent(key)}`);
+  redirect("/admin/showcase");
 }

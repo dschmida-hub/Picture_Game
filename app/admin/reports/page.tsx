@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { updateReportStatus } from "../actions";
 import { SubmitButton } from "../SubmitButton";
+import { adminLoginUrl, getAdminKey, hasAdminSession } from "../auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -32,10 +34,6 @@ type SubmissionPreview = {
   image_caption: string | null;
 };
 
-function getAdminKey() {
-  return process.env.ADMIN_KEY || process.env.ADMIN_REPORTS_KEY;
-}
-
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
@@ -61,7 +59,11 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
     );
   }
 
-  if (key !== adminKey) {
+  if (!(await hasAdminSession())) {
+    if (key && key === adminKey) {
+      redirect(adminLoginUrl(key, "/admin/reports"));
+    }
+
     return (
       <main className="min-h-screen bg-purple-50 p-6 text-black">
         <section className="mx-auto max-w-2xl rounded-3xl border border-red-200 bg-white p-6 text-center shadow-xl">
@@ -110,10 +112,7 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
           <p className="mt-2 font-bold text-gray-600">
             Review reported prompts/images and mark each report once handled.
           </p>
-          <Link
-            href={`/admin?key=${encodeURIComponent(key)}`}
-            className="mt-4 inline-flex font-black text-purple-700 underline"
-          >
+          <Link href="/admin" className="mt-4 inline-flex font-black text-purple-700 underline">
             Back to admin dashboard
           </Link>
         </section>
@@ -208,7 +207,6 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {(["reviewed", "dismissed", "removed"] as const).map((status) => (
                       <form key={status} action={updateReportStatus}>
-                        <input type="hidden" name="key" value={key} />
                         <input type="hidden" name="reportId" value={report.id} />
                         <input type="hidden" name="status" value={status} />
                         <SubmitButton
