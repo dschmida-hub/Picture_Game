@@ -139,6 +139,12 @@ export default function GameRoom() {
   const rescuingSubmissionIds = useRef(new Set<number>());
   const hostName = players.find((player) => player.is_host)?.name;
   const isHost = joined && name === hostName;
+  // Realtime callbacks are registered once (stable channel identity) and
+  // would otherwise close over stale state, so mirror the values they need
+  // into refs that are always current.
+  const currentGameIdRef = useRef<number | null>(null);
+  const isHostRef = useRef(false);
+  const stageRef = useRef<GameStage>("lobby");
   const [roundHistory, setRoundHistory] = useState<RoundHistoryItem[]>([]);
   const [bonusAwardSubmissions, setBonusAwardSubmissions] = useState<BonusAwardSubmission[]>([]);
   const [pastImages, setPastImages] = useState<string[]>([]);
@@ -1001,6 +1007,12 @@ async function restoreJoinedPlayer() {
 }
 
 useEffect(() => {
+  currentGameIdRef.current = currentGameId;
+  isHostRef.current = isHost;
+  stageRef.current = stage;
+}, [currentGameId, isHost, stage]);
+
+useEffect(() => {
   if (stage !== "winner") return;
 
   const timeout = window.setTimeout(() => {
@@ -1012,16 +1024,18 @@ useEffect(() => {
   return () => window.clearTimeout(timeout);
 }, [stage]);
 
-// Host safety net: while a round is in progress, re-check readiness on a timer
-// so the round reliably advances to reveal once every image is ready, even if
-// the client that finished the last image never fired its own readiness check.
+// Host safety net: while a round is in progress, re-check readiness on a
+// slow timer so the round still advances to reveal if a realtime event for
+// the last-finished image is ever missed (dropped websocket message, brief
+// disconnect, etc). The submissions realtime subscription below covers the
+// common case instantly; this is just the backstop.
 useEffect(() => {
   if (!isHost || stage !== "submitting" || !currentGameId) return;
 
   const interval = window.setInterval(async () => {
     await loadSubmissions(currentGameId);
     await revealRoundIfReady(currentGameId);
-  }, 3000);
+  }, 12000);
 
   return () => window.clearInterval(interval);
 }, [isHost, stage, currentGameId]);
@@ -1117,24 +1131,97 @@ useEffect(() => {
 
   loadInitialData();
 
-  const interval = setInterval(() => {
-  loadPlayers();
-  loadGame();
-  loadVotes();
-  loadScoreboard();
-  loadPromptSuggestions();
-}, 2000);
+  // Live updates: one realtime channel per room, pushed instead of polled.
+  // Each handler refetches through the existing load* functions (rather
+  // than trying to apply the raw payload) since several of them cascade
+  // into other state - host debug stats, prompt ratings, solo-round
+  // handling - that a single row's payload can't reconstruct on its own.
+  function refreshEverything() {
+    loadPlayers();
+    loadGame();
+    loadScoreboard();
+    loadPromptSuggestions();
+  }
+
+  const channel = supabase
+    .channel(`room:${code}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "games", filter: `room_code=eq.${code}` },
+      () => loadGame()
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "players", filter: `room_code=eq.${code}` },
+      () => {
+        loadPlayers();
+        loadScoreboard();
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "submissions", filter: `room_code=eq.${code}` },
+      () => {
+        const gameId = currentGameIdRef.current;
+        loadSubmissions(gameId);
+        loadHostDebugStats(gameId);
+        if (isHostRef.current && stageRef.current === "submitting") {
+          revealRoundIfReady(gameId);
+        }
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "votes", filter: `room_code=eq.${code}` },
+      () => loadVotes(currentGameIdRef.current)
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "prompt_skip_votes", filter: `room_code=eq.${code}` },
+      () => loadPromptSkipVotes(currentGameIdRef.current)
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "room_prompt_suggestions", filter: `room_code=eq.${code}` },
+      () => loadPromptSuggestions()
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "image_reports", filter: `room_code=eq.${code}` },
+      () => loadHostDebugStats(currentGameIdRef.current)
+    )
+    .subscribe((status) => {
+      // Resync on (re)connect so nothing missed while offline is lost -
+      // covers the initial subscribe and any reconnect after a dropped
+      // websocket (mobile tab suspension, network blip, etc).
+      if (status === "SUBSCRIBED") {
+        refreshEverything();
+      }
+    });
+
+  // Belt-and-suspenders: realtime should make this redundant, but a slow
+  // background poll protects against a silently missed event.
+  const fallbackInterval = setInterval(refreshEverything, 20000);
+
+  function handleVisibilityChange() {
+    if (document.visibilityState === "visible") {
+      refreshEverything();
+    }
+  }
+  document.addEventListener("visibilitychange", handleVisibilityChange);
 
   // Host liveness only needs occasional checks (staleness threshold is 45s),
-  // so keep it off the fast 2s data poll to cut request volume.
+  // so keep it off the realtime path entirely.
   const heartbeatInterval = setInterval(() => {
     heartbeatAndCheckHost();
   }, 10000);
 
   return () => {
     isMounted = false;
-    clearInterval(interval);
+    supabase.removeChannel(channel);
+    clearInterval(fallbackInterval);
     clearInterval(heartbeatInterval);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
   };
 }, []);
 
