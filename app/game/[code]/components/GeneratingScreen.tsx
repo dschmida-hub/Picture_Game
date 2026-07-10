@@ -260,44 +260,48 @@ export function GeneratingScreen({
           </section>
         )}
 
-        {isHost && (
-          <div className="sticky bottom-5 z-[55] mx-auto flex w-full max-w-xl flex-col gap-3 rounded-3xl border-2 border-black bg-white/95 p-3 shadow-[6px_6px_0_#111827] backdrop-blur sm:flex-row">
-            {submissions.length > 0 && (
-              <button
-                type="button"
-                onClick={onForceReveal}
-                disabled={isForcingStage}
-                title={allImagesReady ? "Reveal all finished images for voting." : "Reveal the images that are ready and skip pending players."}
-                className="min-h-12 flex-1 rounded-2xl bg-rose-600 px-5 py-3 font-black text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isForcingStage
-                  ? "Opening Reveal..."
-                  : allImagesReady
-                    ? "Reveal Images"
-                    : "Skip Pending + Reveal"}
-              </button>
+        {(isHost || canRateCurrentPrompt) && (
+          <div className="sticky bottom-3 z-[55] mx-auto flex w-full max-w-xl flex-col gap-3">
+            <CurrentPromptRater
+              prompt={roundPrompt}
+              currentRating={currentPromptRating}
+              hasRated={hasRatedCurrentPrompt}
+              isSaving={isRatingCurrentPrompt}
+              canRate={canRateCurrentPrompt}
+              onRate={onRateCurrentPrompt}
+            />
+
+            {isHost && (
+              <div className="flex w-full flex-col gap-3 rounded-3xl border-2 border-black bg-white/95 p-3 shadow-[6px_6px_0_#111827] backdrop-blur sm:flex-row">
+                {submissions.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={onForceReveal}
+                    disabled={isForcingStage}
+                    title={allImagesReady ? "Reveal all finished images for voting." : "Reveal the images that are ready and skip pending players."}
+                    className="min-h-12 flex-1 rounded-2xl bg-rose-600 px-5 py-3 font-black text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isForcingStage
+                      ? "Opening Reveal..."
+                      : allImagesReady
+                        ? "Reveal Images"
+                        : "Skip Pending + Reveal"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onReturnToLobby}
+                  disabled={isForcingStage}
+                  title="Return everyone to the lobby so the host can change settings or restart."
+                  className="min-h-12 flex-1 rounded-2xl border-2 border-black bg-white px-5 py-3 font-black text-zinc-950 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Back to Lobby
+                </button>
+              </div>
             )}
-            <button
-              type="button"
-              onClick={onReturnToLobby}
-              disabled={isForcingStage}
-              title="Return everyone to the lobby so the host can change settings or restart."
-              className="min-h-12 flex-1 rounded-2xl border-2 border-black bg-white px-5 py-3 font-black text-zinc-950 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Back to Lobby
-            </button>
           </div>
         )}
       </div>
-
-      <CurrentPromptRater
-        prompt={roundPrompt}
-        currentRating={currentPromptRating}
-        hasRated={hasRatedCurrentPrompt}
-        isSaving={isRatingCurrentPrompt}
-        canRate={canRateCurrentPrompt}
-        onRate={onRateCurrentPrompt}
-      />
     </div>
   );
 }

@@ -46,7 +46,7 @@ export function CurrentPromptRater({
   if (!canRate || !prompt) return null;
 
   return (
-    <div className="fixed inset-x-3 bottom-3 z-[60] mx-auto max-w-4xl rounded-2xl border-2 border-black bg-white/95 p-3 text-zinc-950 shadow-[6px_6px_0_#111827] backdrop-blur">
+    <div className="w-full rounded-2xl border-2 border-black bg-white/95 p-3 text-zinc-950 shadow-[6px_6px_0_#111827] backdrop-blur">
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-black uppercase tracking-wider text-rose-700">
