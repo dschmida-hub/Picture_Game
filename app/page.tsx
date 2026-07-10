@@ -332,6 +332,43 @@ export default function Home() {
     }
   }
 
+  function renderJoinForm(idPrefix: string) {
+    return (
+      <div className="rounded-3xl border-2 border-black bg-rose-50 p-5 shadow-[5px_5px_0_#111827]">
+        <p className="text-sm font-extrabold uppercase tracking-wider text-rose-700">Join friends</p>
+        <h2 className="mt-1 text-2xl font-black">Enter a room code</h2>
+        <label className="mt-4 block text-sm font-bold text-rose-700" htmlFor={`${idPrefix}-room-code`}>
+          Room code
+        </label>
+        <input
+          id={`${idPrefix}-room-code`}
+          value={roomCode}
+          onChange={(event) => handleRoomCodeChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") joinGame();
+          }}
+          placeholder="ABCDE"
+          inputMode="text"
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={5}
+          className="mt-2 w-full rounded-2xl border-2 border-black bg-white p-4 text-center text-2xl font-black tracking-[0.3em] uppercase shadow-[3px_3px_0_#111827] focus:border-rose-600 focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={joinGame}
+          disabled={roomCode.length !== 5 || isJoining}
+          className="mt-4 w-full rounded-2xl bg-rose-600 px-6 py-4 text-lg font-extrabold text-white shadow-[5px_5px_0_#111827] transition hover:bg-rose-700 disabled:opacity-50"
+        >
+          {isJoining ? "Checking Room..." : "Join Game"}
+        </button>
+        {joinError && (
+          <p className="mt-3 text-center text-sm font-extrabold text-red-600">{joinError}</p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#fff7ed] text-black">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
@@ -411,6 +448,8 @@ export default function Home() {
               </Link>
             </div>
 
+            <div className="mt-7 lg:hidden">{renderJoinForm("mobile")}</div>
+
             {stats && stats.images >= 20 && (
               <div className="mt-8 flex flex-wrap justify-center gap-6 lg:justify-start">
                 {[
@@ -444,45 +483,7 @@ export default function Home() {
               <DemoShowcaseCard demoIndex={demoIndex} item={activeShowcaseItem} />
             </div>
 
-            <div
-              id="join"
-              className="rounded-3xl border-2 border-black bg-rose-50 p-5 shadow-[5px_5px_0_#111827] lg:mt-6"
-            >
-              <p className="text-sm font-extrabold uppercase tracking-wider text-rose-700">
-                Join friends
-              </p>
-              <h2 className="mt-1 text-2xl font-black">Enter a room code</h2>
-              <label className="mt-4 block text-sm font-bold text-rose-700" htmlFor="room-code">
-                Room code
-              </label>
-              <input
-                id="room-code"
-                value={roomCode}
-                onChange={(event) => handleRoomCodeChange(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") joinGame();
-                }}
-                placeholder="ABCDE"
-                inputMode="text"
-                autoComplete="off"
-                spellCheck={false}
-                maxLength={5}
-                className="mt-2 w-full rounded-2xl border-2 border-black bg-white p-4 text-center text-2xl font-black tracking-[0.3em] uppercase shadow-[3px_3px_0_#111827] focus:border-rose-600 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={joinGame}
-                disabled={roomCode.length !== 5 || isJoining}
-                className="mt-4 w-full rounded-2xl bg-rose-600 px-6 py-4 text-lg font-extrabold text-white shadow-[5px_5px_0_#111827] transition hover:bg-rose-700 disabled:opacity-50"
-              >
-                {isJoining ? "Checking Room..." : "Join Game"}
-              </button>
-              {joinError && (
-                <p className="mt-3 text-center text-sm font-extrabold text-red-600">
-                  {joinError}
-                </p>
-              )}
-            </div>
+            <div className="hidden lg:block lg:mt-6">{renderJoinForm("desktop")}</div>
           </div>
         </div>
       </section>
