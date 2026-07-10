@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HelpTooltip } from "./HelpTooltip";
 import { PromptSuggestionPanel } from "./PromptSuggestionPanel";
 import type { ContentRating, GameMode, Player, PromptRating, PromptSuggestion, RoundDuration } from "./types";
@@ -112,6 +112,17 @@ export function LobbyScreen({
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
   const openSlots = maxPlayers - players.length;
   const categoryOptions = ["Random", ...promptCategories];
+
+  useEffect(() => {
+    if (!isHowToPlayOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isHowToPlayOpen]);
 
   return (
     <>

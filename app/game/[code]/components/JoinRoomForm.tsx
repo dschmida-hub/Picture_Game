@@ -104,7 +104,7 @@ export function JoinRoomForm({
                   onJoinGame();
                 }
               }}
-
+              maxLength={40}
               className="w-full rounded-2xl border-2 border-black bg-white p-4 text-lg font-bold outline-none transition focus:border-rose-600 focus:shadow-[0_0_0_4px_rgba(225,29,72,0.18)]"
             />
           </label>

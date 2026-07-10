@@ -1,4 +1,5 @@
 import { HelpTooltip } from "./HelpTooltip";
+import { WaitingOnList } from "./WaitingOnList";
 import type { ContentRating, GameMode } from "./types";
 
 type SubmissionFormProps = {
@@ -90,22 +91,11 @@ export function SubmissionForm({
         {isSubmitting ? "Submitting..." : isCards ? "Lock In Fill" : "Lock In Answer"}
       </button>
 
-      <div className="w-full max-w-xl rounded-3xl border-2 border-black bg-sky-100 p-4 text-center shadow-[5px_5px_0_#111827]">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-sky-800">
-          Waiting on
-        </p>
-        {waitingOnPlayerNames.length > 0 ? (
-          <div className="mt-3 flex flex-wrap justify-center gap-2">
-            {waitingOnPlayerNames.map((playerName) => (
-              <span key={playerName} className="rounded-full border border-sky-200 bg-white px-3 py-1 text-sm font-black text-sky-900">
-                {playerName}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-2 text-sm font-black text-emerald-700">Everyone submitted!</p>
-        )}
-      </div>
+      <WaitingOnList
+        title="Waiting on"
+        names={waitingOnPlayerNames}
+        emptyMessage="Everyone submitted!"
+      />
 
       {isHost && submissionsCount > 0 && (
         <button

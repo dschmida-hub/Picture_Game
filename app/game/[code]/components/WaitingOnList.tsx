@@ -11,7 +11,11 @@ export function WaitingOnList({ title, names, emptyMessage }: WaitingOnListProps
       {names.length > 0 ? (
         <div className="mt-3 flex flex-wrap justify-center gap-2">
           {names.map((name) => (
-            <span key={name} className="rounded-full border border-sky-200 bg-white px-3 py-1 text-sm font-black text-sky-900">
+            <span
+              key={name}
+              title={name}
+              className="max-w-[10rem] truncate rounded-full border border-sky-200 bg-white px-3 py-1 text-sm font-black text-sky-900"
+            >
               {name}
             </span>
           ))}
