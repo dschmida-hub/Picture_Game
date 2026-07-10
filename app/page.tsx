@@ -399,7 +399,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={createGame}
-                className="rounded-2xl bg-zinc-950 px-8 py-4 text-lg font-extrabold text-white shadow-[6px_6px_0_#fb7185] transition active:scale-[0.99] md:hover:-translate-y-0.5"
+                className="rounded-2xl bg-rose-600 px-10 py-5 text-xl font-black text-white shadow-[6px_6px_0_#111827] transition active:scale-[0.99] md:hover:-translate-y-0.5"
               >
                 Start Free Game
               </button>
@@ -562,24 +562,6 @@ export default function Home() {
               </details>
             ))}
           </div>
-        </div>
-      </section>
-
-      <section className="relative px-5 pb-16 md:px-8">
-        <div className="mx-auto w-full max-w-4xl rounded-[2rem] border-4 border-black bg-zinc-950 p-8 text-center text-white shadow-[10px_10px_0_#fb7185] md:p-12">
-          <h2 className="text-4xl font-black md:text-5xl">
-            Your group chat deserves this.
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-lg font-bold text-zinc-300">
-            Start a free room, send the code, and find out whose brain is the most broken.
-          </p>
-          <button
-            type="button"
-            onClick={createGame}
-            className="mt-8 rounded-2xl bg-rose-600 px-10 py-5 text-xl font-black text-white shadow-[6px_6px_0_#fff] transition active:scale-[0.99] md:hover:-translate-y-0.5"
-          >
-            Start Free Game
-          </button>
         </div>
       </section>
 
