@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ensureAnonymousSession, supabase } from "@/lib/supabase";
+import { ConnectionStatusBanner } from "./components/ConnectionStatusBanner";
 import { GeneratingScreen } from "./components/GeneratingScreen";
 import { GameLogo } from "./components/GameLogo";
 import { HostDebugPanel } from "./components/HostDebugPanel";
@@ -137,6 +138,11 @@ export default function GameRoom() {
   const [roundImageStyle, setRoundImageStyle] = useState("clay_animation");
   const [hostDebugStats, setHostDebugStats] = useState<HostDebugStats>(emptyHostDebugStats);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [isBrowserOnline, setIsBrowserOnline] = useState(
+    () => typeof navigator === "undefined" || navigator.onLine
+  );
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(true);
+  const [showReconnectingBanner, setShowReconnectingBanner] = useState(false);
   const rescuingSubmissionIds = useRef(new Set<number>());
   const hostName = players.find((player) => player.is_host)?.name;
   const isHost = joined && name === hostName;
@@ -205,6 +211,13 @@ export default function GameRoom() {
       message={toast?.message || ""}
       tone={toast?.tone || "info"}
       onDismiss={() => setToast(null)}
+    />
+  );
+
+  const connectionStatusBanner = (
+    <ConnectionStatusBanner
+      isOffline={!isBrowserOnline}
+      isReconnecting={isBrowserOnline && showReconnectingBanner}
     />
   );
 
@@ -1006,6 +1019,36 @@ useEffect(() => {
 }, [currentGameId, isHost, stage]);
 
 useEffect(() => {
+  function handleOnline() {
+    setIsBrowserOnline(true);
+  }
+
+  function handleOffline() {
+    setIsBrowserOnline(false);
+  }
+
+  window.addEventListener("online", handleOnline);
+  window.addEventListener("offline", handleOffline);
+
+  return () => {
+    window.removeEventListener("online", handleOnline);
+    window.removeEventListener("offline", handleOffline);
+  };
+}, []);
+
+// Debounced so a brief realtime reconnect (tab resume, short blip) doesn't
+// flash the banner - only a connection that stays down for a bit shows it.
+useEffect(() => {
+  if (isRealtimeConnected) {
+    setShowReconnectingBanner(false);
+    return;
+  }
+
+  const timeout = window.setTimeout(() => setShowReconnectingBanner(true), 2500);
+  return () => window.clearTimeout(timeout);
+}, [isRealtimeConnected]);
+
+useEffect(() => {
   if (stage !== "winner") return;
 
   const timeout = window.setTimeout(() => {
@@ -1188,7 +1231,10 @@ useEffect(() => {
       // covers the initial subscribe and any reconnect after a dropped
       // websocket (mobile tab suspension, network blip, etc).
       if (status === "SUBSCRIBED") {
+        setIsRealtimeConnected(true);
         refreshEverything();
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        setIsRealtimeConnected(false);
       }
     });
 
@@ -2395,6 +2441,7 @@ if (isJoining) {
   return (
     <>
       {toastNotice}
+      {connectionStatusBanner}
       <LoadingScreen title="Joining Room..." message="Gathering the troublemakers" />
     </>
   );
@@ -2404,6 +2451,7 @@ if (isPageLoading) {
   return (
     <>
       {toastNotice}
+      {connectionStatusBanner}
       <LoadingScreen title="Loading Game..." message="Getting the chaos ready" />
     </>
   );
@@ -2413,6 +2461,7 @@ if (isPageLoading) {
   return (
     <main className="relative isolate min-h-screen flex flex-col items-center justify-center gap-6 overflow-hidden bg-[#fff7ed] p-6 text-zinc-950">
       {toastNotice}
+      {connectionStatusBanner}
       <div className="relative z-10">
         <GameLogo />
       </div>
