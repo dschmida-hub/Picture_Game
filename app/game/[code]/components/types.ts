@@ -1,4 +1,4 @@
-export type GameMode = "classic" | "cards";
+export type GameMode = "classic" | "cards" | "most_likely_to";
 export type ContentRating = "everyone" | "pg13";
 export type RoundDuration = number | "unlimited";
 export type PromptRating = "good" | "ehhh" | "bad";

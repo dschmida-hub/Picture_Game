@@ -29,7 +29,11 @@ type AdminPromptsPageProps = {
 const TABLE_LABELS: Record<string, string> = {
   prompts: "Classic",
   cah_prompts: "Fill in the Blank",
+  most_likely_to_prompts: "Most Likely To",
 };
+
+const PROMPT_TABLES = ["prompts", "cah_prompts", "most_likely_to_prompts"] as const;
+type PromptTable = (typeof PROMPT_TABLES)[number];
 
 const RATING_STYLES: Record<string, string> = {
   good: "bg-green-100 text-green-800",
@@ -68,7 +72,9 @@ export default async function AdminPromptsPage({ searchParams }: AdminPromptsPag
     );
   }
 
-  const table = tableParam === "cah_prompts" ? "cah_prompts" : "prompts";
+  const table: PromptTable = PROMPT_TABLES.includes(tableParam as PromptTable)
+    ? (tableParam as PromptTable)
+    : "prompts";
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -135,7 +141,7 @@ export default async function AdminPromptsPage({ searchParams }: AdminPromptsPag
         <section className="rounded-3xl border-4 border-black bg-white p-5 shadow-lg">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-black uppercase tracking-wider text-gray-500">Deck</span>
-            {(["prompts", "cah_prompts"] as const).map((tableOption) => (
+            {PROMPT_TABLES.map((tableOption) => (
               <Link
                 key={tableOption}
                 href={buildHref({ table: tableOption, rating: "all", show: "all" })}

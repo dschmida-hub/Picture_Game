@@ -5,6 +5,7 @@ import {
 } from "./promptQuality";
 import { HelpTooltip } from "./HelpTooltip";
 import type { GameMode, PromptSuggestion } from "./types";
+import { getGameModeLabel } from "../utils/gameRoomUtils";
 
 type PromptSuggestionPanelProps = {
   playerName: string;
@@ -33,7 +34,7 @@ export function PromptSuggestionPanel({
   onSubmitSuggestion,
   onVoteSuggestion,
 }: PromptSuggestionPanelProps) {
-  const suggestionModeLabel = suggestionMode === "cards" ? "Fill in Blank" : "Classic";
+  const suggestionModeLabel = getGameModeLabel(suggestionMode);
   const isPromptPitchingDisabled = !hasSelectedGameMode;
 
   return (
@@ -77,7 +78,7 @@ export function PromptSuggestionPanel({
             {hasSelectedGameMode ? suggestionModeLabel : "Choose mode first"}
           </p>
           <p className="mt-1 text-xs font-bold text-zinc-500">
-            {hasSelectedGameMode ? "Follows the room mode." : "Classic or Fill in the Blank."}
+            {hasSelectedGameMode ? "Follows the room mode." : "Set by the host."}
           </p>
         </div>
 
@@ -97,7 +98,7 @@ export function PromptSuggestionPanel({
 
       {!hasSelectedGameMode && (
         <p className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-black text-amber-900">
-          The host needs to choose Classic or Fill in the Blank before players can pitch prompts.
+          The host needs to choose a game mode before players can pitch prompts.
         </p>
       )}
 
@@ -131,7 +132,7 @@ export function PromptSuggestionPanel({
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <div className="flex flex-wrap gap-2">
                     <span className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-extrabold text-zinc-800">
-                      {suggestion.game_mode === "cards" ? "Fill in Blank" : "Classic"}
+                      {getGameModeLabel(suggestion.game_mode)}
                     </span>
                     <span
                       className={`rounded-full border px-3 py-1 text-xs font-extrabold ${getPromptRatingClasses(

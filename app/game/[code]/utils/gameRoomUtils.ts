@@ -103,7 +103,14 @@ export function pickBestRatedPromptDeck(prompts: PromptOption[]) {
 export function getPromptRatingTable(promptSource: PromptSource | null) {
   if (promptSource === "classic") return "prompts";
   if (promptSource === "cards") return "cah_prompts";
+  if (promptSource === "most_likely_to") return "most_likely_to_prompts";
   return null;
+}
+
+export function getGameModeLabel(gameMode: GameMode) {
+  if (gameMode === "cards") return "Fill in the Blank";
+  if (gameMode === "most_likely_to") return "Most Likely To";
+  return "Classic";
 }
 
 export function normalizePlayerName(playerName: string) {

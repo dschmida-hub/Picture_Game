@@ -129,7 +129,7 @@ export async function updateReportStatus(formData: FormData) {
   redirect("/admin/reports");
 }
 
-const PROMPT_TABLES = ["prompts", "cah_prompts"] as const;
+const PROMPT_TABLES = ["prompts", "cah_prompts", "most_likely_to_prompts"] as const;
 type PromptTable = (typeof PROMPT_TABLES)[number];
 const PROMPT_RATINGS = ["good", "ehhh", "bad"] as const;
 

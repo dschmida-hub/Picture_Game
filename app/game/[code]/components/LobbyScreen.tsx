@@ -2,6 +2,7 @@ import { useState } from "react";
 import { HelpTooltip } from "./HelpTooltip";
 import { PromptSuggestionPanel } from "./PromptSuggestionPanel";
 import type { ContentRating, GameMode, Player, PromptRating, PromptSuggestion, RoundDuration } from "./types";
+import { getGameModeLabel } from "../utils/gameRoomUtils";
 
 type LobbyScreenProps = {
   code: string;
@@ -254,9 +255,9 @@ export function LobbyScreen({
                   <p className="text-sm font-black uppercase tracking-[0.22em] text-rose-700">
                     Choose game mode
                   </p>
-                  <HelpTooltip text="Classic means everyone writes a full funny answer. Fill in the Blank gives a prompt-card style setup." />
+                  <HelpTooltip text="Classic means everyone writes a full funny answer. Fill in the Blank gives a prompt-card style setup. Most Likely To uses roast-style 'who's most likely to...' prompts." />
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => onGameModeChange("classic")}
@@ -283,6 +284,19 @@ export function LobbyScreen({
                     <span className={`text-xs font-bold sm:text-sm ${hasSelectedGameMode && selectedGameMode === "cards" ? "text-zinc-300" : "text-zinc-500"}`}>
                       Complete a prompt card
                     </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onGameModeChange("most_likely_to")}
+                    className={`rounded-2xl border-2 p-2.5 text-left transition sm:p-4 ${
+                      hasSelectedGameMode && selectedGameMode === "most_likely_to"
+                        ? "border-black bg-amber-50 shadow-[4px_4px_0_#111827]"
+                        : "border-zinc-200 bg-white hover:border-black"
+                    }`}
+                  >
+                    <span className="block text-sm font-black sm:text-lg">Most Likely To</span>
+                    <span className="text-xs font-bold text-zinc-500 sm:text-sm">Playful roast-style prompts</span>
                   </button>
                 </div>
                 {!hasSelectedGameMode && (
@@ -389,7 +403,7 @@ export function LobbyScreen({
 
                 {!hasSelectedGameMode ? (
                   <p className="mt-3 text-center text-sm font-black text-rose-700">
-                    Choose Classic or Fill in the Blank first.
+                    Choose a game mode first.
                   </p>
                 ) : (
                   players.length === 1 && (
@@ -490,7 +504,7 @@ export function LobbyScreen({
               </p>
               <p className="mt-2 text-xl font-black">
                 {hasSelectedGameMode
-                  ? `${selectedGameMode === "cards" ? "Fill in the Blank" : "Classic"} mode`
+                  ? `${getGameModeLabel(selectedGameMode)} mode`
                   : "Waiting for the host to choose a mode"}
               </p>
               <p className="mt-2 text-sm font-bold text-zinc-500">

@@ -36,6 +36,7 @@ import {
   formatCountdown,
   formatRoomExpiration,
   getContentRatingLabel,
+  getGameModeLabel,
   getImageStyleLabel,
   getPromptRatingTable,
   isPromptAllowedForContentRating,
@@ -311,24 +312,16 @@ export default function GameRoom() {
 ];
 
 async function pickRoundPrompt(): Promise<PromptOption | null> {
-  let promptQuery;
   const basePromptSource: PromptSource = selectedGameMode;
   const customPromptSource: PromptSource = `custom_${selectedGameMode}`;
+  const tableName = getPromptRatingTable(basePromptSource);
 
-  if (selectedGameMode === "cards") {
-    promptQuery = supabase
-      .from("cah_prompts")
-      .select("id, prompt, image_style, prompt_rating")
-      .eq("active", true);
-  } else {
-    promptQuery = supabase
-      .from("prompts")
-      .select("id, prompt, image_style, prompt_rating")
-      .eq("active", true);
+  if (!tableName) return null;
 
-    if (selectedCategory !== "Random") {
-      promptQuery = promptQuery.eq("category", selectedCategory);
-    }
+  let promptQuery = supabase.from(tableName).select("id, prompt, image_style, prompt_rating").eq("active", true);
+
+  if (selectedGameMode === "classic" && selectedCategory !== "Random") {
+    promptQuery = promptQuery.eq("category", selectedCategory);
   }
 
   const { data, error } = await promptQuery;
@@ -962,7 +955,7 @@ async function loadGame() {
   setCurrentPromptSource(data.prompt_source as PromptSource | null);
   setStage(data.stage as GameStage);
   setRoundPrompt(data.prompt);
-  setSelectedGameMode(data.game_mode as "classic" | "cards");
+  setSelectedGameMode(data.game_mode as GameMode);
   setHasSelectedGameMode(Boolean(data.game_mode));
   setSelectedContentRating(normalizeContentRating(data.content_rating));
   setRoundImageStyle(data.image_style || "clay_animation");
@@ -1437,9 +1430,9 @@ async function startGame() {
 
     if (!randomPrompt) {
     showToast(
-      selectedGameMode === "cards"
-      ? "No fill-in-the-blank prompts found"
-      : "No prompts found for this category"
+      selectedGameMode === "classic"
+      ? "No prompts found for this category"
+      : `No ${getGameModeLabel(selectedGameMode)} prompts found`
     );
   return;
   }
