@@ -8,7 +8,7 @@ const cspHeader = `
   style-src 'self' 'unsafe-inline';
   img-src 'self' data: blob: https://*.supabase.co;
   font-src 'self';
-  connect-src 'self' https://*.supabase.co;
+  connect-src 'self' https://*.supabase.co wss://*.supabase.co;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
