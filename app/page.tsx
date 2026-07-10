@@ -545,13 +545,21 @@ export default function Home() {
 
           <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
             {faqs.map((faq) => (
-              <div
+              <details
                 key={faq.question}
-                className="rounded-3xl border-2 border-black bg-white p-5 shadow-[5px_5px_0_#111827]"
+                className="group rounded-3xl border-2 border-black bg-white p-5 shadow-[5px_5px_0_#111827]"
               >
-                <p className="font-black">{faq.question}</p>
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-black marker:content-none [&::-webkit-details-marker]:hidden">
+                  {faq.question}
+                  <span
+                    aria-hidden="true"
+                    className="shrink-0 text-xl leading-none text-rose-700 transition-transform group-open:rotate-45"
+                  >
+                    +
+                  </span>
+                </summary>
                 <p className="mt-2 text-sm font-bold leading-relaxed text-zinc-600">{faq.answer}</p>
-              </div>
+              </details>
             ))}
           </div>
         </div>
