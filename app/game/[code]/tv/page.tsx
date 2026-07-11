@@ -18,7 +18,7 @@ import {
 } from "../utils/gameRoomUtils";
 import { playAnticipationRiser, playRevealChime, unlockTvAudio } from "../utils/tvSounds";
 
-const AMBIENT_SPARKLE_EMOJIS = ["\u{1F648}", "\u{1F435}", "\u{1F34C}", "\u{1F58C}\u{FE0F}", "\u{1F5BC}\u{FE0F}"];
+const AMBIENT_SPARKLE_EMOJIS = ["\u{1F34C}", "\u{1F58C}\u{FE0F}", "\u{1F5BC}\u{FE0F}", "\u{2728}"];
 
 type FloatingReaction = {
   id: number;
@@ -541,14 +541,17 @@ export default function TvMode() {
 
       {showGeneratingView && (
         <>
-          <div className="relative flex h-24 w-24 items-center justify-center">
-            <span className="absolute text-5xl opacity-25">{"\u{1F5BC}\u{FE0F}"}</span>
-            <span className="relative animate-bounce text-5xl">{"\u{1F648}"}</span>
+          <div className="overflow-hidden rounded-[2rem] border-4 border-black shadow-[10px_10px_0_#111827]">
+            <video
+              src="/mascot/art-mascot.mp4"
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="block h-auto w-full max-w-xl"
+            />
           </div>
           <h1 className="text-5xl font-black">Creating Chaos...</h1>
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-zinc-400">
-            Our art monkeys are covering the canvas until it&apos;s ready
-          </p>
           <p className="max-w-2xl text-xl font-bold text-zinc-600">{currentLoadingMessage}</p>
 
           <div className="h-3 w-full max-w-xl overflow-hidden rounded-full bg-zinc-200">
