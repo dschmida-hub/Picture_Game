@@ -164,71 +164,30 @@ export default function Home() {
   const [demoIndex, setDemoIndex] = useState(0);
 
   useEffect(() => {
-    async function loadBackgroundImages() {
-      let { data, error } = await supabase
-        .from("round_history")
-        .select("game_id, gallery_thumbnail_url, winner_image_url, winner_prompt")
-        .not("winner_image_url", "is", null)
-        .is("hidden_at", null)
-        .order("id", { ascending: false })
-        .limit(8);
+    type ShowcaseRow = { answer: string | null; image_url: string | null; question: string | null };
 
-      // Fall back to the pre-migration query if hidden_at doesn't exist yet
-      // (supabase/round_history_moderation.sql not applied), so the homepage
-      // still shows recent winners instead of nothing.
-      if (error?.code === "42703") {
-        ({ data, error } = await supabase
-          .from("round_history")
-          .select("game_id, gallery_thumbnail_url, winner_image_url, winner_prompt")
-          .not("winner_image_url", "is", null)
-          .order("id", { ascending: false })
-          .limit(8));
-      }
+    async function loadBackgroundImages() {
+      const { data, error } = await supabase.rpc("get_homepage_showcase");
 
       if (error) {
         console.error("Failed to load homepage images:", error);
         return;
       }
 
-      const rounds = data || [];
-      const gameIds = Array.from(
-        new Set(
-          rounds
-            .map((round) => Number(round.game_id))
-            .filter((gameId) => Number.isInteger(gameId) && gameId > 0)
-        )
-      );
-      const questionByGameId = new Map<number, string>();
-
-      if (gameIds.length > 0) {
-        const { data: games, error: gamesError } = await supabase
-          .from("games")
-          .select("id, prompt")
-          .in("id", gameIds);
-
-        if (gamesError) {
-          console.error("Failed to load homepage showcase prompts:", gamesError);
-        } else {
-          (games || []).forEach((game) => {
-            questionByGameId.set(Number(game.id), game.prompt || "");
-          });
-        }
-      }
+      const rows = (data || []) as ShowcaseRow[];
 
       setBackgroundImages(
-        rounds
-          .map((round) => round.gallery_thumbnail_url || round.winner_image_url)
-          .filter((imageUrl): imageUrl is string =>
-            Boolean(imageUrl && !imageUrl.startsWith("data:"))
-          )
+        rows
+          .map((row) => row.image_url)
+          .filter((imageUrl): imageUrl is string => Boolean(imageUrl && !imageUrl.startsWith("data:")))
       );
 
       setShowcaseItems(
-        rounds
-          .map((round) => ({
-            answer: round.winner_prompt,
-            imageUrl: round.gallery_thumbnail_url || round.winner_image_url,
-            question: questionByGameId.get(Number(round.game_id)) || "A recent winning prompt",
+        rows
+          .map((row) => ({
+            answer: row.answer,
+            imageUrl: row.image_url,
+            question: row.question || "A recent winning prompt",
           }))
           .filter(
             (item): item is ShowcaseItem =>
@@ -239,24 +198,19 @@ export default function Home() {
     }
 
     async function loadStats() {
-      const [games, images, players] = await Promise.all([
-        supabase.from("round_history").select("id", { count: "exact", head: true }),
-        supabase
-          .from("submissions")
-          .select("id", { count: "exact", head: true })
-          .not("image_url", "is", null),
-        supabase.from("players").select("id", { count: "exact", head: true }),
-      ]);
+      const { data, error } = await supabase.rpc("get_homepage_stats").maybeSingle();
 
-      if (games.error || images.error || players.error) {
-        console.error("Failed to load homepage stats:", games.error || images.error || players.error);
+      if (error || !data) {
+        console.error("Failed to load homepage stats:", error);
         return;
       }
 
+      const stats = data as { games_count: number | null; images_count: number | null; players_count: number | null };
+
       setStats({
-        games: games.count || 0,
-        images: images.count || 0,
-        players: players.count || 0,
+        games: stats.games_count || 0,
+        images: stats.images_count || 0,
+        players: stats.players_count || 0,
       });
     }
 
@@ -291,25 +245,19 @@ export default function Home() {
   const activeShowcaseItem = showcaseItems[demoIndex];
 
   async function checkRoomExists(cleanCode: string) {
-    const [{ count: playerCount, error: playerError }, { count: gameCount, error: gameError }] =
-      await Promise.all([
-        supabase
-          .from("players")
-          .select("id", { count: "exact", head: true })
-          .eq("room_code", cleanCode),
-        supabase
-          .from("games")
-          .select("id", { count: "exact", head: true })
-          .eq("room_code", cleanCode),
-      ]);
+    const { data: exists, error } = await supabase.rpc("room_exists", {
+      room_code_input: cleanCode,
+    });
 
-    if (playerError || gameError) {
-      console.error(playerError || gameError);
-      setJoinError("Could not check that room. Try again.");
-      return false;
+    if (error) {
+      console.error(error);
+      // Fail open, not closed: if the RPC itself is unreachable (e.g. this
+      // deploy shipped before its SQL migration ran), don't block joining -
+      // the destination room page handles a genuinely bad code on its own.
+      return true;
     }
 
-    if ((playerCount || 0) === 0 && (gameCount || 0) === 0) {
+    if (!exists) {
       setJoinError("Game not found. Check the code and try again.");
       return false;
     }

@@ -1134,6 +1134,9 @@ useEffect(() => {
 
 useEffect(() => {
   let isMounted = true;
+  let channel: ReturnType<typeof supabase.channel> | null = null;
+  let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+  let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
   async function loadInitialData() {
     setIsPageLoading(true);
@@ -1178,8 +1181,6 @@ useEffect(() => {
     }
   }
 
-  loadInitialData();
-
   // Live updates: one realtime channel per room, pushed instead of polled.
   // Each handler refetches through the existing load* functions (rather
   // than trying to apply the raw payload) since several of them cascade
@@ -1192,97 +1193,115 @@ useEffect(() => {
     loadPromptSuggestions();
   }
 
-  const channel = supabase
-    .channel(`room:${code}`)
-    .on("presence", { event: "sync" }, () => {
-      const state = channel.presenceState<{ role: string }>();
-      const hasTv = Object.values(state).some((entries) =>
-        entries.some((entry) => entry.role === "tv")
-      );
-      setIsTvConnected(hasTv);
-    })
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "games", filter: `room_code=eq.${code}` },
-      () => loadGame()
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "players", filter: `room_code=eq.${code}` },
-      () => {
-        loadPlayers();
-        loadScoreboard();
-      }
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "submissions", filter: `room_code=eq.${code}` },
-      () => {
-        const gameId = currentGameIdRef.current;
-        loadSubmissions(gameId);
-        loadHostDebugStats(gameId);
-        if (isHostRef.current && stageRef.current === "submitting") {
-          revealRoundIfReady(gameId);
-        }
-      }
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "votes", filter: `room_code=eq.${code}` },
-      () => loadVotes(currentGameIdRef.current)
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "prompt_skip_votes", filter: `room_code=eq.${code}` },
-      () => loadPromptSkipVotes(currentGameIdRef.current)
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "room_prompt_suggestions", filter: `room_code=eq.${code}` },
-      () => loadPromptSuggestions()
-    )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "image_reports", filter: `room_code=eq.${code}` },
-      () => loadHostDebugStats(currentGameIdRef.current)
-    )
-    .subscribe((status) => {
-      // Resync on (re)connect so nothing missed while offline is lost -
-      // covers the initial subscribe and any reconnect after a dropped
-      // websocket (mobile tab suspension, network blip, etc).
-      if (status === "SUBSCRIBED") {
-        setIsRealtimeConnected(true);
-        refreshEverything();
-      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-        setIsRealtimeConnected(false);
-      }
-    });
-
-  roomChannelRef.current = channel;
-
-  // Belt-and-suspenders: realtime should make this redundant, but a slow
-  // background poll protects against a silently missed event.
-  const fallbackInterval = setInterval(refreshEverything, 20000);
-
   function handleVisibilityChange() {
     if (document.visibilityState === "visible") {
       refreshEverything();
     }
   }
-  document.addEventListener("visibilitychange", handleVisibilityChange);
 
-  // Host liveness only needs occasional checks (staleness threshold is 45s),
-  // so keep it off the realtime path entirely.
-  const heartbeatInterval = setInterval(() => {
-    heartbeatAndCheckHost();
-  }, 10000);
+  async function setupRoomConnection() {
+    // RLS scopes every read to actual room participants, so the anon
+    // session must exist before the first read - including this
+    // subscription - or everything comes back empty.
+    await ensureAnonymousSession();
+    if (!isMounted) return;
+
+    loadInitialData();
+
+    const newChannel = supabase
+      .channel(`room:${code}`)
+      .on("presence", { event: "sync" }, () => {
+        const state = newChannel.presenceState<{ role: string }>();
+        const hasTv = Object.values(state).some((entries) =>
+          entries.some((entry) => entry.role === "tv")
+        );
+        setIsTvConnected(hasTv);
+      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "games", filter: `room_code=eq.${code}` },
+        () => loadGame()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "players", filter: `room_code=eq.${code}` },
+        () => {
+          loadPlayers();
+          loadScoreboard();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "submissions", filter: `room_code=eq.${code}` },
+        () => {
+          const gameId = currentGameIdRef.current;
+          loadSubmissions(gameId);
+          loadHostDebugStats(gameId);
+          if (isHostRef.current && stageRef.current === "submitting") {
+            revealRoundIfReady(gameId);
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "votes", filter: `room_code=eq.${code}` },
+        () => loadVotes(currentGameIdRef.current)
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "prompt_skip_votes", filter: `room_code=eq.${code}` },
+        () => loadPromptSkipVotes(currentGameIdRef.current)
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "room_prompt_suggestions", filter: `room_code=eq.${code}` },
+        () => loadPromptSuggestions()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "image_reports", filter: `room_code=eq.${code}` },
+        () => loadHostDebugStats(currentGameIdRef.current)
+      )
+      .subscribe((status) => {
+        // Resync on (re)connect so nothing missed while offline is lost -
+        // covers the initial subscribe and any reconnect after a dropped
+        // websocket (mobile tab suspension, network blip, etc).
+        if (status === "SUBSCRIBED") {
+          setIsRealtimeConnected(true);
+          refreshEverything();
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          setIsRealtimeConnected(false);
+        }
+      });
+
+    if (!isMounted) {
+      supabase.removeChannel(newChannel);
+      return;
+    }
+
+    channel = newChannel;
+    roomChannelRef.current = newChannel;
+
+    // Belt-and-suspenders: realtime should make this redundant, but a slow
+    // background poll protects against a silently missed event.
+    fallbackInterval = setInterval(refreshEverything, 20000);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Host liveness only needs occasional checks (staleness threshold is 45s),
+    // so keep it off the realtime path entirely.
+    heartbeatInterval = setInterval(() => {
+      heartbeatAndCheckHost();
+    }, 10000);
+  }
+
+  setupRoomConnection();
 
   return () => {
     isMounted = false;
     roomChannelRef.current = null;
-    supabase.removeChannel(channel);
-    clearInterval(fallbackInterval);
-    clearInterval(heartbeatInterval);
+    if (channel) supabase.removeChannel(channel);
+    if (fallbackInterval) clearInterval(fallbackInterval);
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
     document.removeEventListener("visibilitychange", handleVisibilityChange);
   };
 }, []);

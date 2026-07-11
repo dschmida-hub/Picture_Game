@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
-import { supabase } from "@/lib/supabase";
+import { ensureAnonymousSession, supabase } from "@/lib/supabase";
 import { parseSubmission } from "../components/submissions";
 import { usePartyModeReveal } from "../hooks/usePartyModeReveal";
 import { useRoundCountdowns } from "../hooks/useRoundCountdowns";
@@ -231,6 +231,8 @@ export default function TvMode() {
 
   useEffect(() => {
     let isMounted = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let fallbackInterval: ReturnType<typeof setInterval> | null = null;
 
     async function loadInitialData() {
       setIsLoading(true);
@@ -238,65 +240,90 @@ export default function TvMode() {
       if (isMounted) setIsLoading(false);
     }
 
-    loadInitialData();
-
     function refreshEverything() {
       loadPlayers();
       loadGame();
     }
 
-    // Same channel name as the phone room page (not "tv:...") so the
-    // broadcast reactions players send on their phones actually arrive here.
-    const channel = supabase
-      .channel(`room:${code}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "games", filter: `room_code=eq.${code}` },
-        () => loadGame()
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "players", filter: `room_code=eq.${code}` },
-        () => loadPlayers()
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "submissions", filter: `room_code=eq.${code}` },
-        () => loadSubmissions(currentGameIdRef.current)
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "votes", filter: `room_code=eq.${code}` },
-        () => loadVoteCount(currentGameIdRef.current)
-      )
-      .on("broadcast", { event: "reaction" }, ({ payload }) => {
-        const emoji = (payload as { emoji?: string })?.emoji;
-        if (!emoji) return;
+    async function setupRoomConnection() {
+      // RLS scopes reads to actual room participants. TV Mode isn't a
+      // player, so it registers itself as a viewer of this room - without
+      // this, every read (including the subscription below) comes back
+      // empty.
+      await ensureAnonymousSession();
+      if (!isMounted) return;
 
-        const id = Date.now() + Math.random();
-        setFloatingReactions((current) => [
-          ...current,
-          { id, emoji, leftPercent: 10 + Math.random() * 80 },
-        ]);
-        window.setTimeout(() => {
-          setFloatingReactions((current) => current.filter((reaction) => reaction.id !== id));
-        }, 2500);
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          refreshEverything();
-          // Lets the lobby know a shared screen is actually watching, so it
-          // can require one before Party Mode is allowed to start.
-          channel.track({ role: "tv" });
-        }
+      const { error: viewerError } = await supabase.rpc("register_room_viewer", {
+        room_code_input: code,
       });
+      if (viewerError) {
+        console.error("TV mode: failed to register as a room viewer:", viewerError);
+      }
+      if (!isMounted) return;
 
-    const fallbackInterval = setInterval(refreshEverything, 20000);
+      loadInitialData();
+
+      // Same channel name as the phone room page (not "tv:...") so the
+      // broadcast reactions players send on their phones actually arrive here.
+      const newChannel = supabase
+        .channel(`room:${code}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "games", filter: `room_code=eq.${code}` },
+          () => loadGame()
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "players", filter: `room_code=eq.${code}` },
+          () => loadPlayers()
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "submissions", filter: `room_code=eq.${code}` },
+          () => loadSubmissions(currentGameIdRef.current)
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "votes", filter: `room_code=eq.${code}` },
+          () => loadVoteCount(currentGameIdRef.current)
+        )
+        .on("broadcast", { event: "reaction" }, ({ payload }) => {
+          const emoji = (payload as { emoji?: string })?.emoji;
+          if (!emoji) return;
+
+          const id = Date.now() + Math.random();
+          setFloatingReactions((current) => [
+            ...current,
+            { id, emoji, leftPercent: 10 + Math.random() * 80 },
+          ]);
+          window.setTimeout(() => {
+            setFloatingReactions((current) => current.filter((reaction) => reaction.id !== id));
+          }, 2500);
+        })
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            refreshEverything();
+            // Lets the lobby know a shared screen is actually watching, so it
+            // can require one before Party Mode is allowed to start.
+            newChannel.track({ role: "tv" });
+          }
+        });
+
+      if (!isMounted) {
+        supabase.removeChannel(newChannel);
+        return;
+      }
+
+      channel = newChannel;
+      fallbackInterval = setInterval(refreshEverything, 20000);
+    }
+
+    setupRoomConnection();
 
     return () => {
       isMounted = false;
-      supabase.removeChannel(channel);
-      clearInterval(fallbackInterval);
+      if (channel) supabase.removeChannel(channel);
+      if (fallbackInterval) clearInterval(fallbackInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
