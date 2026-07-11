@@ -410,39 +410,24 @@ export function LobbyScreen({
               </div>
 
               <div className={cardClass}>
-                <div className="mb-3 flex items-center gap-2">
-                  <p className="text-sm font-black uppercase tracking-[0.22em] text-rose-700">
-                    Party Mode
-                  </p>
-                  <HelpTooltip text="Reveals images one at a time on a shared screen instead of all at once. Turn this on if you're playing with a TV or laptop everyone can see - phones become reaction remotes during the reveal instead of showing the images themselves." />
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                  <button
-                    type="button"
-                    onClick={() => onPartyModeChange(false)}
-                    className={`rounded-2xl border-2 p-2.5 text-left transition sm:p-4 ${
-                      !selectedPartyMode
-                        ? "border-black bg-rose-50 shadow-[4px_4px_0_#111827]"
-                        : "border-zinc-200 bg-white hover:border-black"
-                    }`}
-                  >
-                    <span className="block text-sm font-black sm:text-lg">Off</span>
-                    <span className="text-xs font-bold text-zinc-500 sm:text-sm">Everyone votes on their phone</span>
-                  </button>
+                <label className="mb-2 flex items-center gap-2 text-sm font-black uppercase tracking-[0.22em] text-rose-700">
+                  How are you playing?
+                  <HelpTooltip text="Phone Mode: everyone answers, watches, and votes right on their own phone. Party Mode: a TV or computer becomes a dedicated presenter screen that reveals images one at a time - separate from any player's phone. Phones become reaction remotes during the reveal instead of showing the images themselves." />
+                </label>
+                <select
+                  value={selectedPartyMode ? "party" : "phone"}
+                  onChange={(event) => onPartyModeChange(event.target.value === "party")}
+                  className={selectClass}
+                >
+                  <option value="phone">Phone Mode</option>
+                  <option value="party">Party Mode (TV or computer presents)</option>
+                </select>
+                <p className="mt-2 text-sm font-bold leading-snug text-zinc-500">
+                  {selectedPartyMode
+                    ? "You'll need a TV or laptop open on TV Mode as the shared presenter - it's a separate screen everyone watches, not one of the players' phones."
+                    : "Everyone answers, watches, and votes right on their own phone."}
+                </p>
 
-                  <button
-                    type="button"
-                    onClick={() => onPartyModeChange(true)}
-                    className={`rounded-2xl border-2 p-2.5 text-left transition sm:p-4 ${
-                      selectedPartyMode
-                        ? "border-black bg-amber-100 shadow-[4px_4px_0_#111827]"
-                        : "border-zinc-200 bg-white hover:border-black"
-                    }`}
-                  >
-                    <span className="block text-sm font-black sm:text-lg">On</span>
-                    <span className="text-xs font-bold text-zinc-500 sm:text-sm">Reveal one at a time on TV</span>
-                  </button>
-                </div>
                 {selectedPartyMode && (
                   <p
                     className={`mt-3 rounded-2xl border px-4 py-3 text-sm font-black ${
@@ -456,13 +441,11 @@ export function LobbyScreen({
                       : "Open TV Mode below on a shared screen to continue."}
                   </p>
                 )}
-              </div>
 
-              <div className={cardClass}>
                 <button
                   onClick={onStartGame}
                   disabled={isStarting || !hasSelectedGameMode || (selectedPartyMode && !isTvConnected)}
-                  className="w-full rounded-2xl bg-rose-600 px-6 py-4 text-lg font-black text-white shadow-[4px_4px_0_#111827] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-4 w-full rounded-2xl bg-rose-600 px-6 py-4 text-lg font-black text-white shadow-[4px_4px_0_#111827] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isStarting ? "Starting..." : "Start Game"}
                 </button>
