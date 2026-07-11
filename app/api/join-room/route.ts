@@ -23,6 +23,7 @@ type JoinRoomRequest = {
   avatarUrl?: unknown;
   name?: unknown;
   roomCode?: unknown;
+  skipAutoHost?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
     const roomCode = normalizeRoomCode(body.roomCode);
     const name = normalizePlayerName(body.name);
     const allowCreateRoom = body.allowCreateRoom === true;
+    const skipAutoHost = body.skipAutoHost === true;
     const avatarUrl = sanitizeText(body.avatarUrl, 600);
     const avatarDescription = sanitizeText(body.avatarDescription, 240);
     const accessToken = typeof body.accessToken === "string" ? body.accessToken : "";
@@ -89,6 +91,13 @@ export async function POST(request: Request) {
     }
 
     const isFirstPlayer = players.length === 0;
+    // Party Mode rooms are created straight to TV Mode - the device that
+    // clicked "Start Free Game" never joins as a player, so nobody is
+    // "first" in the usual sense. skipAutoHost (set for links that came
+    // from that flow) leaves the room hostless until someone explicitly
+    // claims it via claim_host, instead of silently handing it to
+    // whichever phone happens to scan the QR code first.
+    const isHost = isFirstPlayer && !skipAutoHost;
 
     const { data: newPlayer, error: insertError } = await supabaseAdmin
       .from("players")
@@ -99,7 +108,7 @@ export async function POST(request: Request) {
           avatar_url: avatarUrl || null,
           avatar_description: avatarDescription || null,
           points: 0,
-          is_host: isFirstPlayer,
+          is_host: isHost,
           auth_user_id: authUserId,
         },
       ])

@@ -33,6 +33,7 @@ type RoomPlayerPayload = {
 };
 
 export type JoinRoomResponse = {
+  isHost: boolean;
   playerId: number;
   playerName: string;
 };
@@ -60,6 +61,7 @@ export const gameApi = {
     avatarUrl: string | null;
     name: string;
     roomCode: string;
+    skipAutoHost: boolean;
   }) => sendJson<JoinRoomResponse>("/api/join-room", body),
 
   submitAnswer: (body: RoomPlayerPayload & { answer: string }) =>

@@ -36,7 +36,6 @@ type LobbyScreenProps = {
   onImageStyleChange: (style: string) => void;
   onRoundDurationChange: (duration: RoundDuration) => void;
   onVotingDurationChange: (duration: number) => void;
-  onPartyModeChange: (enabled: boolean) => void;
   onToggleRoundCustomization: () => void;
   onStartGame: () => void;
   onCopyRoomCode: () => void;
@@ -45,6 +44,7 @@ type LobbyScreenProps = {
   onSubmitPromptSuggestion: () => void;
   onVotePromptSuggestion: (suggestionId: number) => void;
   onRemovePlayer: (player: Player) => void;
+  onClaimHost: () => void;
 };
 
 const cardClass = "rounded-[2rem] border-2 border-black bg-white p-4 shadow-[8px_8px_0_#111827] md:p-5";
@@ -105,7 +105,6 @@ export function LobbyScreen({
   onImageStyleChange,
   onRoundDurationChange,
   onVotingDurationChange,
-  onPartyModeChange,
   onToggleRoundCustomization,
   onStartGame,
   onCopyRoomCode,
@@ -114,6 +113,7 @@ export function LobbyScreen({
   onSubmitPromptSuggestion,
   onVotePromptSuggestion,
   onRemovePlayer,
+  onClaimHost,
 }: LobbyScreenProps) {
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState(false);
   const openSlots = maxPlayers - players.length;
@@ -410,21 +410,15 @@ export function LobbyScreen({
               </div>
 
               <div className={cardClass}>
-                <label className="mb-2 flex items-center gap-2 text-sm font-black uppercase tracking-[0.22em] text-rose-700">
-                  How are you playing?
-                  <HelpTooltip text="Phone Mode: everyone answers, watches, and votes right on their own phone. Party Mode: a TV or computer becomes a dedicated presenter screen that reveals images one at a time - separate from any player's phone. Phones become reaction remotes during the reveal instead of showing the images themselves." />
-                </label>
-                <select
-                  value={selectedPartyMode ? "party" : "phone"}
-                  onChange={(event) => onPartyModeChange(event.target.value === "party")}
-                  className={selectClass}
-                >
-                  <option value="phone">Phone Mode</option>
-                  <option value="party">Party Mode (TV or computer presents)</option>
-                </select>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border-2 border-black bg-rose-50 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-rose-800">
+                    {selectedPartyMode ? "Party Mode" : "Phone Mode"}
+                  </span>
+                  <HelpTooltip text="This was set when the game was created on the homepage. Phone Mode: everyone answers, watches, and votes right on their own phone. Party Mode: a TV or computer is a dedicated presenter screen that reveals images one at a time - phones become reaction remotes during the reveal instead." />
+                </div>
                 <p className="mt-2 text-sm font-bold leading-snug text-zinc-500">
                   {selectedPartyMode
-                    ? "You'll need a TV or laptop open on TV Mode as the shared presenter - it's a separate screen everyone watches, not one of the players' phones."
+                    ? "A TV or laptop open on TV Mode is the shared presenter - it's a separate screen everyone watches, not one of the players' phones."
                     : "Everyone answers, watches, and votes right on their own phone."}
                 </p>
 
@@ -562,7 +556,7 @@ export function LobbyScreen({
                 </p>
               </div>
             </>
-          ) : (
+          ) : hostName ? (
             <div className={`${cardClass} text-center`}>
               <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-700">
                 You&apos;re in
@@ -573,8 +567,25 @@ export function LobbyScreen({
                   : "Waiting for the host to choose a mode"}
               </p>
               <p className="mt-2 text-sm font-bold text-zinc-500">
-                Waiting for {hostName || "the host"} to start the game...
+                Waiting for {hostName} to start the game...
               </p>
+            </div>
+          ) : (
+            <div className={`${cardClass} text-center`}>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-700">
+                No host yet
+              </p>
+              <p className="mt-2 text-sm font-bold text-zinc-500">
+                Someone needs to run this game - claim it, or wait and one of you will be made host
+                automatically in a bit.
+              </p>
+              <button
+                type="button"
+                onClick={onClaimHost}
+                className="mt-4 w-full rounded-2xl bg-rose-600 px-6 py-4 text-lg font-black text-white shadow-[4px_4px_0_#111827]"
+              >
+                Become the Host
+              </button>
             </div>
           )}
         </div>

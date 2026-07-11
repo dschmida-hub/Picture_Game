@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { ensureAnonymousSession, supabase } from "@/lib/supabase";
 import { parseSubmission } from "../components/submissions";
@@ -36,6 +36,13 @@ const MAX_PLAYERS = 8;
 export default function TvMode() {
   const params = useParams();
   const code = (params.code as string) || "";
+  const searchParams = useSearchParams();
+  // Set only when this TV session came straight from the homepage's
+  // "Start Free Game -> Party Mode" flow - carried into the QR code's
+  // join link so the first phone that scans it can create the room and
+  // skips the usual "first joiner auto-becomes host" rule (see
+  // /api/join-room and the host-claim popup on the join page).
+  const isFreshPartyRoom = searchParams.get("create") === "1" && searchParams.get("party") === "1";
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [scoreboardPlayers, setScoreboardPlayers] = useState<ScoreboardPlayer[]>([]);
@@ -328,7 +335,9 @@ export default function TvMode() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
-  const joinUrl = code ? `https://playpicturethis.com/game/${code}` : "";
+  const joinUrl = code
+    ? `https://playpicturethis.com/game/${code}${isFreshPartyRoom ? "?create=1&party=1" : ""}`
+    : "";
   const readyImageCount = submissions.filter((item) => Boolean(parseSubmission(item).imageUrl)).length;
   const allAnswersSubmitted = players.length > 0 && submissions.length >= players.length;
   // The DB stage stays "submitting" through image generation - there's no
@@ -406,6 +415,12 @@ export default function TvMode() {
           <p className="text-xl font-black text-rose-700">
             {players.length} / {MAX_PLAYERS} players in the room
           </p>
+
+          {players.length > 0 && !players.some((player) => player.is_host) && (
+            <p className="max-w-md text-center text-lg font-bold text-amber-700">
+              Waiting for someone to claim host on their phone...
+            </p>
+          )}
         </>
       )}
 

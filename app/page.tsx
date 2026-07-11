@@ -162,6 +162,7 @@ export default function Home() {
   const [showcaseItems, setShowcaseItems] = useState<ShowcaseItem[]>([]);
   const [stats, setStats] = useState<{ games: number; images: number; players: number } | null>(null);
   const [demoIndex, setDemoIndex] = useState(0);
+  const [startMode, setStartMode] = useState<"phone" | "party">("phone");
 
   useEffect(() => {
     type ShowcaseRow = { answer: string | null; image_url: string | null; question: string | null };
@@ -239,6 +240,15 @@ export default function Home() {
 
   function createGame() {
     const code = Math.random().toString(36).substring(2, 7).toUpperCase();
+
+    if (startMode === "party") {
+      // Party Mode rooms start on the TV/computer as the presenter, not
+      // as a joining player - whoever's phone scans the QR code from
+      // there claims host explicitly instead of it being assumed.
+      window.location.href = `/game/${code}/tv?create=1&party=1`;
+      return;
+    }
+
     window.location.href = `/game/${code}?create=1`;
   }
 
@@ -415,20 +425,40 @@ export default function Home() {
               <DemoShowcaseCard demoIndex={demoIndex} item={activeShowcaseItem} />
             </div>
 
-            <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
-              <button
-                type="button"
-                onClick={createGame}
-                className="rounded-2xl bg-rose-600 px-10 py-5 text-xl font-black text-white shadow-[6px_6px_0_#111827] transition active:scale-[0.99] md:hover:-translate-y-0.5"
-              >
-                Start Free Game
-              </button>
-              <Link
-                href="/how-to-play"
-                className="rounded-2xl border-2 border-black bg-white px-8 py-4 text-lg font-extrabold text-rose-700 shadow-[6px_6px_0_#111827] transition active:scale-[0.99] md:hover:-translate-y-0.5"
-              >
-                How to Play
-              </Link>
+            <div className="mt-9 flex flex-col items-center gap-3 lg:items-start">
+              <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-start">
+                <label
+                  htmlFor="start-mode"
+                  className="text-xs font-extrabold uppercase tracking-wider text-rose-700"
+                >
+                  How are you playing?
+                </label>
+                <select
+                  id="start-mode"
+                  value={startMode}
+                  onChange={(event) => setStartMode(event.target.value === "party" ? "party" : "phone")}
+                  className="rounded-xl border-2 border-black bg-white px-3 py-2 text-sm font-bold shadow-[3px_3px_0_#111827] focus:border-rose-600 focus:outline-none"
+                >
+                  <option value="phone">Phone Mode</option>
+                  <option value="party">Party Mode (TV or computer presents)</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
+                <button
+                  type="button"
+                  onClick={createGame}
+                  className="rounded-2xl bg-rose-600 px-10 py-5 text-xl font-black text-white shadow-[6px_6px_0_#111827] transition active:scale-[0.99] md:hover:-translate-y-0.5"
+                >
+                  Start Free Game
+                </button>
+                <Link
+                  href="/how-to-play"
+                  className="rounded-2xl border-2 border-black bg-white px-8 py-4 text-lg font-extrabold text-rose-700 shadow-[6px_6px_0_#111827] transition active:scale-[0.99] md:hover:-translate-y-0.5"
+                >
+                  How to Play
+                </Link>
+              </div>
             </div>
 
             <div className="mt-7 lg:hidden">{renderJoinForm("mobile")}</div>

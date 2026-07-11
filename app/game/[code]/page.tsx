@@ -115,8 +115,18 @@ export default function GameRoom() {
   const [selectedImageStyle, setSelectedImageStyle] = useState("prompt");
   const [selectedRoundDuration, setSelectedRoundDuration] = useState<number | "unlimited">(90);
   const [selectedVotingDuration, setSelectedVotingDuration] = useState(45);
-  const [selectedPartyMode, setSelectedPartyMode] = useState(false);
+  // Seeded from the QR link a Party Mode room's TV screen generates
+  // (?party=1), since the mode is decided once on the homepage now, not
+  // re-chosen in the lobby - whichever phone ends up as host reads the
+  // same shared link, so this comes out consistent regardless of who
+  // ends up claiming host.
+  const [selectedPartyMode, setSelectedPartyMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("party") === "1";
+  });
   const [isTvConnected, setIsTvConnected] = useState(false);
+  const [showHostClaimPrompt, setShowHostClaimPrompt] = useState(false);
+  const [isClaimingHost, setIsClaimingHost] = useState(false);
   const [isRoundCustomizationOpen, setIsRoundCustomizationOpen] = useState(false);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
   const [roundDeadline, setRoundDeadline] = useState<string | null>(null);
@@ -452,8 +462,39 @@ async function heartbeatAndCheckHost() {
       player_id_input: Number(savedPlayerId),
     });
     await supabase.rpc("promote_next_host_if_stale", { room_code_input: code });
+    // Safety net for Party Mode rooms nobody has explicitly claimed host
+    // of yet - no-ops instantly once any host exists.
+    await supabase.rpc("auto_claim_host_if_unclaimed", { room_code_input: code });
   } catch (error) {
     console.error("Host heartbeat failed:", error);
+  }
+}
+
+async function claimHost() {
+  const savedPlayerId = window.localStorage.getItem(playerStorageKey);
+  if (!savedPlayerId || isClaimingHost) return;
+
+  setIsClaimingHost(true);
+  try {
+    const { data: claimed, error } = await supabase.rpc("claim_host", {
+      room_code_input: code,
+      player_id_input: Number(savedPlayerId),
+    });
+
+    if (error) {
+      console.error(error);
+      showToast("Could not claim host. Try again.");
+      return;
+    }
+
+    if (!claimed) {
+      showToast("Someone else already claimed host.");
+    }
+
+    await loadPlayers();
+    setShowHostClaimPrompt(false);
+  } finally {
+    setIsClaimingHost(false);
   }
 }
 
@@ -1383,7 +1424,9 @@ async function joinGame() {
     }
   }
 
-    const cameFromCreateGame = new URLSearchParams(window.location.search).get("create") === "1";
+    const searchParams = new URLSearchParams(window.location.search);
+    const cameFromCreateGame = searchParams.get("create") === "1";
+    const cameFromPartyFlow = searchParams.get("party") === "1";
 
     const { data: joinData, error: joinError } = await gameApi.joinRoom({
       accessToken,
@@ -1392,6 +1435,7 @@ async function joinGame() {
       avatarUrl,
       name: cleanName,
       roomCode: code,
+      skipAutoHost: cameFromPartyFlow,
     });
 
     if (joinError || !joinData) {
@@ -1406,6 +1450,10 @@ async function joinGame() {
   await loadPlayers();
   await loadPromptSuggestions();
   setJoined(true);
+
+  if (cameFromPartyFlow && !joinData.isHost) {
+    setShowHostClaimPrompt(true);
+  }
   }finally {
   setIsJoining(false);
   }
@@ -2545,6 +2593,39 @@ if (isPageLoading) {
         </div>
       )}
 
+      {showHostClaimPrompt && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-[2rem] border-2 border-black bg-white p-6 text-center shadow-[8px_8px_0_#111827]">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-700">
+              You joined from the shared screen
+            </p>
+            <h3 className="mt-2 text-2xl font-black">Are you running this game?</h3>
+            <p className="mt-2 text-sm font-bold text-zinc-600">
+              The host picks the game mode and starts each round. Anyone can claim it later if you
+              say no.
+            </p>
+            <div className="mt-5 flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={claimHost}
+                disabled={isClaimingHost}
+                className="w-full rounded-2xl bg-rose-600 px-5 py-3 font-black text-white shadow-[4px_4px_0_#111827] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isClaimingHost ? "Claiming..." : "Yes, I'm hosting"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowHostClaimPrompt(false)}
+                disabled={isClaimingHost}
+                className="w-full rounded-2xl border-2 border-black bg-white px-5 py-3 font-black text-zinc-950 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                No, someone else
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isHost && (
         <HostDebugPanel
           currentGameId={currentGameId}
@@ -2601,7 +2682,6 @@ if (isPageLoading) {
     onImageStyleChange={setSelectedImageStyle}
     onRoundDurationChange={setSelectedRoundDuration}
     onVotingDurationChange={setSelectedVotingDuration}
-    onPartyModeChange={setSelectedPartyMode}
     onToggleRoundCustomization={() => setIsRoundCustomizationOpen((open) => !open)}
     onStartGame={startGame}
     onCopyRoomCode={copyRoomCode}
@@ -2610,6 +2690,7 @@ if (isPageLoading) {
     onSubmitPromptSuggestion={submitPromptSuggestion}
     onVotePromptSuggestion={voteForPromptSuggestion}
     onRemovePlayer={removePlayer}
+    onClaimHost={claimHost}
   />
 ) : stage === "submitting" ? (
   <>
