@@ -19,6 +19,7 @@ type LobbyScreenProps = {
   selectedImageStyle: string;
   selectedRoundDuration: RoundDuration;
   selectedVotingDuration: number;
+  selectedPartyMode: boolean;
   isStarting: boolean;
   isRoundCustomizationOpen: boolean;
   roomShareMessage: string;
@@ -34,6 +35,7 @@ type LobbyScreenProps = {
   onImageStyleChange: (style: string) => void;
   onRoundDurationChange: (duration: RoundDuration) => void;
   onVotingDurationChange: (duration: number) => void;
+  onPartyModeChange: (enabled: boolean) => void;
   onToggleRoundCustomization: () => void;
   onStartGame: () => void;
   onCopyRoomCode: () => void;
@@ -85,6 +87,7 @@ export function LobbyScreen({
   selectedImageStyle,
   selectedRoundDuration,
   selectedVotingDuration,
+  selectedPartyMode,
   isStarting,
   isRoundCustomizationOpen,
   roomShareMessage,
@@ -100,6 +103,7 @@ export function LobbyScreen({
   onImageStyleChange,
   onRoundDurationChange,
   onVotingDurationChange,
+  onPartyModeChange,
   onToggleRoundCustomization,
   onStartGame,
   onCopyRoomCode,
@@ -401,6 +405,47 @@ export function LobbyScreen({
                 <p className="mt-2 text-sm font-bold leading-snug text-zinc-500">
                   {imageStyleDescriptions[selectedImageStyle] || imageStyleDescriptions.cartoon}
                 </p>
+              </div>
+
+              <div className={cardClass}>
+                <div className="mb-3 flex items-center gap-2">
+                  <p className="text-sm font-black uppercase tracking-[0.22em] text-rose-700">
+                    Party Mode
+                  </p>
+                  <HelpTooltip text="Reveals images one at a time on a shared screen instead of all at once. Turn this on if you're playing with a TV or laptop everyone can see - phones become reaction remotes during the reveal instead of showing the images themselves." />
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onPartyModeChange(false)}
+                    className={`rounded-2xl border-2 p-2.5 text-left transition sm:p-4 ${
+                      !selectedPartyMode
+                        ? "border-black bg-rose-50 shadow-[4px_4px_0_#111827]"
+                        : "border-zinc-200 bg-white hover:border-black"
+                    }`}
+                  >
+                    <span className="block text-sm font-black sm:text-lg">Off</span>
+                    <span className="text-xs font-bold text-zinc-500 sm:text-sm">Everyone votes on their phone</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onPartyModeChange(true)}
+                    className={`rounded-2xl border-2 p-2.5 text-left transition sm:p-4 ${
+                      selectedPartyMode
+                        ? "border-black bg-amber-100 shadow-[4px_4px_0_#111827]"
+                        : "border-zinc-200 bg-white hover:border-black"
+                    }`}
+                  >
+                    <span className="block text-sm font-black sm:text-lg">On</span>
+                    <span className="text-xs font-bold text-zinc-500 sm:text-sm">Reveal one at a time on TV</span>
+                  </button>
+                </div>
+                {selectedPartyMode && (
+                  <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-900">
+                    Don&apos;t forget to open TV Mode below on a shared screen.
+                  </p>
+                )}
               </div>
 
               <div className={cardClass}>

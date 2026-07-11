@@ -13,6 +13,7 @@ export type PromptOption = {
 
 export const MAX_PLAYERS = 8;
 export const ROOM_LIFETIME_HOURS = 24;
+export const PARTY_MODE_SECONDS_PER_IMAGE = 10;
 
 const PG13_PROMPT_PATTERN =
   /\b(ass|butt|poop|pooping|toilet|fart|farting|pee|peeing|vomit|puke|barf|drunk|beer|wine|liquor|hangover|mom|mommy|mother-in-law|dating|kiss|crush|hot tub)\b/i;

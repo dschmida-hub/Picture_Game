@@ -5,13 +5,21 @@ import { useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabase";
 import { parseSubmission } from "../components/submissions";
+import { usePartyModeReveal } from "../hooks/usePartyModeReveal";
 import { useRoundCountdowns } from "../hooks/useRoundCountdowns";
 import type { ContentRating, Player, ScoreboardPlayer } from "../components/types";
 import {
   formatCountdown,
   getContentRatingLabel,
   getImageStyleLabel,
+  PARTY_MODE_SECONDS_PER_IMAGE,
 } from "../utils/gameRoomUtils";
+
+type FloatingReaction = {
+  id: number;
+  emoji: string;
+  leftPercent: number;
+};
 
 type TvStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
 
@@ -41,17 +49,46 @@ export default function TvMode() {
   const [voteCount, setVoteCount] = useState(0);
   const [roundWinners, setRoundWinners] = useState<RoundWinnerRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [partyMode, setPartyMode] = useState(false);
+  const [revealStartedAt, setRevealStartedAt] = useState<string | null>(null);
+  const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
+  const [isWinnerImageRevealed, setIsWinnerImageRevealed] = useState(false);
 
   const currentGameIdRef = useRef<number | null>(null);
   useEffect(() => {
     currentGameIdRef.current = currentGameId;
   }, [currentGameId]);
 
+  // Party Mode gets a beat of suspense - winner name first, then the image
+  // pops in - instead of dumping everything on screen at once. Regular
+  // rounds skip the delay and show it all immediately, same as before.
+  useEffect(() => {
+    if (stage !== "winner" || roundWinners.length === 0) {
+      setIsWinnerImageRevealed(false);
+      return;
+    }
+
+    if (!partyMode) {
+      setIsWinnerImageRevealed(true);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setIsWinnerImageRevealed(true), 2200);
+    return () => window.clearTimeout(timeout);
+  }, [stage, roundWinners, partyMode]);
+
   const { timeRemainingSeconds, votingTimeRemainingSeconds } = useRoundCountdowns({
     roundDeadline,
     stage,
     votingDeadline,
   });
+
+  const { isSequenceActive: isPartyModeRevealActive, currentImageIndex: partyModeImageIndex, secondsRemainingForImage: partyModeSecondsRemaining } =
+    usePartyModeReveal({
+      isPartyMode: partyMode && stage === "reveal",
+      revealStartedAt,
+      submissionCount: submissions.length,
+    });
 
   const finalWinner = scoreboardPlayers.find((player) => (player.points ?? 0) >= 3) || null;
 
@@ -157,7 +194,9 @@ export default function TvMode() {
   async function loadGame() {
     const { data, error } = await supabase
       .from("games")
-      .select("id, stage, prompt, image_style, content_rating, submission_deadline, voting_deadline")
+      .select(
+        "id, stage, prompt, image_style, content_rating, submission_deadline, voting_deadline, party_mode, reveal_started_at"
+      )
       .eq("room_code", code)
       .order("id", { ascending: false })
       .limit(1)
@@ -177,6 +216,8 @@ export default function TvMode() {
     setContentRating(data.content_rating === "pg13" ? "pg13" : "everyone");
     setRoundDeadline(data.submission_deadline);
     setVotingDeadline(data.voting_deadline);
+    setPartyMode(Boolean(data.party_mode));
+    setRevealStartedAt(data.reveal_started_at);
 
     await loadSubmissions(data.id);
     await loadVoteCount(data.id);
@@ -202,8 +243,10 @@ export default function TvMode() {
       loadGame();
     }
 
+    // Same channel name as the phone room page (not "tv:...") so the
+    // broadcast reactions players send on their phones actually arrive here.
     const channel = supabase
-      .channel(`tv:${code}`)
+      .channel(`room:${code}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "games", filter: `room_code=eq.${code}` },
@@ -224,6 +267,19 @@ export default function TvMode() {
         { event: "*", schema: "public", table: "votes", filter: `room_code=eq.${code}` },
         () => loadVoteCount(currentGameIdRef.current)
       )
+      .on("broadcast", { event: "reaction" }, ({ payload }) => {
+        const emoji = (payload as { emoji?: string })?.emoji;
+        if (!emoji) return;
+
+        const id = Date.now() + Math.random();
+        setFloatingReactions((current) => [
+          ...current,
+          { id, emoji, leftPercent: 10 + Math.random() * 80 },
+        ]);
+        window.setTimeout(() => {
+          setFloatingReactions((current) => current.filter((reaction) => reaction.id !== id));
+        }, 2500);
+      })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") refreshEverything();
       });
@@ -250,7 +306,22 @@ export default function TvMode() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-[#fff7ed] p-10 text-center text-zinc-950">
+    <main className="relative flex min-h-screen flex-col items-center justify-center gap-8 bg-[#fff7ed] p-10 text-center text-zinc-950">
+      <div className="pointer-events-none fixed inset-0 z-40 overflow-hidden" aria-hidden="true">
+        {floatingReactions.map((reaction) => (
+          <span
+            key={reaction.id}
+            className="absolute bottom-10 text-7xl"
+            style={{
+              left: `${reaction.leftPercent}%`,
+              animation: "float-up 2.5s ease-out forwards",
+            }}
+          >
+            {reaction.emoji}
+          </span>
+        ))}
+      </div>
+
       {stage === "lobby" && (
         <>
           <p className="text-xl font-black uppercase tracking-[0.3em] text-rose-700">
@@ -332,7 +403,47 @@ export default function TvMode() {
         </>
       )}
 
-      {stage === "reveal" && (
+      {stage === "reveal" && isPartyModeRevealActive && (
+        <>
+          <p className="text-lg font-black uppercase tracking-[0.3em] text-rose-700">
+            Image {partyModeImageIndex + 1} of {submissions.length}
+          </p>
+
+          {(() => {
+            const current = submissions[partyModeImageIndex];
+            if (!current) return null;
+            const { imageUrl, thumbnailUrl, imageCaption } = parseSubmission(current);
+            const displayImageUrl = thumbnailUrl || imageUrl;
+
+            return (
+              <div className="overflow-hidden rounded-[2rem] border-4 border-black bg-white shadow-[10px_10px_0_#111827]">
+                {displayImageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={displayImageUrl}
+                    alt={imageCaption || "A player submission"}
+                    className="aspect-square w-full max-w-xl object-cover"
+                  />
+                )}
+                <p className="p-4 text-2xl font-black">{imageCaption || "Untitled Masterpiece"}</p>
+              </div>
+            );
+          })()}
+
+          <div className="h-2 w-full max-w-xl overflow-hidden rounded-full bg-zinc-200">
+            <div
+              className="h-full rounded-full bg-rose-600 transition-all"
+              style={{ width: `${((PARTY_MODE_SECONDS_PER_IMAGE - partyModeSecondsRemaining) / PARTY_MODE_SECONDS_PER_IMAGE) * 100}%` }}
+            />
+          </div>
+
+          <p className="text-lg font-bold text-zinc-500">
+            Grab your phone and react to what you&apos;re seeing!
+          </p>
+        </>
+      )}
+
+      {stage === "reveal" && !isPartyModeRevealActive && (
         <>
           <p className="text-lg font-black uppercase tracking-[0.3em] text-rose-700">Vote on your phone!</p>
           {votingTimeRemainingSeconds !== null && (
@@ -382,10 +493,24 @@ export default function TvMode() {
 
           {roundWinners.length === 0 ? (
             <p className="text-2xl font-black text-zinc-500">Tallying votes...</p>
+          ) : partyMode && !isWinnerImageRevealed ? (
+            <div className="flex flex-col items-center gap-3">
+              <p className="text-lg font-bold text-zinc-500">And the winner is...</p>
+              <p
+                className="text-5xl font-black text-rose-600"
+                style={{ animation: "drumroll-pulse 0.5s ease-in-out infinite" }}
+              >
+                {roundWinners.map((winner) => winner.winner_name).join(" and ")}
+              </p>
+            </div>
           ) : (
             <div className={`grid gap-5 ${roundWinners.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
               {roundWinners.map((winner, index) => (
-                <div key={index} className="flex flex-col items-center gap-3">
+                <div
+                  key={index}
+                  className="flex flex-col items-center gap-3"
+                  style={{ animation: "winner-pop 0.6s ease-out" }}
+                >
                   {(winner.gallery_thumbnail_url || winner.winner_image_url) && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img

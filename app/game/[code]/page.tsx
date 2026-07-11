@@ -10,12 +10,14 @@ import { HostDebugPanel } from "./components/HostDebugPanel";
 import { JoinRoomForm } from "./components/JoinRoomForm";
 import { LobbyScreen } from "./components/LobbyScreen";
 import { LoadingScreen } from "./components/LoadingScreen";
+import { PartyModeRevealScreen } from "./components/PartyModeRevealScreen";
 import { RoundPromptCard } from "./components/RoundPromptCard";
 import { SubmissionForm } from "./components/SubmissionForm";
 import { parseSubmission } from "./components/submissions";
 import { ToastNotice, type ToastTone } from "./components/ToastNotice";
 import { VotingScreen } from "./components/VotingScreen";
 import { WinnerScreen } from "./components/WinnerScreen";
+import { usePartyModeReveal } from "./hooks/usePartyModeReveal";
 import { useRoundCountdowns } from "./hooks/useRoundCountdowns";
 import { useRoundReadiness } from "./hooks/useRoundReadiness";
 import { useRotatingPastImages } from "./hooks/useRotatingPastImages";
@@ -44,6 +46,7 @@ import {
   MAX_PLAYERS,
   normalizeContentRating,
   normalizePlayerName,
+  PARTY_MODE_SECONDS_PER_IMAGE,
   pickBestRatedPromptDeck,
   resolveImageStyle,
   type PromptOption,
@@ -111,10 +114,12 @@ export default function GameRoom() {
   const [selectedImageStyle, setSelectedImageStyle] = useState("prompt");
   const [selectedRoundDuration, setSelectedRoundDuration] = useState<number | "unlimited">(90);
   const [selectedVotingDuration, setSelectedVotingDuration] = useState(45);
+  const [selectedPartyMode, setSelectedPartyMode] = useState(false);
   const [isRoundCustomizationOpen, setIsRoundCustomizationOpen] = useState(false);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
   const [roundDeadline, setRoundDeadline] = useState<string | null>(null);
   const [votingDeadline, setVotingDeadline] = useState<string | null>(null);
+  const [revealStartedAt, setRevealStartedAt] = useState<string | null>(null);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [isPlayingAgain, setIsPlayingAgain] = useState(false);
   const [isForcingStage, setIsForcingStage] = useState(false);
@@ -152,6 +157,9 @@ export default function GameRoom() {
   const currentGameIdRef = useRef<number | null>(null);
   const isHostRef = useRef(false);
   const stageRef = useRef<GameStage>("lobby");
+  const selectedPartyModeRef = useRef(false);
+  const selectedVotingDurationRef = useRef(45);
+  const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [roundHistory, setRoundHistory] = useState<RoundHistoryItem[]>([]);
   const [bonusAwardSubmissions, setBonusAwardSubmissions] = useState<BonusAwardSubmission[]>([]);
   const [pastImages, setPastImages] = useState<string[]>([]);
@@ -184,6 +192,12 @@ export default function GameRoom() {
     stage,
     votingDeadline,
   });
+  const { isSequenceActive: isPartyModeRevealActive, currentImageIndex: partyModeImageIndex, secondsRemainingForImage: partyModeSecondsRemaining } =
+    usePartyModeReveal({
+      isPartyMode: selectedPartyMode && stage === "reveal",
+      revealStartedAt,
+      submissionCount: submissions.length,
+    });
   const currentRoundNumber = roundHistory.reduce(
     (highestRound, round) => Math.max(highestRound, round.round_number || 0),
     0
@@ -950,7 +964,7 @@ async function loadGame() {
   
   const { data, error } = await supabase
     .from("games")
-    .select("id, created_at, stage, prompt, prompt_id, prompt_source, game_mode, image_style, content_rating, submission_deadline, voting_deadline, voting_duration_seconds")
+    .select("id, created_at, stage, prompt, prompt_id, prompt_source, game_mode, image_style, content_rating, submission_deadline, voting_deadline, voting_duration_seconds, party_mode, reveal_started_at")
     .eq("room_code", code)
     .order("id", { ascending: false })
     .limit(1)
@@ -975,6 +989,8 @@ async function loadGame() {
   setRoundDeadline(data.submission_deadline);
   setVotingDeadline(data.voting_deadline);
   setSelectedVotingDuration(data.voting_duration_seconds || 45);
+  setSelectedPartyMode(Boolean(data.party_mode));
+  setRevealStartedAt(data.reveal_started_at);
   await loadCurrentPromptRating(data.prompt_id, data.prompt_source as PromptSource | null, data.prompt, data.game_mode as GameMode);
   await loadSubmissions(data.id);
   await loadVotes(data.id);
@@ -1016,7 +1032,9 @@ useEffect(() => {
   currentGameIdRef.current = currentGameId;
   isHostRef.current = isHost;
   stageRef.current = stage;
-}, [currentGameId, isHost, stage]);
+  selectedPartyModeRef.current = selectedPartyMode;
+  selectedVotingDurationRef.current = selectedVotingDuration;
+}, [currentGameId, isHost, stage, selectedPartyMode, selectedVotingDuration]);
 
 useEffect(() => {
   function handleOnline() {
@@ -1238,6 +1256,8 @@ useEffect(() => {
       }
     });
 
+  roomChannelRef.current = channel;
+
   // Belt-and-suspenders: realtime should make this redundant, but a slow
   // background poll protects against a silently missed event.
   const fallbackInterval = setInterval(refreshEverything, 20000);
@@ -1257,12 +1277,21 @@ useEffect(() => {
 
   return () => {
     isMounted = false;
+    roomChannelRef.current = null;
     supabase.removeChannel(channel);
     clearInterval(fallbackInterval);
     clearInterval(heartbeatInterval);
     document.removeEventListener("visibilitychange", handleVisibilityChange);
   };
 }, []);
+
+function sendReaction(emoji: string) {
+  roomChannelRef.current?.send({
+    type: "broadcast",
+    event: "reaction",
+    payload: { emoji },
+  });
+}
 
 async function joinGame() {
 
@@ -1416,6 +1445,7 @@ async function createRoundFromPrompt(prompt: PromptOption) {
     game_mode_input: selectedGameMode,
     host_player_id_input: Number(savedPlayerId),
     image_style_input: activeImageStyle,
+    party_mode_input: selectedPartyMode,
     prompt_id_input: prompt.id,
     prompt_input: prompt.prompt,
     prompt_source_input: prompt.source,
@@ -1578,12 +1608,25 @@ async function revealRoundIfReady(gameId = currentGameId) {
     return;
   }
 
+  // Read via refs, not the closed-over state directly: this function is
+  // called from the submissions realtime handler, which was registered
+  // once at mount and would otherwise see whatever selectedPartyMode/
+  // selectedVotingDuration were at that time, not the round's real values.
+  const isPartyMode = selectedPartyModeRef.current;
+  const votingDurationSeconds = selectedVotingDurationRef.current;
+
+  // In Party Mode, voting doesn't open until every image has had its turn
+  // in the one-at-a-time reveal, so push the voting window out by that long.
+  const revealSequenceSeconds = isPartyMode
+    ? allSubmissions.length * PARTY_MODE_SECONDS_PER_IMAGE
+    : 0;
+  const nextRevealStartedAt = isPartyMode ? new Date().toISOString() : null;
   const nextVotingDeadline = new Date(
-    Date.now() + selectedVotingDuration * 1000
+    Date.now() + (revealSequenceSeconds + votingDurationSeconds) * 1000
   ).toISOString();
   const { error: gameError } = await supabase
     .from("games")
-    .update({ stage: "reveal", voting_deadline: nextVotingDeadline })
+    .update({ stage: "reveal", voting_deadline: nextVotingDeadline, reveal_started_at: nextRevealStartedAt })
     .eq("id", gameId);
 
   if (gameError) {
@@ -1593,6 +1636,7 @@ async function revealRoundIfReady(gameId = currentGameId) {
 
   setStage("reveal");
   setVotingDeadline(nextVotingDeadline);
+  setRevealStartedAt(nextRevealStartedAt);
 }
 
 async function completeSoloRound(gameId: number) {
@@ -2511,6 +2555,7 @@ if (isPageLoading) {
     selectedImageStyle={selectedImageStyle}
     selectedRoundDuration={selectedRoundDuration}
     selectedVotingDuration={selectedVotingDuration}
+    selectedPartyMode={selectedPartyMode}
     isStarting={isStarting}
     isRoundCustomizationOpen={isRoundCustomizationOpen}
     roomShareMessage={roomShareMessage}
@@ -2526,6 +2571,7 @@ if (isPageLoading) {
     onImageStyleChange={setSelectedImageStyle}
     onRoundDurationChange={setSelectedRoundDuration}
     onVotingDurationChange={setSelectedVotingDuration}
+    onPartyModeChange={setSelectedPartyMode}
     onToggleRoundCustomization={() => setIsRoundCustomizationOpen((open) => !open)}
     onStartGame={startGame}
     onCopyRoomCode={copyRoomCode}
@@ -2633,6 +2679,13 @@ if (isPageLoading) {
       Generating masterpiece...
     </div>
   </div>
+   ) : stage === "reveal" && isPartyModeRevealActive ? (
+    <PartyModeRevealScreen
+      currentImageIndex={partyModeImageIndex}
+      totalImages={submissions.length}
+      secondsRemainingForImage={partyModeSecondsRemaining}
+      onReact={sendReaction}
+    />
    ) : stage === "reveal" ? (
     <VotingScreen
       gameMode={selectedGameMode}
