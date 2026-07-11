@@ -1,0 +1,421 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import { QRCodeSVG } from "qrcode.react";
+import { supabase } from "@/lib/supabase";
+import { parseSubmission } from "../components/submissions";
+import { useRoundCountdowns } from "../hooks/useRoundCountdowns";
+import type { ContentRating, Player, ScoreboardPlayer } from "../components/types";
+import {
+  formatCountdown,
+  getContentRatingLabel,
+  getImageStyleLabel,
+} from "../utils/gameRoomUtils";
+
+type TvStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
+
+type RoundWinnerRow = {
+  winner_name: string | null;
+  winner_prompt: string | null;
+  winner_image_url: string | null;
+  gallery_thumbnail_url: string | null;
+};
+
+const MAX_PLAYERS = 8;
+
+export default function TvMode() {
+  const params = useParams();
+  const code = (params.code as string) || "";
+
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [scoreboardPlayers, setScoreboardPlayers] = useState<ScoreboardPlayer[]>([]);
+  const [stage, setStage] = useState<TvStage>("lobby");
+  const [currentGameId, setCurrentGameId] = useState<number | null>(null);
+  const [roundPrompt, setRoundPrompt] = useState("");
+  const [roundImageStyle, setRoundImageStyle] = useState("clay_animation");
+  const [contentRating, setContentRating] = useState<ContentRating>("everyone");
+  const [roundDeadline, setRoundDeadline] = useState<string | null>(null);
+  const [votingDeadline, setVotingDeadline] = useState<string | null>(null);
+  const [submissions, setSubmissions] = useState<string[]>([]);
+  const [voteCount, setVoteCount] = useState(0);
+  const [roundWinners, setRoundWinners] = useState<RoundWinnerRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const currentGameIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    currentGameIdRef.current = currentGameId;
+  }, [currentGameId]);
+
+  const { timeRemainingSeconds, votingTimeRemainingSeconds } = useRoundCountdowns({
+    roundDeadline,
+    stage,
+    votingDeadline,
+  });
+
+  const finalWinner = scoreboardPlayers.find((player) => (player.points ?? 0) >= 3) || null;
+
+  async function loadPlayers() {
+    const { data, error } = await supabase
+      .from("players")
+      .select("id, name, points, avatar_url, avatar_description, is_host")
+      .eq("room_code", code)
+      .order("is_host", { ascending: false })
+      .order("points", { ascending: false });
+
+    if (error) {
+      console.error("TV mode: failed to load players:", error);
+      return;
+    }
+
+    setPlayers(data || []);
+    setScoreboardPlayers(
+      [...(data || [])]
+        .map((player) => ({ name: player.name, points: player.points, avatar_url: player.avatar_url }))
+        .sort((first, second) => (second.points ?? 0) - (first.points ?? 0))
+    );
+  }
+
+  async function loadSubmissions(gameId: number | null) {
+    if (!gameId) {
+      setSubmissions([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("submissions")
+      .select("id, player_name, prompt, image_url, gallery_thumbnail_url, image_caption")
+      .eq("room_code", code)
+      .eq("game_id", gameId)
+      .is("hidden_at", null)
+      .order("id", { ascending: true });
+
+    if (error) {
+      console.error("TV mode: failed to load submissions:", error);
+      return;
+    }
+
+    setSubmissions(
+      (data || []).map(
+        (item) =>
+          `${item.id}|||${item.prompt}|||${item.image_url || ""}|||${item.player_name}|||${
+            item.image_caption || "Untitled Masterpiece"
+          }|||${item.gallery_thumbnail_url || ""}`
+      )
+    );
+  }
+
+  async function loadVoteCount(gameId: number | null) {
+    if (!gameId) {
+      setVoteCount(0);
+      return;
+    }
+
+    const { count, error } = await supabase
+      .from("votes")
+      .select("id", { count: "exact", head: true })
+      .eq("game_id", gameId);
+
+    if (error) {
+      console.error("TV mode: failed to load vote count:", error);
+      return;
+    }
+
+    setVoteCount(count || 0);
+  }
+
+  // The winner and its point award are computed once, idempotently, by a
+  // player's own client (guarded by games.winner_awarded) - TV mode never
+  // duplicates that logic, it just reads the round_history row(s) that
+  // computation writes. Stage flips to "winner" slightly before that write
+  // lands, so this retries once after a short delay instead of racing it.
+  async function loadRoundWinner(gameId: number | null, attempt = 0) {
+    if (!gameId) {
+      setRoundWinners([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("round_history")
+      .select("winner_name, winner_prompt, winner_image_url, gallery_thumbnail_url")
+      .eq("room_code", code)
+      .eq("game_id", gameId);
+
+    if (error) {
+      console.error("TV mode: failed to load round winner:", error);
+      return;
+    }
+
+    if ((data || []).length === 0 && attempt === 0) {
+      window.setTimeout(() => loadRoundWinner(gameId, 1), 1500);
+      return;
+    }
+
+    setRoundWinners(data || []);
+  }
+
+  async function loadGame() {
+    const { data, error } = await supabase
+      .from("games")
+      .select("id, stage, prompt, image_style, content_rating, submission_deadline, voting_deadline")
+      .eq("room_code", code)
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("TV mode: failed to load game:", error);
+      return;
+    }
+
+    if (!data) return;
+
+    setCurrentGameId(data.id);
+    setStage((data.stage as TvStage) || "lobby");
+    setRoundPrompt(data.prompt || "");
+    setRoundImageStyle(data.image_style || "clay_animation");
+    setContentRating(data.content_rating === "pg13" ? "pg13" : "everyone");
+    setRoundDeadline(data.submission_deadline);
+    setVotingDeadline(data.voting_deadline);
+
+    await loadSubmissions(data.id);
+    await loadVoteCount(data.id);
+
+    if (data.stage === "winner") {
+      await loadRoundWinner(data.id);
+    }
+  }
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadInitialData() {
+      setIsLoading(true);
+      await Promise.allSettled([loadPlayers(), loadGame()]);
+      if (isMounted) setIsLoading(false);
+    }
+
+    loadInitialData();
+
+    function refreshEverything() {
+      loadPlayers();
+      loadGame();
+    }
+
+    const channel = supabase
+      .channel(`tv:${code}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "games", filter: `room_code=eq.${code}` },
+        () => loadGame()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "players", filter: `room_code=eq.${code}` },
+        () => loadPlayers()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "submissions", filter: `room_code=eq.${code}` },
+        () => loadSubmissions(currentGameIdRef.current)
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "votes", filter: `room_code=eq.${code}` },
+        () => loadVoteCount(currentGameIdRef.current)
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") refreshEverything();
+      });
+
+    const fallbackInterval = setInterval(refreshEverything, 20000);
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+      clearInterval(fallbackInterval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]);
+
+  const joinUrl = code ? `https://playpicturethis.com/game/${code}` : "";
+  const readyImageCount = submissions.filter((item) => Boolean(parseSubmission(item).imageUrl)).length;
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-[#fff7ed] text-zinc-950">
+        <p className="text-2xl font-black">Loading room...</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-[#fff7ed] p-10 text-center text-zinc-950">
+      {stage === "lobby" && (
+        <>
+          <p className="text-xl font-black uppercase tracking-[0.3em] text-rose-700">
+            Join on your phone
+          </p>
+          <p className="text-9xl font-black tracking-widest text-rose-600">{code}</p>
+
+          {joinUrl && (
+            <div className="rounded-[2rem] border-4 border-black bg-white p-6 shadow-[10px_10px_0_#111827]">
+              <QRCodeSVG value={joinUrl} size={220} />
+            </div>
+          )}
+
+          <p className="text-lg font-bold text-zinc-600">playpicturethis.com &middot; enter code {code}</p>
+
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-4">
+            {players.map((player) => (
+              <div key={player.id} className="flex flex-col items-center gap-2">
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-black bg-rose-100 text-2xl font-black text-rose-800">
+                  {player.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={player.avatar_url} alt={player.name} className="h-full w-full object-cover" />
+                  ) : (
+                    "?"
+                  )}
+                </div>
+                <p className="max-w-[7rem] truncate text-lg font-black">{player.name}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xl font-black text-rose-700">
+            {players.length} / {MAX_PLAYERS} players in the room
+          </p>
+        </>
+      )}
+
+      {stage === "submitting" && (
+        <>
+          <p className="text-lg font-black uppercase tracking-[0.3em] text-rose-700">Round Prompt</p>
+          <h1 className="max-w-5xl text-6xl font-black leading-tight">{roundPrompt}</h1>
+          <p className="text-lg font-bold text-zinc-600">
+            Art style: {getImageStyleLabel(roundImageStyle)} &middot; Humor: {getContentRatingLabel(contentRating)}
+          </p>
+
+          {timeRemainingSeconds !== null && (
+            <p className="text-4xl font-black text-rose-600">
+              {timeRemainingSeconds === 0 ? "Time's up!" : formatCountdown(timeRemainingSeconds)}
+            </p>
+          )}
+
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-4">
+            {players.map((player) => (
+              <div key={player.id} className="flex flex-col items-center gap-2">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-4 border-black bg-rose-100 text-xl font-black text-rose-800">
+                  {player.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={player.avatar_url} alt={player.name} className="h-full w-full object-cover" />
+                  ) : (
+                    "?"
+                  )}
+                </div>
+                <p className="max-w-[6rem] truncate text-base font-bold">{player.name}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-lg font-bold text-zinc-500">Answering on phones...</p>
+        </>
+      )}
+
+      {stage === "generating" && (
+        <>
+          <div className="h-16 w-16 animate-spin rounded-full border-8 border-rose-200 border-t-rose-600" />
+          <h1 className="text-5xl font-black">Creating Chaos...</h1>
+          <p className="text-2xl font-black text-rose-700">
+            {readyImageCount} / {players.length} images ready
+          </p>
+        </>
+      )}
+
+      {stage === "reveal" && (
+        <>
+          <p className="text-lg font-black uppercase tracking-[0.3em] text-rose-700">Vote on your phone!</p>
+          {votingTimeRemainingSeconds !== null && (
+            <p className="text-4xl font-black text-rose-600">
+              {votingTimeRemainingSeconds === 0 ? "Time's up!" : formatCountdown(votingTimeRemainingSeconds)}
+            </p>
+          )}
+
+          <div className="grid w-full max-w-6xl grid-cols-2 gap-5 md:grid-cols-3">
+            {submissions.map((item, index) => {
+              const { imageUrl, thumbnailUrl, imageCaption } = parseSubmission(item);
+              const displayImageUrl = thumbnailUrl || imageUrl;
+
+              return (
+                <div
+                  key={index}
+                  className="overflow-hidden rounded-[1.5rem] border-4 border-black bg-white shadow-[6px_6px_0_#111827]"
+                >
+                  {displayImageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={displayImageUrl}
+                      alt={imageCaption || "A player submission"}
+                      className="aspect-square w-full object-cover"
+                    />
+                  )}
+                  <p className="p-3 text-lg font-black">{imageCaption || "Untitled Masterpiece"}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="text-2xl font-black text-rose-700">{voteCount} votes cast</p>
+        </>
+      )}
+
+      {stage === "winner" && (
+        <>
+          {finalWinner ? (
+            <>
+              <p className="text-xl font-black uppercase tracking-[0.3em] text-amber-600">Game Winner</p>
+              <h1 className="text-7xl font-black">{finalWinner.name}!</h1>
+            </>
+          ) : (
+            <p className="text-lg font-black uppercase tracking-[0.3em] text-rose-700">Round Winner</p>
+          )}
+
+          {roundWinners.length === 0 ? (
+            <p className="text-2xl font-black text-zinc-500">Tallying votes...</p>
+          ) : (
+            <div className={`grid gap-5 ${roundWinners.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+              {roundWinners.map((winner, index) => (
+                <div key={index} className="flex flex-col items-center gap-3">
+                  {(winner.gallery_thumbnail_url || winner.winner_image_url) && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={winner.gallery_thumbnail_url || winner.winner_image_url || ""}
+                      alt={winner.winner_prompt || "Winning image"}
+                      className="aspect-square w-72 rounded-[1.5rem] border-4 border-black object-cover shadow-[6px_6px_0_#111827]"
+                    />
+                  )}
+                  <p className="text-3xl font-black">{winner.winner_name}</p>
+                  <p className="max-w-sm text-lg font-bold text-zinc-600">{`"${winner.winner_prompt}"`}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-col gap-2">
+            {scoreboardPlayers.map((player, index) => (
+              <div
+                key={player.name}
+                className={`flex w-80 items-center justify-between rounded-2xl px-5 py-3 text-xl font-black ${
+                  index === 0 ? "border-2 border-black bg-amber-100" : "border border-sky-200 bg-sky-100"
+                }`}
+              >
+                <span>{player.name}</span>
+                <span>{player.points ?? 0}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </main>
+  );
+}

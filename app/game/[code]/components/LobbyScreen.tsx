@@ -506,6 +506,18 @@ export function LobbyScreen({
                 {roomShareMessage && (
                   <p className="mt-2 text-sm font-black text-emerald-700">{roomShareMessage}</p>
                 )}
+                <a
+                  href={`/game/${code}/tv`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 block rounded-xl border-2 border-black bg-white px-4 py-3 font-black text-zinc-950"
+                >
+                  Open TV Mode
+                </a>
+                <p className="mt-2 text-xs font-bold text-zinc-500">
+                  Playing on one screen? Cast this to a TV so everyone watches together instead of
+                  staring at their own phone.
+                </p>
               </div>
             </>
           ) : (
