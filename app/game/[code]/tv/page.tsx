@@ -9,12 +9,16 @@ import { usePartyModeReveal } from "../hooks/usePartyModeReveal";
 import { useRoundCountdowns } from "../hooks/useRoundCountdowns";
 import type { ContentRating, Player, ScoreboardPlayer } from "../components/types";
 import {
+  confettiPieces,
   formatCountdown,
   GENERATING_LOADING_MESSAGES,
   getContentRatingLabel,
   getImageStyleLabel,
   PARTY_MODE_SECONDS_PER_IMAGE,
 } from "../utils/gameRoomUtils";
+import { playAnticipationRiser, playRevealChime, unlockTvAudio } from "../utils/tvSounds";
+
+const AMBIENT_SPARKLE_EMOJIS = ["✨", "\u{1F3A8}", "\u{1F300}", "\u{1F4AB}", "\u{1F525}"];
 
 type FloatingReaction = {
   id: number;
@@ -60,13 +64,17 @@ export default function TvMode() {
   const [partyMode, setPartyMode] = useState(false);
   const [revealStartedAt, setRevealStartedAt] = useState<string | null>(null);
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
+  const [ambientSparkles, setAmbientSparkles] = useState<FloatingReaction[]>([]);
   const [isWinnerImageRevealed, setIsWinnerImageRevealed] = useState(false);
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  const [isSoundEnabled, setIsSoundEnabled] = useState(false);
 
   const currentGameIdRef = useRef<number | null>(null);
   useEffect(() => {
     currentGameIdRef.current = currentGameId;
   }, [currentGameId]);
+
+  const hasPlayedRevealChimeRef = useRef(false);
 
   // Party Mode gets a beat of suspense - winner name first, then the image
   // pops in - instead of dumping everything on screen at once. Regular
@@ -82,9 +90,22 @@ export default function TvMode() {
       return;
     }
 
+    playAnticipationRiser(2.2);
     const timeout = window.setTimeout(() => setIsWinnerImageRevealed(true), 2200);
     return () => window.clearTimeout(timeout);
   }, [stage, roundWinners, partyMode]);
+
+  useEffect(() => {
+    if (stage !== "winner") {
+      hasPlayedRevealChimeRef.current = false;
+      return;
+    }
+
+    if (isWinnerImageRevealed && roundWinners.length > 0 && !hasPlayedRevealChimeRef.current) {
+      hasPlayedRevealChimeRef.current = true;
+      playRevealChime();
+    }
+  }, [stage, isWinnerImageRevealed, roundWinners]);
 
   const { timeRemainingSeconds, votingTimeRemainingSeconds } = useRoundCountdowns({
     roundDeadline,
@@ -356,6 +377,23 @@ export default function TvMode() {
     return () => window.clearInterval(interval);
   }, [showGeneratingView]);
 
+  // Ambient sparkles during the generating wait - purely decorative, keeps
+  // the screen feeling alive instead of just a static spinner and counter.
+  useEffect(() => {
+    if (!showGeneratingView) return;
+
+    const interval = window.setInterval(() => {
+      const id = Date.now() + Math.random();
+      const emoji = AMBIENT_SPARKLE_EMOJIS[Math.floor(Math.random() * AMBIENT_SPARKLE_EMOJIS.length)];
+      setAmbientSparkles((current) => [...current, { id, emoji, leftPercent: 5 + Math.random() * 90 }]);
+      window.setTimeout(() => {
+        setAmbientSparkles((current) => current.filter((sparkle) => sparkle.id !== id));
+      }, 3000);
+    }, 900);
+
+    return () => window.clearInterval(interval);
+  }, [showGeneratingView]);
+
   if (isLoading) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center bg-[#fff7ed] text-zinc-950">
@@ -379,6 +417,38 @@ export default function TvMode() {
             {reaction.emoji}
           </span>
         ))}
+        {ambientSparkles.map((sparkle) => (
+          <span
+            key={sparkle.id}
+            className="absolute bottom-0 text-4xl opacity-80"
+            style={{
+              left: `${sparkle.leftPercent}%`,
+              animation: "float-up 3s ease-out forwards",
+            }}
+          >
+            {sparkle.emoji}
+          </span>
+        ))}
+        {isWinnerImageRevealed && roundWinners.length > 0 && stage === "winner" && (
+          <div className="absolute inset-0">
+            {confettiPieces.map((piece, index) => (
+              <span
+                key={index}
+                className="absolute"
+                style={{
+                  animation: "confetti-fall 2.8s ease-in infinite",
+                  animationDelay: piece.delay,
+                  backgroundColor: piece.color,
+                  height: "16px",
+                  left: piece.left,
+                  top: "-24px",
+                  transform: `rotate(${piece.rotation})`,
+                  width: "10px",
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {stage === "lobby" && (
@@ -395,6 +465,17 @@ export default function TvMode() {
           )}
 
           <p className="text-lg font-bold text-zinc-600">playpicturethis.com &middot; enter code {code}</p>
+
+          <button
+            type="button"
+            onClick={() => {
+              unlockTvAudio();
+              setIsSoundEnabled(true);
+            }}
+            className="rounded-full border-2 border-black bg-white px-5 py-2.5 text-sm font-black text-zinc-950 shadow-[4px_4px_0_#111827]"
+          >
+            {isSoundEnabled ? "\u{1F50A} Sound on" : "\u{1F508} Tap to enable sound"}
+          </button>
 
           <div className="mt-4 flex flex-wrap items-center justify-center gap-4">
             {players.map((player) => (
@@ -460,7 +541,10 @@ export default function TvMode() {
 
       {showGeneratingView && (
         <>
-          <div className="h-16 w-16 animate-spin rounded-full border-8 border-rose-200 border-t-rose-600" />
+          <div className="relative flex h-24 w-24 items-center justify-center">
+            <div className="absolute inset-0 animate-spin rounded-full border-8 border-rose-200 border-t-rose-600" />
+            <span className="animate-bounce text-5xl">{"\u{1F3A8}"}</span>
+          </div>
           <h1 className="text-5xl font-black">Creating Chaos...</h1>
           <p className="max-w-2xl text-xl font-bold text-zinc-600">{currentLoadingMessage}</p>
 
