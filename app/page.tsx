@@ -290,6 +290,33 @@ export default function Home() {
 
   const activeShowcaseItem = showcaseItems[demoIndex];
 
+  async function checkRoomExists(cleanCode: string) {
+    const [{ count: playerCount, error: playerError }, { count: gameCount, error: gameError }] =
+      await Promise.all([
+        supabase
+          .from("players")
+          .select("id", { count: "exact", head: true })
+          .eq("room_code", cleanCode),
+        supabase
+          .from("games")
+          .select("id", { count: "exact", head: true })
+          .eq("room_code", cleanCode),
+      ]);
+
+    if (playerError || gameError) {
+      console.error(playerError || gameError);
+      setJoinError("Could not check that room. Try again.");
+      return false;
+    }
+
+    if ((playerCount || 0) === 0 && (gameCount || 0) === 0) {
+      setJoinError("Game not found. Check the code and try again.");
+      return false;
+    }
+
+    return true;
+  }
+
   async function joinGame() {
     const cleanCode = formatRoomCode(roomCode);
     if (!cleanCode) return;
@@ -303,30 +330,30 @@ export default function Home() {
     setIsJoining(true);
 
     try {
-      const [{ count: playerCount, error: playerError }, { count: gameCount, error: gameError }] =
-        await Promise.all([
-          supabase
-            .from("players")
-            .select("id", { count: "exact", head: true })
-            .eq("room_code", cleanCode),
-          supabase
-            .from("games")
-            .select("id", { count: "exact", head: true })
-            .eq("room_code", cleanCode),
-        ]);
-
-      if (playerError || gameError) {
-        console.error(playerError || gameError);
-        setJoinError("Could not check that room. Try again.");
-        return;
-      }
-
-      if ((playerCount || 0) === 0 && (gameCount || 0) === 0) {
-        setJoinError("Game not found. Check the code and try again.");
-        return;
-      }
-
+      const roomExists = await checkRoomExists(cleanCode);
+      if (!roomExists) return;
       window.location.href = `/game/${cleanCode}`;
+    } finally {
+      setIsJoining(false);
+    }
+  }
+
+  async function watchOnTv() {
+    const cleanCode = formatRoomCode(roomCode);
+    if (!cleanCode) return;
+
+    if (cleanCode.length !== 5) {
+      setJoinError("Room codes are 5 letters or numbers.");
+      return;
+    }
+
+    setJoinError("");
+    setIsJoining(true);
+
+    try {
+      const roomExists = await checkRoomExists(cleanCode);
+      if (!roomExists) return;
+      window.location.href = `/game/${cleanCode}/tv`;
     } finally {
       setIsJoining(false);
     }
@@ -361,6 +388,14 @@ export default function Home() {
           className="mt-4 w-full rounded-2xl bg-rose-600 px-6 py-4 text-lg font-extrabold text-white shadow-[5px_5px_0_#111827] transition hover:bg-rose-700 disabled:opacity-50"
         >
           {isJoining ? "Checking Room..." : "Join Game"}
+        </button>
+        <button
+          type="button"
+          onClick={watchOnTv}
+          disabled={roomCode.length !== 5 || isJoining}
+          className="mt-2 w-full rounded-2xl border-2 border-black bg-white px-6 py-3 text-sm font-extrabold text-rose-700 shadow-[3px_3px_0_#111827] transition hover:bg-rose-50 disabled:opacity-50"
+        >
+          Watching on a TV or laptop? Open TV Mode
         </button>
         {joinError && (
           <p className="mt-3 text-center text-sm font-extrabold text-red-600">{joinError}</p>
