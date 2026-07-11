@@ -18,7 +18,7 @@ import {
 } from "../utils/gameRoomUtils";
 import { playAnticipationRiser, playRevealChime, unlockTvAudio } from "../utils/tvSounds";
 
-const AMBIENT_SPARKLE_EMOJIS = ["✨", "\u{1F3A8}", "\u{1F300}", "\u{1F4AB}", "\u{1F525}"];
+const AMBIENT_SPARKLE_EMOJIS = ["\u{1F648}", "\u{1F435}", "\u{1F34C}", "\u{1F58C}\u{FE0F}", "\u{1F5BC}\u{FE0F}"];
 
 type FloatingReaction = {
   id: number;
@@ -542,10 +542,13 @@ export default function TvMode() {
       {showGeneratingView && (
         <>
           <div className="relative flex h-24 w-24 items-center justify-center">
-            <div className="absolute inset-0 animate-spin rounded-full border-8 border-rose-200 border-t-rose-600" />
-            <span className="animate-bounce text-5xl">{"\u{1F3A8}"}</span>
+            <span className="absolute text-5xl opacity-25">{"\u{1F5BC}\u{FE0F}"}</span>
+            <span className="relative animate-bounce text-5xl">{"\u{1F648}"}</span>
           </div>
           <h1 className="text-5xl font-black">Creating Chaos...</h1>
+          <p className="text-sm font-bold uppercase tracking-[0.2em] text-zinc-400">
+            Our art monkeys are covering the canvas until it&apos;s ready
+          </p>
           <p className="max-w-2xl text-xl font-bold text-zinc-600">{currentLoadingMessage}</p>
 
           <div className="h-3 w-full max-w-xl overflow-hidden rounded-full bg-zinc-200">
