@@ -10,6 +10,7 @@ import { useRoundCountdowns } from "../hooks/useRoundCountdowns";
 import type { ContentRating, Player, ScoreboardPlayer } from "../components/types";
 import {
   formatCountdown,
+  GENERATING_LOADING_MESSAGES,
   getContentRatingLabel,
   getImageStyleLabel,
   PARTY_MODE_SECONDS_PER_IMAGE,
@@ -53,6 +54,7 @@ export default function TvMode() {
   const [revealStartedAt, setRevealStartedAt] = useState<string | null>(null);
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
   const [isWinnerImageRevealed, setIsWinnerImageRevealed] = useState(false);
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
 
   const currentGameIdRef = useRef<number | null>(null);
   useEffect(() => {
@@ -301,6 +303,22 @@ export default function TvMode() {
 
   const joinUrl = code ? `https://playpicturethis.com/game/${code}` : "";
   const readyImageCount = submissions.filter((item) => Boolean(parseSubmission(item).imageUrl)).length;
+  const allAnswersSubmitted = players.length > 0 && submissions.length >= players.length;
+  // The DB stage stays "submitting" through image generation - there's no
+  // separate DB stage for it. This derives the same "everyone answered,
+  // images still cooking" state the phone side already shows.
+  const isGeneratingImages = stage === "submitting" && allAnswersSubmitted && readyImageCount < players.length;
+  const showGeneratingView = stage === "generating" || isGeneratingImages;
+  const currentLoadingMessage =
+    GENERATING_LOADING_MESSAGES[loadingMessageIndex % GENERATING_LOADING_MESSAGES.length];
+
+  useEffect(() => {
+    if (!showGeneratingView) return;
+    const interval = window.setInterval(() => {
+      setLoadingMessageIndex((current) => current + 1);
+    }, 2600);
+    return () => window.clearInterval(interval);
+  }, [showGeneratingView]);
 
   if (isLoading) {
     return (
@@ -364,7 +382,7 @@ export default function TvMode() {
         </>
       )}
 
-      {stage === "submitting" && (
+      {stage === "submitting" && !isGeneratingImages && (
         <>
           <p className="text-lg font-black uppercase tracking-[0.3em] text-rose-700">Round Prompt</p>
           <h1 className="max-w-5xl text-6xl font-black leading-tight">{roundPrompt}</h1>
@@ -398,13 +416,58 @@ export default function TvMode() {
         </>
       )}
 
-      {stage === "generating" && (
+      {showGeneratingView && (
         <>
           <div className="h-16 w-16 animate-spin rounded-full border-8 border-rose-200 border-t-rose-600" />
           <h1 className="text-5xl font-black">Creating Chaos...</h1>
+          <p className="max-w-2xl text-xl font-bold text-zinc-600">{currentLoadingMessage}</p>
+
+          <div className="h-3 w-full max-w-xl overflow-hidden rounded-full bg-zinc-200">
+            <div
+              className="h-full rounded-full bg-rose-600 transition-all duration-500"
+              style={{
+                width: `${players.length ? Math.round((readyImageCount / players.length) * 100) : 0}%`,
+              }}
+            />
+          </div>
+
           <p className="text-2xl font-black text-rose-700">
             {readyImageCount} / {players.length} images ready
           </p>
+
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-4">
+            {players.map((player) => {
+              const playerSubmission = submissions.find(
+                (item) => parseSubmission(item).playerName === player.name
+              );
+              const isReady = Boolean(playerSubmission && parseSubmission(playerSubmission).imageUrl);
+
+              return (
+                <div key={player.id} className="flex flex-col items-center gap-2">
+                  <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-4 border-black bg-rose-100 text-xl font-black text-rose-800">
+                    {player.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={player.avatar_url} alt={player.name} className="h-full w-full object-cover" />
+                    ) : (
+                      "?"
+                    )}
+                    <span
+                      className={`absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-black text-xs font-black ${
+                        isReady ? "bg-emerald-400" : "bg-white"
+                      }`}
+                    >
+                      {isReady ? (
+                        "✓"
+                      ) : (
+                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-rose-300 border-t-rose-600" />
+                      )}
+                    </span>
+                  </div>
+                  <p className="max-w-[6rem] truncate text-base font-bold">{player.name}</p>
+                </div>
+              );
+            })}
+          </div>
         </>
       )}
 

@@ -38,6 +38,7 @@ import {
   confettiPieces,
   formatCountdown,
   formatRoomExpiration,
+  GENERATING_LOADING_MESSAGES,
   getContentRatingLabel,
   getGameModeLabel,
   getImageStyleLabel,
@@ -330,14 +331,7 @@ export default function GameRoom() {
     loadPromptSuggestions();
   }, [joined, name]);
 
-  const loadingMessages = [
-  "Teaching raccoons wedding etiquette...",
-  "Negotiating with angry alligators...",
-  "Adding unnecessary explosions...",
-  "Convincing the bride this is normal...",
-  "Searching for maximum chaos...",
-  "Making the image 37% funnier...",
-];
+  const loadingMessages = GENERATING_LOADING_MESSAGES;
 
 async function pickRoundPrompt(): Promise<PromptOption | null> {
   const basePromptSource: PromptSource = selectedGameMode;
