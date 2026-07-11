@@ -20,6 +20,7 @@ type LobbyScreenProps = {
   selectedRoundDuration: RoundDuration;
   selectedVotingDuration: number;
   selectedPartyMode: boolean;
+  isTvConnected: boolean;
   isStarting: boolean;
   isRoundCustomizationOpen: boolean;
   roomShareMessage: string;
@@ -88,6 +89,7 @@ export function LobbyScreen({
   selectedRoundDuration,
   selectedVotingDuration,
   selectedPartyMode,
+  isTvConnected,
   isStarting,
   isRoundCustomizationOpen,
   roomShareMessage,
@@ -442,8 +444,16 @@ export function LobbyScreen({
                   </button>
                 </div>
                 {selectedPartyMode && (
-                  <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-900">
-                    Don&apos;t forget to open TV Mode below on a shared screen.
+                  <p
+                    className={`mt-3 rounded-2xl border px-4 py-3 text-sm font-black ${
+                      isTvConnected
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                        : "border-amber-200 bg-amber-50 text-amber-900"
+                    }`}
+                  >
+                    {isTvConnected
+                      ? "TV connected ✓ You're ready to start."
+                      : "Open TV Mode below on a shared screen to continue."}
                   </p>
                 )}
               </div>
@@ -451,7 +461,7 @@ export function LobbyScreen({
               <div className={cardClass}>
                 <button
                   onClick={onStartGame}
-                  disabled={isStarting || !hasSelectedGameMode}
+                  disabled={isStarting || !hasSelectedGameMode || (selectedPartyMode && !isTvConnected)}
                   className="w-full rounded-2xl bg-rose-600 px-6 py-4 text-lg font-black text-white shadow-[4px_4px_0_#111827] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isStarting ? "Starting..." : "Start Game"}
@@ -460,6 +470,10 @@ export function LobbyScreen({
                 {!hasSelectedGameMode ? (
                   <p className="mt-3 text-center text-sm font-black text-rose-700">
                     Choose a game mode first.
+                  </p>
+                ) : selectedPartyMode && !isTvConnected ? (
+                  <p className="mt-3 text-center text-sm font-black text-rose-700">
+                    Waiting for a TV or laptop to connect in TV Mode.
                   </p>
                 ) : (
                   players.length === 1 && (

@@ -281,7 +281,12 @@ export default function TvMode() {
         }, 2500);
       })
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") refreshEverything();
+        if (status === "SUBSCRIBED") {
+          refreshEverything();
+          // Lets the lobby know a shared screen is actually watching, so it
+          // can require one before Party Mode is allowed to start.
+          channel.track({ role: "tv" });
+        }
       });
 
     const fallbackInterval = setInterval(refreshEverything, 20000);

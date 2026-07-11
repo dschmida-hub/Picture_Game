@@ -115,6 +115,7 @@ export default function GameRoom() {
   const [selectedRoundDuration, setSelectedRoundDuration] = useState<number | "unlimited">(90);
   const [selectedVotingDuration, setSelectedVotingDuration] = useState(45);
   const [selectedPartyMode, setSelectedPartyMode] = useState(false);
+  const [isTvConnected, setIsTvConnected] = useState(false);
   const [isRoundCustomizationOpen, setIsRoundCustomizationOpen] = useState(false);
   const [showRoundIntro, setShowRoundIntro] = useState(false);
   const [roundDeadline, setRoundDeadline] = useState<string | null>(null);
@@ -1199,6 +1200,13 @@ useEffect(() => {
 
   const channel = supabase
     .channel(`room:${code}`)
+    .on("presence", { event: "sync" }, () => {
+      const state = channel.presenceState<{ role: string }>();
+      const hasTv = Object.values(state).some((entries) =>
+        entries.some((entry) => entry.role === "tv")
+      );
+      setIsTvConnected(hasTv);
+    })
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "games", filter: `room_code=eq.${code}` },
@@ -1497,6 +1505,10 @@ async function startGame() {
   if (!isHost || isStarting) return;
   if (!hasSelectedGameMode) {
     showToast("Choose a game mode before starting.");
+    return;
+  }
+  if (selectedPartyMode && !isTvConnected) {
+    showToast("Open TV Mode on a shared screen before starting a Party Mode game.");
     return;
   }
   setIsStarting(true);
@@ -2293,6 +2305,10 @@ await loadPastImages();
 
 async function nextRound() {
   if (!isHost || isAdvancing) return;
+  if (selectedPartyMode && !isTvConnected) {
+    showToast("The shared screen disconnected. Reopen TV Mode before starting the next round.");
+    return;
+  }
 
   setIsAdvancing(true);
 
@@ -2556,6 +2572,7 @@ if (isPageLoading) {
     selectedRoundDuration={selectedRoundDuration}
     selectedVotingDuration={selectedVotingDuration}
     selectedPartyMode={selectedPartyMode}
+    isTvConnected={isTvConnected}
     isStarting={isStarting}
     isRoundCustomizationOpen={isRoundCustomizationOpen}
     roomShareMessage={roomShareMessage}
