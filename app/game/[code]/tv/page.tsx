@@ -547,6 +547,9 @@ export default function TvMode() {
               autoPlay
               muted
               playsInline
+              ref={(videoEl) => {
+                if (videoEl) videoEl.playbackRate = 0.5;
+              }}
               onEnded={(event) => {
                 // The source clip is only ~8s and generation usually takes
                 // longer, so it has to loop - a hard restart looks like a
