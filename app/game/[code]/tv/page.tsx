@@ -541,14 +541,25 @@ export default function TvMode() {
 
       {showGeneratingView && (
         <>
-          <div className="overflow-hidden rounded-[2rem] border-4 border-black shadow-[10px_10px_0_#111827]">
+          <div className="mx-auto aspect-square w-full max-w-md overflow-hidden rounded-[2rem] border-4 border-black shadow-[10px_10px_0_#111827]">
             <video
               src="/mascot/art-mascot.mp4"
               autoPlay
-              loop
               muted
               playsInline
-              className="block h-auto w-full max-w-xl"
+              onEnded={(event) => {
+                // The source clip is only ~8s and generation usually takes
+                // longer, so it has to loop - a hard restart looks like a
+                // glitch, so fade out, reset, then fade back in instead.
+                const videoEl = event.currentTarget;
+                videoEl.style.opacity = "0";
+                window.setTimeout(() => {
+                  videoEl.currentTime = 0;
+                  videoEl.play();
+                  videoEl.style.opacity = "1";
+                }, 150);
+              }}
+              className="h-full w-full object-cover object-left transition-opacity duration-150"
             />
           </div>
           <h1 className="text-5xl font-black">Creating Chaos...</h1>
