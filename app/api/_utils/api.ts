@@ -29,12 +29,41 @@ export function normalizeRoomCode(value: unknown) {
   return ROOM_CODE_PATTERN.test(roomCode) ? roomCode : "";
 }
 
+export const MAX_PLAYER_NAME_LENGTH = 24;
+
 export function normalizePlayerName(value: unknown) {
-  return sanitizeText(value, 40).replace(/\s+/g, " ").trim();
+  return sanitizeText(value, MAX_PLAYER_NAME_LENGTH).replace(/\s+/g, " ").trim();
 }
 
 export function arePlayerNamesEqual(firstName: string, secondName: string) {
   return firstName.trim().toLowerCase() === secondName.trim().toLowerCase();
+}
+
+// Confirms the browser calling this route actually holds the session for
+// the player id it's acting as, instead of just trusting whatever id is
+// in the request body (every player's id is visible to every other room
+// member via the normal roster query, so a bare id check lets any player
+// act as any other). Mirrors the same tradeoff as is_player_session in
+// host_rpc_identity_hardening.sql: a player row with no verified identity
+// on record (anonymous-auth token failed at join, or a pre-migration row)
+// can't be proven to mismatch the caller, so it's treated as unverifiable
+// rather than blocked - this must never be the reason a real player can't
+// play.
+export async function verifyRequestPlayer({
+  accessToken,
+  authUserId,
+}: {
+  accessToken: unknown;
+  authUserId: string | null;
+}): Promise<boolean> {
+  if (!authUserId) return true;
+
+  if (typeof accessToken !== "string" || !accessToken) return false;
+
+  const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
+  if (error || !data.user) return false;
+
+  return data.user.id === authUserId;
 }
 
 export function guardRequest(

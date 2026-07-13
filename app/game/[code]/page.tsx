@@ -1377,7 +1377,7 @@ async function joinGame() {
     avatarUrl = uploadResult.avatarUrl;
 
     try {
-      const { data: descData } = await gameApi.describeAvatar(avatarUrl);
+      const { data: descData } = await gameApi.describeAvatar(avatarUrl, code);
       avatarDescription = descData?.description || null;
     } catch (error) {
       console.error("Avatar description failed:", error);

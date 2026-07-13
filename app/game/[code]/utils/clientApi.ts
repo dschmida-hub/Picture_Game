@@ -1,3 +1,5 @@
+import { ensureAnonymousSession } from "@/lib/supabase";
+
 type JsonMethod = "DELETE" | "POST";
 
 export type JsonResult<T> = {
@@ -11,10 +13,17 @@ async function sendJson<T>(
   body: Record<string, unknown>,
   method: JsonMethod = "POST"
 ): Promise<JsonResult<T>> {
+  // Every route that acts on behalf of a specific player verifies this
+  // against that player's row (see verifyRequestPlayer in
+  // app/api/_utils/api.ts) - attached here so no call site has to
+  // remember to do it. A body that already sets accessToken (joinRoom)
+  // wins over this default.
+  const accessToken = await ensureAnonymousSession();
+
   const response = await fetch(url, {
     method,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ accessToken, ...body }),
   });
 
   const data = await response.json().catch(() => null);
@@ -51,8 +60,8 @@ export type VoteResponse = {
 };
 
 export const gameApi = {
-  describeAvatar: (avatarUrl: string) =>
-    sendJson<{ description?: string }>("/api/describe-avatar", { avatarUrl }),
+  describeAvatar: (avatarUrl: string, roomCode: string) =>
+    sendJson<{ description?: string }>("/api/describe-avatar", { avatarUrl, roomCode }),
 
   joinRoom: (body: {
     accessToken: string | null;

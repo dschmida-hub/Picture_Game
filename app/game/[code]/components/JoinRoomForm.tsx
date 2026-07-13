@@ -1,3 +1,5 @@
+const MAX_NAME_LENGTH = 24;
+
 type JoinRoomFormProps = {
   code: string;
   name: string;
@@ -93,8 +95,11 @@ export function JoinRoomForm({
 
         <div className="space-y-5">
           <label className="block">
-            <span className="mb-2 block text-sm font-extrabold text-gray-700">
-              Your display name
+            <span className="mb-2 flex items-center justify-between gap-2 text-sm font-extrabold text-gray-700">
+              <span>Your display name</span>
+              <span className="text-xs font-bold text-zinc-400">
+                {name.length}/{MAX_NAME_LENGTH}
+              </span>
             </span>
             <input
               value={name}
@@ -104,7 +109,7 @@ export function JoinRoomForm({
                   onJoinGame();
                 }
               }}
-              maxLength={40}
+              maxLength={MAX_NAME_LENGTH}
               className="w-full rounded-2xl border-2 border-black bg-white p-4 text-lg font-bold outline-none transition focus:border-rose-600 focus:shadow-[0_0_0_4px_rgba(225,29,72,0.18)]"
             />
           </label>
@@ -139,7 +144,7 @@ export function JoinRoomForm({
             </span>
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
               onChange={(event) => onAvatarFileChange(event.target.files?.[0] || null)}
               className="mt-3 w-full text-sm font-bold file:mr-4 file:rounded-xl file:border-0 file:bg-zinc-950 file:px-4 file:py-2 file:font-extrabold file:text-white"
             />

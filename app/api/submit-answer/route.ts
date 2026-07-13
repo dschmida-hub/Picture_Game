@@ -7,6 +7,7 @@ import {
   parsePositiveInteger,
   routeError,
   supabaseAdmin,
+  verifyRequestPlayer,
 } from "../_utils/api";
 import {
   readJsonWithLimit,
@@ -17,6 +18,7 @@ const MAX_ANSWER_LENGTH = 120;
 const IMAGE_REPORT_STRIKE_LIMIT = 3;
 
 type SubmitAnswerRequest = {
+  accessToken?: unknown;
   answer?: unknown;
   gameId?: unknown;
   playerId?: unknown;
@@ -24,6 +26,7 @@ type SubmitAnswerRequest = {
 };
 
 type DeleteSubmissionRequest = {
+  accessToken?: unknown;
   gameId?: unknown;
   playerId?: unknown;
   roomCode?: unknown;
@@ -31,23 +34,29 @@ type DeleteSubmissionRequest = {
 };
 
 async function loadPlayerAndGame({
+  accessToken,
   gameId,
   playerId,
   roomCode,
 }: {
+  accessToken: unknown;
   gameId: number;
   playerId: number;
   roomCode: string;
 }) {
   const { data: player, error: playerError } = await supabaseAdmin
     .from("players")
-    .select("id, name")
+    .select("id, name, auth_user_id")
     .eq("id", playerId)
     .eq("room_code", roomCode)
     .maybeSingle();
 
   if (playerError) throw playerError;
   if (!player) return { error: jsonError("Player not found in this room", 403) };
+
+  if (!(await verifyRequestPlayer({ accessToken, authUserId: player.auth_user_id }))) {
+    return { error: jsonError("Not authorized to act as this player", 403) };
+  }
 
   const { data: game, error: gameError } = await supabaseAdmin
     .from("games")
@@ -81,7 +90,7 @@ export async function POST(request: Request) {
       return jsonError("That answer isn't allowed. Please try something else.", 400);
     }
 
-    const context = await loadPlayerAndGame({ gameId, playerId, roomCode });
+    const context = await loadPlayerAndGame({ accessToken: body.accessToken, gameId, playerId, roomCode });
     if (context.error) return context.error;
 
     const { game, player } = context.data;
@@ -171,7 +180,7 @@ export async function DELETE(request: Request) {
       return jsonError("Valid room, game, player, and submission are required", 400);
     }
 
-    const context = await loadPlayerAndGame({ gameId, playerId, roomCode });
+    const context = await loadPlayerAndGame({ accessToken: body.accessToken, gameId, playerId, roomCode });
     if (context.error) return context.error;
 
     const { player } = context.data;

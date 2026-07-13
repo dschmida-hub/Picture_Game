@@ -6,6 +6,7 @@ import {
   parsePositiveInteger,
   routeError,
   supabaseAdmin,
+  verifyRequestPlayer,
 } from "../_utils/api";
 import {
   readJsonWithLimit,
@@ -14,6 +15,7 @@ import {
 type ImageFeedbackRating = "funny" | "meh" | "bad";
 
 type ImageFeedbackRequest = {
+  accessToken?: unknown;
   gameId?: unknown;
   playerId?: unknown;
   rating?: unknown;
@@ -49,13 +51,17 @@ export async function POST(request: Request) {
 
     const { data: player, error: playerError } = await supabaseAdmin
       .from("players")
-      .select("id, name")
+      .select("id, name, auth_user_id")
       .eq("id", playerId)
       .eq("room_code", roomCode)
       .maybeSingle();
 
     if (playerError) throw playerError;
     if (!player) return jsonError("Player not found in this room", 403);
+
+    if (!(await verifyRequestPlayer({ accessToken: body.accessToken, authUserId: player.auth_user_id }))) {
+      return jsonError("Not authorized to act as this player", 403);
+    }
 
     const { data: game, error: gameError } = await supabaseAdmin
       .from("games")

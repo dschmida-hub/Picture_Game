@@ -12,7 +12,7 @@ import {
 } from "@/app/lib/imageConfig";
 import { buildImagePrompt } from "@/app/lib/imagePrompt";
 import { generateImageBuffer } from "@/app/lib/imageProviders";
-import { getRolling24HourSpendCents } from "@/app/lib/imageSpend";
+import { releaseImageSpendReservation, reserveImageSpend } from "@/app/lib/imageSpend";
 import {
   guardRequest,
   isBadRequestError,
@@ -20,6 +20,7 @@ import {
   normalizeRoomCode,
   parsePositiveInteger,
   supabaseAdmin,
+  verifyRequestPlayer,
 } from "../_utils/api";
 import {
   checkRateLimit,
@@ -39,6 +40,7 @@ const MAX_REGENERATIONS_PER_SUBMISSION = Number(
 const MAX_SOLO_DEMO_IMAGES_PER_DAY = Number(process.env.MAX_SOLO_DEMO_IMAGES_PER_DAY || "3");
 
 type RegenerateImageRequest = {
+  accessToken?: unknown;
   gameId?: unknown;
   playerId?: unknown;
   roomCode?: unknown;
@@ -151,6 +153,8 @@ async function updateGameEstimatedCost(gameId: number) {
 }
 
 export async function POST(request: Request) {
+  let reservationId: number | null = null;
+
   try {
     const requestError = guardRequest(request, "regenerate-image", 6);
     if (requestError) return requestError;
@@ -171,20 +175,19 @@ export async function POST(request: Request) {
     });
     if (roomRateLimitError) return roomRateLimitError;
 
-    const rolling24HourSpendCents = await getRolling24HourSpendCents();
-    if (rolling24HourSpendCents + getEstimatedImageCostCents() > getMaxDailyImageSpendCents()) {
-      return jsonError("Image generation is temporarily paused while we're over budget for the day. Please try again later.", 429);
-    }
-
     const { data: host, error: hostError } = await supabase
       .from("players")
-      .select("id, name, is_host")
+      .select("id, name, is_host, auth_user_id")
       .eq("id", playerId)
       .eq("room_code", roomCode)
       .maybeSingle();
 
     if (hostError) throw hostError;
     if (!host?.is_host) return jsonError("Only the host can regenerate images", 403);
+
+    if (!(await verifyRequestPlayer({ accessToken: body.accessToken, authUserId: host.auth_user_id }))) {
+      return jsonError("Not authorized to act as this player", 403);
+    }
 
     const { data: game, error: gameError } = await supabase
       .from("games")
@@ -242,6 +245,16 @@ export async function POST(request: Request) {
       return jsonError("Submission and round prompt are required", 400);
     }
 
+    const estimatedCostCents = getEstimatedImageCostCents();
+    reservationId = await reserveImageSpend({
+      roomCode,
+      estimatedCents: estimatedCostCents,
+      maxDailyCents: getMaxDailyImageSpendCents(),
+    });
+    if (!reservationId) {
+      return jsonError("Image generation is temporarily paused while we're over budget for the day. Please try again later.", 429);
+    }
+
     const prompt = buildImagePrompt({
       answer,
       roundPrompt,
@@ -257,7 +270,6 @@ export async function POST(request: Request) {
 
     const { imageId, imageUrl } = await uploadGeneratedImage(imageBuffer);
     const thumbnailUrl = await uploadGalleryThumbnail(imageId, imageBuffer);
-    const estimatedCostCents = getEstimatedImageCostCents();
 
     const { error: updateError } = await supabase
       .from("submissions")
@@ -276,6 +288,8 @@ export async function POST(request: Request) {
     if (updateError) throw updateError;
 
     await updateGameEstimatedCost(gameId);
+    await releaseImageSpendReservation(reservationId);
+    reservationId = null;
 
     return Response.json({
       caption,
@@ -286,6 +300,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Failed to regenerate image:", error);
+    await releaseImageSpendReservation(reservationId);
 
     if (isBadRequestError(error)) {
       return jsonError(error instanceof Error ? error.message : "Invalid request", 400);

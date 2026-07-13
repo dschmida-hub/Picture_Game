@@ -15,6 +15,22 @@ import {
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const OUTPUT_SIZE = 512;
 
+// file.type is just the browser's Content-Type guess for the picked file -
+// client-supplied and easy to spoof - so this isn't the real security
+// boundary (the mandatory sharp re-encode below is). It's a fast-fail:
+// reject obviously-wrong files immediately, before spending CPU on a
+// decode attempt, with a clear error instead of the generic decode-failure
+// message.
+const ALLOWED_AVATAR_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/heic",
+  "image/heif",
+]);
+
 export async function POST(request: Request) {
   try {
     const requestError = guardRequest(request, "upload-avatar", 10);
@@ -30,6 +46,10 @@ export async function POST(request: Request) {
 
     if (!(file instanceof File)) {
       return jsonError("Missing avatar file", 400);
+    }
+
+    if (!ALLOWED_AVATAR_MIME_TYPES.has(file.type)) {
+      return jsonError("Please upload a JPEG, PNG, WebP, GIF, or HEIC photo.", 400);
     }
 
     if (file.size > MAX_UPLOAD_BYTES) {

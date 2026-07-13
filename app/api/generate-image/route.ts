@@ -16,7 +16,7 @@ import {
 } from "@/app/lib/imageConfig";
 import { buildImagePrompt } from "@/app/lib/imagePrompt";
 import { generateImageBuffer } from "@/app/lib/imageProviders";
-import { getRolling24HourSpendCents } from "@/app/lib/imageSpend";
+import { releaseImageSpendReservation, reserveImageSpend } from "@/app/lib/imageSpend";
 import {
   guardRequest,
   isBadRequestError,
@@ -25,6 +25,7 @@ import {
   normalizeRoomCode,
   parsePositiveInteger,
   supabaseAdmin,
+  verifyRequestPlayer,
 } from "../_utils/api";
 import {
   checkRateLimit,
@@ -50,6 +51,7 @@ const MAX_IMAGES_PER_PLAYER_PER_GAME = parseLimit(process.env.MAX_IMAGES_PER_PLA
 const MAX_SOLO_DEMO_IMAGES_PER_DAY = parseLimit(process.env.MAX_SOLO_DEMO_IMAGES_PER_DAY, 3);
 
 type GenerateImageRequest = {
+  accessToken?: unknown;
   roomCode?: unknown;
   gameId?: unknown;
   playerId?: unknown;
@@ -133,11 +135,13 @@ async function generateGalleryCaption(answer: string, roundPrompt: string) {
 }
 
 async function loadGenerationContext({
+  accessToken,
   roomCode,
   gameId,
   playerId,
   submissionId,
 }: {
+  accessToken: unknown;
   roomCode: string;
   gameId: number;
   playerId: number;
@@ -145,13 +149,17 @@ async function loadGenerationContext({
 }) {
   const { data: player, error: playerError } = await supabase
     .from("players")
-    .select("id, name, is_host")
+    .select("id, name, is_host, auth_user_id")
     .eq("id", playerId)
     .eq("room_code", roomCode)
     .maybeSingle();
 
   if (playerError) throw playerError;
   if (!player) return { error: jsonError("Player not found in this room", 403) };
+
+  if (!(await verifyRequestPlayer({ accessToken, authUserId: player.auth_user_id }))) {
+    return { error: jsonError("Not authorized to act as this player", 403) };
+  }
 
   const { data: game, error: gameError } = await supabase
     .from("games")
@@ -345,6 +353,7 @@ export async function POST(request: Request) {
     roomCode?: string | null;
     submissionId?: number | null;
   } = {};
+  let reservationId: number | null = null;
 
   try {
     const requestError = guardRequest(request, "generate-image", 8);
@@ -369,6 +378,7 @@ export async function POST(request: Request) {
     eventContext = { gameId, playerId, roomCode, submissionId };
 
     const context = await loadGenerationContext({
+      accessToken: body.accessToken,
       roomCode,
       gameId,
       playerId,
@@ -406,8 +416,13 @@ export async function POST(request: Request) {
       }
     }
 
-    const rolling24HourSpendCents = await getRolling24HourSpendCents();
-    if (rolling24HourSpendCents + getEstimatedImageCostCents() > getMaxDailyImageSpendCents()) {
+    const estimatedCostCents = getEstimatedImageCostCents();
+    reservationId = await reserveImageSpend({
+      roomCode,
+      estimatedCents: estimatedCostCents,
+      maxDailyCents: getMaxDailyImageSpendCents(),
+    });
+    if (!reservationId) {
       return jsonError("Image generation is temporarily paused while we're over budget for the day. Please try again later.", 429);
     }
 
@@ -427,7 +442,6 @@ export async function POST(request: Request) {
 
     const { imageId, imageUrl } = await uploadGeneratedImage(imageBuffer);
     const thumbnailUrl = await uploadGalleryThumbnail(imageId, imageBuffer);
-    const estimatedCostCents = getEstimatedImageCostCents();
 
     await updateGeneratedSubmission({
       submissionId: submission.id,
@@ -437,6 +451,8 @@ export async function POST(request: Request) {
       costCents: estimatedCostCents,
     });
     await updateGameEstimatedCost(gameId);
+    await releaseImageSpendReservation(reservationId);
+    reservationId = null;
 
     await logGameEvent(request, {
       eventName: "image_generated",
@@ -461,6 +477,8 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error(error);
+    await releaseImageSpendReservation(reservationId);
+
     if (isBadRequestError(error)) {
       return jsonError(error instanceof Error ? error.message : "Invalid request", 400);
     }
