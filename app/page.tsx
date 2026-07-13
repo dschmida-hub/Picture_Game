@@ -83,11 +83,20 @@ function DemoShowcaseCard({
   return (
     <div className="rounded-[1.5rem] border-2 border-black bg-[#fff7ed] p-5 text-zinc-950 shadow-[6px_6px_0_#111827]">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-rose-700">
-            Picture This
-          </p>
-          <h2 className="mt-1 text-3xl font-black">A tiny chaos machine.</h2>
+        <div className="flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/mascot/mascot-sprite.png"
+            alt=""
+            aria-hidden="true"
+            className="h-14 w-auto shrink-0"
+          />
+          <div>
+            <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-rose-700">
+              Picture This
+            </p>
+            <h2 className="mt-1 text-3xl font-black">A tiny chaos machine.</h2>
+          </div>
         </div>
         <div className="rounded-2xl border-2 border-black bg-white px-3 py-2 text-xl font-black shadow-[4px_4px_0_#111827]">
           AI
