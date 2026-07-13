@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { CurrentPromptRater } from "./CurrentPromptRater";
 import { HelpTooltip } from "./HelpTooltip";
 import { parseSubmission } from "./submissions";
@@ -18,7 +17,6 @@ type GeneratingScreenProps = {
   roundPrompt: string;
   currentPromptRating: PromptRating | null;
   hasRatedCurrentPrompt: boolean;
-  hostDebugPanel?: ReactNode;
   isRatingCurrentPrompt: boolean;
   canRateCurrentPrompt: boolean;
   onForceReveal: () => void;
@@ -112,7 +110,6 @@ export function GeneratingScreen({
   roundPrompt,
   currentPromptRating,
   hasRatedCurrentPrompt,
-  hostDebugPanel,
   isRatingCurrentPrompt,
   canRateCurrentPrompt,
   onForceReveal,
@@ -148,8 +145,6 @@ export function GeneratingScreen({
       <div className="pointer-events-none fixed -right-20 bottom-24 h-64 w-64 rounded-full bg-sky-300/40 blur-3xl" />
 
       <div className="relative z-50 mx-auto flex min-h-full w-full max-w-6xl flex-col gap-5 px-4 pb-36 pt-5 sm:px-6 lg:px-8">
-        {isHost && hostDebugPanel && <div className="w-full">{hostDebugPanel}</div>}
-
         <section className="rounded-[2rem] border-2 border-black bg-white p-5 shadow-[8px_8px_0_#111827] sm:p-7">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0">

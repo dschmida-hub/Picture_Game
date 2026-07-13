@@ -6,7 +6,6 @@ import { ensureAnonymousSession, supabase } from "@/lib/supabase";
 import { ConnectionStatusBanner } from "./components/ConnectionStatusBanner";
 import { GeneratingScreen } from "./components/GeneratingScreen";
 import { GameLogo } from "./components/GameLogo";
-import { HostDebugPanel } from "./components/HostDebugPanel";
 import { JoinRoomForm } from "./components/JoinRoomForm";
 import { LobbyScreen } from "./components/LobbyScreen";
 import { LoadingScreen } from "./components/LoadingScreen";
@@ -59,22 +58,6 @@ type GameStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
 type ToastState = {
   message: string;
   tone: ToastTone;
-};
-
-type HostDebugStats = {
-  estimatedCostCents: number;
-  generatedImages: number;
-  imageModel: string | null;
-  imageProvider: string | null;
-  reportCount: number | null;
-};
-
-const emptyHostDebugStats: HostDebugStats = {
-  estimatedCostCents: 0,
-  generatedImages: 0,
-  imageModel: null,
-  imageProvider: null,
-  reportCount: null,
 };
 
 const PROMPT_SKIP_THRESHOLD = 0.75;
@@ -153,7 +136,6 @@ export default function GameRoom() {
   const [winnerImages, setWinnerImages] = useState<string[]>([]);
   const [roundPrompt, setRoundPrompt] = useState("");
   const [roundImageStyle, setRoundImageStyle] = useState("clay_animation");
-  const [hostDebugStats, setHostDebugStats] = useState<HostDebugStats>(emptyHostDebugStats);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [isBrowserOnline, setIsBrowserOnline] = useState(
     () => typeof navigator === "undefined" || navigator.onLine
@@ -324,7 +306,6 @@ export default function GameRoom() {
         }
 
         await loadSubmissions(currentGameId);
-        await loadHostDebugStats(currentGameId);
         await revealRoundIfReady(currentGameId);
       }, 25_000);
     });
@@ -747,48 +728,6 @@ async function loadSubmissions(gameId = currentGameId) {
   );
 }
 
-async function loadHostDebugStats(gameId = currentGameId) {
-  if (!gameId) {
-    setHostDebugStats(emptyHostDebugStats);
-    return;
-  }
-
-  const { data: submissionStats, error: submissionStatsError } = await supabase
-    .from("submissions")
-    .select("estimated_image_cost_cents, image_model, image_provider, image_url")
-    .eq("game_id", gameId)
-    .not("image_url", "is", null);
-
-  if (submissionStatsError) {
-    console.error("Failed to load host debug submission stats:", submissionStatsError);
-    return;
-  }
-
-  const generatedSubmissions = submissionStats || [];
-  const latestGeneratedSubmission = generatedSubmissions[generatedSubmissions.length - 1];
-  const estimatedCostCents = generatedSubmissions.reduce(
-    (sum, item) => sum + Number(item.estimated_image_cost_cents || 0),
-    0
-  );
-
-  const { count: reportCount, error: reportCountError } = await supabase
-    .from("image_reports")
-    .select("id", { count: "exact", head: true })
-    .eq("game_id", gameId);
-
-  if (reportCountError) {
-    console.error("Failed to load host debug report count:", reportCountError);
-  }
-
-  setHostDebugStats({
-    estimatedCostCents,
-    generatedImages: generatedSubmissions.length,
-    imageModel: latestGeneratedSubmission?.image_model || null,
-    imageProvider: latestGeneratedSubmission?.image_provider || null,
-    reportCount: reportCountError ? null : reportCount || 0,
-  });
-}
-
 async function loadVotes(gameId = currentGameId) {
   if (!gameId) {
     setVotedPlayerNames([]);
@@ -1031,7 +970,6 @@ async function loadGame() {
   await loadSubmissions(data.id);
   await loadVotes(data.id);
   await loadPromptSkipVotes(data.id);
-  await loadHostDebugStats(data.id);
 }
 }
 
@@ -1277,7 +1215,6 @@ useEffect(() => {
         () => {
           const gameId = currentGameIdRef.current;
           loadSubmissions(gameId);
-          loadHostDebugStats(gameId);
           if (isHostRef.current && stageRef.current === "submitting") {
             revealRoundIfReady(gameId);
           }
@@ -1297,11 +1234,6 @@ useEffect(() => {
         "postgres_changes",
         { event: "*", schema: "public", table: "room_prompt_suggestions", filter: `room_code=eq.${code}` },
         () => loadPromptSuggestions()
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "image_reports", filter: `room_code=eq.${code}` },
-        () => loadHostDebugStats(currentGameIdRef.current)
       )
       .subscribe((status) => {
         // Resync on (re)connect so nothing missed while offline is lost -
@@ -1870,7 +1802,6 @@ async function completeSoloRound(gameId: number) {
 
     setSubmission("");
     await loadSubmissions(currentGameId);
-    await loadHostDebugStats(currentGameId);
 
     await revealRoundIfReady(currentGameId);
   } finally {
@@ -1990,7 +1921,6 @@ async function reportImage(submissionId: number) {
 
     setVoteMessage("Report saved. Thanks for keeping the game playable.");
     showToast("Report saved for review.", "success");
-    await loadHostDebugStats(currentGameId);
   } catch (error) {
     console.error("Failed to report image:", error);
     showToast("Could not report that image.");
@@ -2029,10 +1959,7 @@ async function regenerateImage(submissionId: number, submissionPlayerName: strin
       return;
     }
 
-    await Promise.all([
-      loadSubmissions(currentGameId),
-      loadHostDebugStats(currentGameId),
-    ]);
+    await loadSubmissions(currentGameId);
     setVoteMessage("Image regenerated.");
     showToast("Image regenerated.", "success");
   } catch (error) {
@@ -2073,7 +2000,6 @@ async function deleteSubmission(submissionId: number, submissionPlayerName: stri
     await Promise.all([
       loadSubmissions(currentGameId),
       loadVotes(currentGameId),
-      loadHostDebugStats(currentGameId),
     ]);
   } catch (error) {
     console.error("Failed to delete submission:", error);
@@ -2111,7 +2037,6 @@ async function forceReveal() {
     setStage("reveal");
     setVotingDeadline(nextVotingDeadline);
     await loadSubmissions(currentGameId);
-    await loadHostDebugStats(currentGameId);
   } catch (error) {
     console.error("Failed to reveal submitted images:", error);
     showToast(`Could not reveal the submitted images: ${error instanceof Error ? error.message : "Unknown database error"}`);
@@ -2626,17 +2551,6 @@ if (isPageLoading) {
         </div>
       )}
 
-      {isHost && (
-        <HostDebugPanel
-          currentGameId={currentGameId}
-          playersCount={players.length}
-          stage={stage}
-          submissionsCount={submissions.length}
-          votesCount={votedPlayerNames.length}
-          stats={hostDebugStats}
-        />
-      )}
-
       {!joined ? (
   <JoinRoomForm
     code={code}
@@ -2738,16 +2652,6 @@ if (isPageLoading) {
         roundPrompt={roundPrompt}
         currentPromptRating={currentPromptRating}
         hasRatedCurrentPrompt={hasRatedCurrentPrompt}
-        hostDebugPanel={
-          <HostDebugPanel
-            currentGameId={currentGameId}
-            playersCount={players.length}
-            stage={stage}
-            submissionsCount={submissions.length}
-            votesCount={votedPlayerNames.length}
-            stats={hostDebugStats}
-          />
-        }
         isRatingCurrentPrompt={isRatingCurrentPrompt}
         canRateCurrentPrompt={Boolean(getPromptRatingTable(currentPromptSource))}
         onForceReveal={forceReveal}
