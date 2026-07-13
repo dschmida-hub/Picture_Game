@@ -145,6 +145,32 @@ export default function GameRoom() {
   const rescuingSubmissionIds = useRef(new Set<number>());
   const hostName = players.find((player) => player.is_host)?.name;
   const isHost = joined && name === hostName;
+  const previousHostNameRef = useRef<string | null | undefined>(undefined);
+  // Host reassignment (a stale host silently auto-promotes someone else, or
+  // a Party Mode room's host gets explicitly claimed) otherwise happens with
+  // no signal to the room at all - the host controls just appear/disappear.
+  // Undefined means "haven't observed a host yet" (initial load), which is
+  // deliberately not announced - only a real handoff after that is.
+  useEffect(() => {
+    if (previousHostNameRef.current === undefined) {
+      previousHostNameRef.current = hostName ?? null;
+      return;
+    }
+
+    const previous = previousHostNameRef.current;
+    if (previous && hostName && previous !== hostName) {
+      showToast(
+        name === hostName
+          ? "The previous host disconnected - you're hosting now."
+          : `${hostName} is now hosting - the previous host disconnected.`,
+        "info"
+      );
+    }
+    previousHostNameRef.current = hostName ?? null;
+    // Only hostName marks a real transition; showToast/name identity churn
+    // every render and would otherwise refire this on unrelated updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostName]);
   // Realtime callbacks are registered once (stable channel identity) and
   // would otherwise close over stale state, so mirror the values they need
   // into refs that are always current.
