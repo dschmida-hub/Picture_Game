@@ -70,7 +70,9 @@ export default function GameRoom() {
 
   const [name, setName] = useState("");
   const [joined, setJoined] = useState(false);
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(
+    () => typeof window !== "undefined" && Boolean(window.localStorage.getItem(AGE_GATE_STORAGE_KEY))
+  );
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [stage, setStage] = useState<GameStage>("lobby");
@@ -280,10 +282,6 @@ export default function GameRoom() {
     const timeout = window.setTimeout(() => setToast(null), 4200);
     return () => window.clearTimeout(timeout);
   }, [toast]);
-
-  useEffect(() => {
-    setAgeConfirmed(Boolean(window.localStorage.getItem(AGE_GATE_STORAGE_KEY)));
-  }, []);
 
   function confirmAgeGate(confirmed: boolean) {
     setAgeConfirmed(confirmed);
@@ -1058,6 +1056,10 @@ useEffect(() => {
 // flash the banner - only a connection that stays down for a bit shows it.
 useEffect(() => {
   if (isRealtimeConnected) {
+    // Reacting to a real external signal (the connection dropping), not
+    // something derivable at render time - the timer below is why this
+    // can't be a pure computation.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setShowReconnectingBanner(false);
     return;
   }

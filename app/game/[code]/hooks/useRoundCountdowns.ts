@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 type GameStage = "lobby" | "submitting" | "generating" | "reveal" | "winner";
 
-function secondsUntil(deadline: string | null, currentTime: number) {
+export function secondsUntil(deadline: string | null, currentTime: number) {
   if (!deadline || currentTime <= 0) return null;
   return Math.max(0, Math.ceil((new Date(deadline).getTime() - currentTime) / 1000));
 }

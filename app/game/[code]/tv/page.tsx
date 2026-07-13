@@ -81,6 +81,9 @@ export default function TvMode() {
   // rounds skip the delay and show it all immediately, same as before.
   useEffect(() => {
     if (stage !== "winner" || roundWinners.length === 0) {
+      // Resets the suspense flag when leaving the winner stage; the timer
+      // below is the actual reason this can't be a pure render-time value.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsWinnerImageRevealed(false);
       return;
     }

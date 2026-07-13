@@ -13,6 +13,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Claude Code's own skill tooling, not part of this app - its .cjs
+    // scripts are intentionally CommonJS and aren't meant to follow this
+    // project's lint rules.
+    ".claude/**",
   ]),
 ]);
 
