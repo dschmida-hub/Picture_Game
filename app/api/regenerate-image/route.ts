@@ -155,6 +155,7 @@ async function updateGameEstimatedCost(gameId: number) {
 
 export async function POST(request: Request) {
   let reservationId: number | null = null;
+  let claimedSubmissionId: number | null = null;
 
   try {
     const requestError = await guardRequest(request, "regenerate-image", 6);
@@ -218,6 +219,29 @@ export async function POST(request: Request) {
     if (regenerateCount >= MAX_REGENERATIONS_PER_SUBMISSION) {
       return jsonError("This image has reached its regeneration limit", 429);
     }
+
+    // Claims the row with a single atomic UPDATE ... WHERE ... before ever
+    // calling the image provider - see generate-image/route.ts for why.
+    // Cleared again on both the success write below and in the catch
+    // block, since (unlike a fresh generation) a regenerate leaves the
+    // submission in place either way and a legitimate follow-up
+    // regenerate attempt should still be possible.
+    const { data: claimedSubmission, error: claimError } = await supabase
+      .from("submissions")
+      .update({ generation_claimed_at: new Date().toISOString() })
+      .eq("id", submissionId)
+      .eq("game_id", gameId)
+      .eq("room_code", roomCode)
+      .not("image_url", "is", null)
+      .is("generation_claimed_at", null)
+      .select("id")
+      .maybeSingle();
+
+    if (claimError) throw claimError;
+    if (!claimedSubmission) {
+      return jsonError("This image is already being regenerated", 409);
+    }
+    claimedSubmissionId = submissionId;
 
     const { data: players, error: playersError } = await supabase
       .from("players")
@@ -283,10 +307,12 @@ export async function POST(request: Request) {
         image_provider: imageConfig.provider,
         image_url: imageUrl,
         regenerate_count: regenerateCount + 1,
+        generation_claimed_at: null,
       })
       .eq("id", submission.id);
 
     if (updateError) throw updateError;
+    claimedSubmissionId = null;
 
     await updateGameEstimatedCost(gameId);
     await releaseImageSpendReservation(reservationId);
@@ -302,6 +328,13 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Failed to regenerate image:", error);
     await releaseImageSpendReservation(reservationId);
+
+    if (claimedSubmissionId) {
+      await supabase
+        .from("submissions")
+        .update({ generation_claimed_at: null })
+        .eq("id", claimedSubmissionId);
+    }
 
     if (isBadRequestError(error)) {
       return jsonError(error instanceof Error ? error.message : "Invalid request", 400);

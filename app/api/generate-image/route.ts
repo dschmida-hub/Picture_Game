@@ -264,6 +264,27 @@ async function loadGenerationContext({
     return { error: jsonError("This room has reached its image generation limit", 429) };
   }
 
+  // Claims the row with a single atomic UPDATE ... WHERE ... before ever
+  // calling the (15-20s) image provider - Postgres row locking means only
+  // one of two concurrent requests for the same submission can win this,
+  // closing the window where both could pass every check above and both
+  // trigger a real paid generation.
+  const { data: claimedSubmission, error: claimError } = await supabase
+    .from("submissions")
+    .update({ generation_claimed_at: new Date().toISOString() })
+    .eq("id", submissionId)
+    .eq("game_id", gameId)
+    .eq("room_code", roomCode)
+    .is("image_url", null)
+    .is("generation_claimed_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (claimError) throw claimError;
+  if (!claimedSubmission) {
+    return { error: jsonError("This image is already being generated", 409) };
+  }
+
   const { data: players, error: playersError } = await supabase
     .from("players")
     .select("name, avatar_description")
@@ -519,6 +540,18 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error(error);
     await releaseImageSpendReservation(reservationId);
+
+    // Defensive: the client always deletes a failed pending submission,
+    // which makes this moot in the normal flow - but if some other path
+    // ever fails without deleting the row, don't leave it permanently
+    // claimed and unretriable.
+    if (eventContext.submissionId) {
+      await supabase
+        .from("submissions")
+        .update({ generation_claimed_at: null })
+        .eq("id", eventContext.submissionId)
+        .is("image_url", null);
+    }
 
     if (isBadRequestError(error)) {
       return jsonError(error instanceof Error ? error.message : "Invalid request", 400);
