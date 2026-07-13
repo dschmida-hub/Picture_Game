@@ -10,6 +10,7 @@ export const maxDuration = 30;
 
 type AdminPageProps = {
   searchParams: Promise<{
+    error?: string;
     key?: string;
     room?: string;
   }>;
@@ -170,7 +171,7 @@ function AdminShell({
 }
 
 export default async function AdminPage({ searchParams }: AdminPageProps) {
-  const { key, room } = await searchParams;
+  const { error, key, room } = await searchParams;
   const adminKey = getAdminKey();
   const selectedRoom = roomKey(room);
 
@@ -193,9 +194,32 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     }
 
     return (
-      <AdminShell title="Not found">
-        <section className="rounded-3xl border-2 border-red-300 bg-white p-6 text-center shadow-lg">
-          <p className="font-bold text-zinc-700">That admin page is not available.</p>
+      <AdminShell title="Sign in">
+        <section className="mx-auto w-full max-w-sm rounded-3xl border-2 border-black bg-white p-6 shadow-lg">
+          {error && (
+            <p className="mb-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-700">
+              That key wasn&apos;t right. Try again.
+            </p>
+          )}
+          <form method="POST" action="/admin/login" className="space-y-3">
+            <input type="hidden" name="next" value="/admin" />
+            <label className="block">
+              <span className="mb-1 block text-sm font-bold text-zinc-700">Admin key</span>
+              <input
+                type="password"
+                name="key"
+                required
+                autoFocus
+                className="w-full rounded-xl border-2 border-black px-3 py-2 font-mono text-sm"
+              />
+            </label>
+            <button
+              type="submit"
+              className="w-full rounded-xl bg-black px-4 py-2 font-bold text-white"
+            >
+              Sign in
+            </button>
+          </form>
         </section>
       </AdminShell>
     );

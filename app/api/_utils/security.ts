@@ -22,7 +22,15 @@ export function getClientIp(request: Request) {
 
 export function checkSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  if (!origin) return null;
+  // Every route that calls this is a POST/DELETE mutation reached only via
+  // the app's own client-side fetch() - browsers reliably send Origin for
+  // any non-GET/HEAD request, same-origin or not, so a missing header
+  // means a non-browser caller (curl, a script), not a real player. The
+  // old "no origin -> allow" behavior meant this check did nothing at all
+  // for exactly the callers most likely to be abusive.
+  if (!origin) {
+    return Response.json({ error: "Invalid request origin" }, { status: 403 });
+  }
 
   let requestHost: string;
   let originHost: string;

@@ -1412,7 +1412,10 @@ async function joinGame() {
   if (cameFromPartyFlow && !joinData.isHost) {
     setShowHostClaimPrompt(true);
   }
-  }finally {
+  } catch (error) {
+    console.error("Failed to join room:", error);
+    showToast("Connection lost. Please check your connection and try again.");
+  } finally {
   setIsJoining(false);
   }
 }

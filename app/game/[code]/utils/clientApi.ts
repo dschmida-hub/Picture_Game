@@ -20,11 +20,27 @@ async function sendJson<T>(
   // wins over this default.
   const accessToken = await ensureAnonymousSession();
 
-  const response = await fetch(url, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ accessToken, ...body }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken, ...body }),
+    });
+  } catch (error) {
+    // A dropped connection makes fetch() itself throw (as opposed to
+    // resolving with a non-ok response), which every call site's normal
+    // `if (error) ...` handling never gets a chance to see - it just
+    // propagates as an uncaught rejection, silently. Converting it into a
+    // regular result here means every existing caller's error handling
+    // (already written for HTTP-level failures) covers this for free.
+    console.error(`Network request to ${url} failed:`, error);
+    return {
+      data: null,
+      error: "Connection lost. Please check your connection and try again.",
+      ok: false,
+    };
+  }
 
   const data = await response.json().catch(() => null);
 
