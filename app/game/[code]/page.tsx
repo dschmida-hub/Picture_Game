@@ -1806,7 +1806,9 @@ async function completeSoloRound(gameId: number) {
 
     if (imageError) {
       console.error(imageData || imageError);
-      if (imageData?.rejected) {
+      if (imageData?.attemptsExhausted) {
+        showToast(imageError || "You've used all your image attempts for this round.");
+      } else if (imageData?.rejected) {
         const wasExtended = await grantImageRetryTime();
         showToast(
           wasExtended

@@ -52,6 +52,7 @@ export type SubmitAnswerResponse = {
 };
 
 export type GenerateImageResponse = {
+  attemptsExhausted?: boolean;
   rejected?: boolean;
 };
 

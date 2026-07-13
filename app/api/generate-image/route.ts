@@ -49,6 +49,14 @@ const MAX_IMAGES_PER_GAME = parseLimit(process.env.MAX_IMAGES_PER_GAME, 8);
 const MAX_IMAGES_PER_ROOM = parseLimit(process.env.MAX_IMAGES_PER_ROOM, 300);
 const MAX_IMAGES_PER_PLAYER_PER_GAME = parseLimit(process.env.MAX_IMAGES_PER_PLAYER_PER_GAME, 1);
 const MAX_SOLO_DEMO_IMAGES_PER_DAY = parseLimit(process.env.MAX_SOLO_DEMO_IMAGES_PER_DAY, 3);
+// MAX_IMAGES_PER_PLAYER_PER_GAME only counts *successful* images, so a
+// rejected/failed generation never counts against it - the client deletes
+// the failed submission and lets the player resubmit immediately, so
+// nothing capped how many real, paid generation attempts one player could
+// burn through in a single round. This caps total attempts (success or
+// not), counted from the image_generated/image_generation_failed events
+// every generate-image call already logs.
+const MAX_IMAGE_ATTEMPTS_PER_PLAYER_PER_GAME = parseLimit(process.env.MAX_IMAGE_ATTEMPTS_PER_PLAYER_PER_GAME, 3);
 
 type GenerateImageRequest = {
   accessToken?: unknown;
@@ -104,6 +112,28 @@ async function countPlayerSubmissionsForGame({
     .eq("room_code", roomCode)
     .eq("game_id", gameId)
     .eq("player_name", playerName);
+
+  if (error) throw error;
+
+  return count || 0;
+}
+
+async function countGenerationAttempts({
+  gameId,
+  playerName,
+  roomCode,
+}: {
+  gameId: number;
+  playerName: string;
+  roomCode: string;
+}) {
+  const { count, error } = await supabase
+    .from("game_events")
+    .select("id", { count: "exact", head: true })
+    .eq("room_code", roomCode)
+    .eq("game_id", gameId)
+    .eq("player_name", playerName)
+    .in("event_name", ["image_generated", "image_generation_failed"]);
 
   if (error) throw error;
 
@@ -200,11 +230,12 @@ async function loadGenerationContext({
     return { error: jsonError("Image already generated for this submission", 409) };
   }
 
-  const [gameImageCount, roomImageCount, playerGameImageCount, playerSubmissionCount] = await Promise.all([
+  const [gameImageCount, roomImageCount, playerGameImageCount, playerSubmissionCount, playerAttemptCount] = await Promise.all([
     countGeneratedImages({ gameId, roomCode }),
     countGeneratedImages({ roomCode }),
     countGeneratedImages({ gameId, playerName: submission.player_name, roomCode }),
     countPlayerSubmissionsForGame({ gameId, playerName: submission.player_name, roomCode }),
+    countGenerationAttempts({ gameId, playerName: submission.player_name, roomCode }),
   ]);
 
   if (playerSubmissionCount > 1) {
@@ -213,6 +244,15 @@ async function loadGenerationContext({
 
   if (playerGameImageCount >= MAX_IMAGES_PER_PLAYER_PER_GAME) {
     return { error: jsonError("You already generated an image for this round", 409) };
+  }
+
+  if (playerAttemptCount >= MAX_IMAGE_ATTEMPTS_PER_PLAYER_PER_GAME) {
+    return {
+      error: Response.json(
+        { error: "You've used all your image attempts for this round.", attemptsExhausted: true },
+        { status: 429 }
+      ),
+    };
   }
 
   if (gameImageCount >= MAX_IMAGES_PER_GAME) {
