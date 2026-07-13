@@ -28,7 +28,7 @@ type JoinRoomRequest = {
 
 export async function POST(request: Request) {
   try {
-    const requestError = guardRequest(request, "join-room", 20);
+    const requestError = await guardRequest(request, "join-room", 20);
     if (requestError) return requestError;
 
     const body = await readJsonWithLimit<JoinRoomRequest>(request, 3_000);

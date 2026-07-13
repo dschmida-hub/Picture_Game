@@ -18,6 +18,7 @@ import { buildImagePrompt } from "@/app/lib/imagePrompt";
 import { generateImageBuffer } from "@/app/lib/imageProviders";
 import { releaseImageSpendReservation, reserveImageSpend } from "@/app/lib/imageSpend";
 import {
+  captureServerException,
   guardRequest,
   isBadRequestError,
   jsonError,
@@ -396,7 +397,7 @@ export async function POST(request: Request) {
   let reservationId: number | null = null;
 
   try {
-    const requestError = guardRequest(request, "generate-image", 8);
+    const requestError = await guardRequest(request, "generate-image", 8);
     if (requestError) return requestError;
 
     const body = await readJsonWithLimit<GenerateImageRequest>(request, 2_000);
@@ -409,7 +410,7 @@ export async function POST(request: Request) {
       return jsonError("Valid room, game, player, and submission are required", 400);
     }
 
-    const roomRateLimitError = checkRoomRateLimit("generate-image", roomCode, {
+    const roomRateLimitError = await checkRoomRateLimit("generate-image", roomCode, {
       windowMs: 60_000,
       maxRequests: 20,
     });
@@ -444,7 +445,7 @@ export async function POST(request: Request) {
     // from marketing/Reddit, so cap real generations per visitor IP on top of
     // the normal per-room/per-game limits below.
     if (players.length === 1) {
-      const soloDemoRateLimitError = checkRateLimit(request, "solo-demo-generate-image", {
+      const soloDemoRateLimitError = await checkRateLimit(request, "solo-demo-generate-image", {
         windowMs: 24 * 60 * 60 * 1000,
         maxRequests: MAX_SOLO_DEMO_IMAGES_PER_DAY,
       });
@@ -522,6 +523,8 @@ export async function POST(request: Request) {
     if (isBadRequestError(error)) {
       return jsonError(error instanceof Error ? error.message : "Invalid request", 400);
     }
+
+    captureServerException(error, "Failed to generate image:");
 
     const rejected = wasImageRejected(error);
     const detail =

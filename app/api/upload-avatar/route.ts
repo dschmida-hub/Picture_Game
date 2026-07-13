@@ -33,7 +33,7 @@ const ALLOWED_AVATAR_MIME_TYPES = new Set([
 
 export async function POST(request: Request) {
   try {
-    const requestError = guardRequest(request, "upload-avatar", 10);
+    const requestError = await guardRequest(request, "upload-avatar", 10);
     if (requestError) return requestError;
 
     const formData = await request.formData();

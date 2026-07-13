@@ -35,7 +35,7 @@ function parseRating(value: unknown): ImageFeedbackRating | null {
 
 export async function POST(request: Request) {
   try {
-    const requestError = guardRequest(request, "image-feedback", 30);
+    const requestError = await guardRequest(request, "image-feedback", 30);
     if (requestError) return requestError;
 
     const body = await readJsonWithLimit<ImageFeedbackRequest>(request, 2_000);

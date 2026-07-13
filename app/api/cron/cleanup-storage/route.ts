@@ -119,6 +119,14 @@ export async function GET(request: Request) {
     `Storage retention cleanup: purged ${roomsPurged}/${roomCodes.length} rooms older than ${RETENTION_DAYS} days, deleted ${storageObjectsDeleted} storage objects (${storageDeleteFailures} failures).`
   );
 
+  // Best-effort - a failure here shouldn't fail the storage cleanup this
+  // route exists for. Sweeps rate_limit_buckets rows the Postgres-backed
+  // rate limiter leaves behind (durable_rate_limiting.sql).
+  const { error: bucketCleanupError } = await supabaseAdmin.rpc("cleanup_stale_rate_limit_buckets");
+  if (bucketCleanupError) {
+    console.error("Storage retention cleanup: failed to sweep rate limit buckets:", bucketCleanupError);
+  }
+
   return Response.json({
     roomsPurged,
     roomCodesConsidered: roomCodes,

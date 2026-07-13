@@ -73,7 +73,7 @@ async function loadPlayerAndGame({
 
 export async function POST(request: Request) {
   try {
-    const requestError = guardRequest(request, "submit-answer", 20);
+    const requestError = await guardRequest(request, "submit-answer", 20);
     if (requestError) return requestError;
 
     const body = await readJsonWithLimit<SubmitAnswerRequest>(request, 2_000);
@@ -167,7 +167,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const requestError = guardRequest(request, "delete-submission", 20);
+    const requestError = await guardRequest(request, "delete-submission", 20);
     if (requestError) return requestError;
 
     const body = await readJsonWithLimit<DeleteSubmissionRequest>(request, 2_000);

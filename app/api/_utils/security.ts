@@ -1,9 +1,17 @@
+import { createClient } from "@supabase/supabase-js";
+
 type RateLimitOptions = {
   windowMs: number;
   maxRequests: number;
 };
 
-const requestBuckets = new Map<string, number[]>();
+// A dedicated client rather than importing supabaseAdmin from ./api -
+// that module imports from this one (checkSameOrigin/checkRateLimit),
+// so importing it back here would be a circular dependency.
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export function getClientIp(request: Request) {
   const forwardedFor = request.headers.get("x-forwarded-for");
@@ -41,22 +49,29 @@ export function checkRoomRateLimit(key: string, roomCode: string, options: RateL
   return checkBucketedRateLimit(`${key}:room:${roomCode}`, options, "Too many requests from this room. Please wait a moment and try again.");
 }
 
-function checkBucketedRateLimit(
+async function checkBucketedRateLimit(
   bucketKey: string,
   options: RateLimitOptions,
   message = "Too many requests. Please wait a moment and try again."
 ) {
-  const now = Date.now();
-  const recentRequests = (requestBuckets.get(bucketKey) || []).filter(
-    (timestamp) => now - timestamp < options.windowMs
-  );
+  const { data: allowed, error } = await supabaseAdmin.rpc("check_rate_limit", {
+    bucket_key_input: bucketKey,
+    window_ms_input: options.windowMs,
+    max_requests_input: options.maxRequests,
+  });
 
-  if (recentRequests.length >= options.maxRequests) {
-    requestBuckets.set(bucketKey, recentRequests);
+  // A rate-limit check that can't run shouldn't be the reason a real
+  // request fails - fail open (same tradeoff the old in-memory version
+  // had by default, just made explicit now that it's a real network call).
+  if (error) {
+    console.error("Rate limit check failed:", error);
+    return null;
+  }
+
+  if (!allowed) {
     return Response.json({ error: message }, { status: 429 });
   }
 
-  requestBuckets.set(bucketKey, [...recentRequests, now]);
   return null;
 }
 

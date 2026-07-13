@@ -66,13 +66,28 @@ export async function verifyRequestPlayer({
   return data.user.id === authUserId;
 }
 
-export function guardRequest(
+export async function guardRequest(
   request: Request,
   key: string,
   maxRequests: number,
   windowMs = 60_000
 ) {
-  return checkSameOrigin(request) || checkRateLimit(request, key, { maxRequests, windowMs });
+  const originError = checkSameOrigin(request);
+  if (originError) return originError;
+
+  return checkRateLimit(request, key, { maxRequests, windowMs });
+}
+
+// Reports an error to Sentry without touching the caller's response -
+// for routes whose failure response shape doesn't match routeError's
+// generic { error } JSON (e.g. generate-image/regenerate-image, which
+// return extra fields like `rejected` and `provider` on failure).
+export function captureServerException(error: unknown, logMessage: string) {
+  if (!process.env.SENTRY_DSN) return;
+
+  import("@sentry/node")
+    .then((Sentry) => Sentry.captureException(error, { extra: { logMessage } }))
+    .catch(() => {});
 }
 
 export function routeError(error: unknown, logMessage: string, userMessage: string) {
@@ -82,11 +97,7 @@ export function routeError(error: unknown, logMessage: string, userMessage: stri
     return jsonError(error instanceof Error ? error.message : "Invalid request", 400);
   }
 
-  if (process.env.SENTRY_DSN) {
-    import("@sentry/node")
-      .then((Sentry) => Sentry.captureException(error, { extra: { logMessage } }))
-      .catch(() => {});
-  }
+  captureServerException(error, logMessage);
 
   return jsonError(userMessage, 500);
 }

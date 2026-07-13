@@ -22,7 +22,7 @@ type ImageReportRequest = {
 
 export async function POST(request: Request) {
   try {
-    const requestError = guardRequest(request, "image-report", 10);
+    const requestError = await guardRequest(request, "image-report", 10);
     if (requestError) return requestError;
 
     const body = await readJsonWithLimit<ImageReportRequest>(request, 2_000);
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       return jsonError("Valid room, game, player, and submission are required", 400);
     }
 
-    const roomRateLimitError = checkRoomRateLimit("image-report", roomCode, {
+    const roomRateLimitError = await checkRoomRateLimit("image-report", roomCode, {
       windowMs: 60_000,
       maxRequests: 15,
     });

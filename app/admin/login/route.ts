@@ -3,7 +3,7 @@ import {
   ADMIN_SESSION_COOKIE,
   ADMIN_SESSION_COOKIE_OPTIONS,
   createAdminSessionToken,
-  getAdminKey,
+  isValidAdminKey,
 } from "../auth";
 
 function safeNextPath(next: string | null) {
@@ -14,9 +14,8 @@ function safeNextPath(next: string | null) {
 export async function GET(request: NextRequest) {
   const key = request.nextUrl.searchParams.get("key");
   const next = safeNextPath(request.nextUrl.searchParams.get("next"));
-  const adminKey = getAdminKey();
 
-  if (!adminKey || key !== adminKey) {
+  if (!isValidAdminKey(key)) {
     return NextResponse.redirect(new URL("/admin", request.url));
   }
 

@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 // default in case of a slow response.
 export const maxDuration = 30;
 import { getRolling24HourSpendCents } from "@/app/lib/imageSpend";
-import { normalizeRoomCode } from "../_utils/api";
+import { captureServerException, normalizeRoomCode } from "../_utils/api";
 import {
   checkRateLimit,
   checkRoomRateLimit,
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     const originError = checkSameOrigin(req);
     if (originError) return originError;
 
-    const rateLimitError = checkRateLimit(req, "describe-avatar", {
+    const rateLimitError = await checkRateLimit(req, "describe-avatar", {
       windowMs: 60_000,
       maxRequests: 12,
     });
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Avatar URL does not match room" }, { status: 400 });
     }
 
-    const roomRateLimitError = checkRoomRateLimit("describe-avatar", roomCode, {
+    const roomRateLimitError = await checkRoomRateLimit("describe-avatar", roomCode, {
       windowMs: 60_000,
       maxRequests: 20,
     });
@@ -116,6 +116,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ description });
   } catch (error) {
     console.error("Describe avatar error:", error);
+    captureServerException(error, "Describe avatar error:");
     return NextResponse.json(
       { error: "Failed to describe avatar" },
       { status: 500 }

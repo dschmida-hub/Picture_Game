@@ -24,7 +24,7 @@ type VoteRequest = {
 
 export async function POST(request: Request) {
   try {
-    const requestError = guardRequest(request, "vote", 30);
+    const requestError = await guardRequest(request, "vote", 30);
     if (requestError) return requestError;
 
     const body = await readJsonWithLimit<VoteRequest>(request, 2_000);

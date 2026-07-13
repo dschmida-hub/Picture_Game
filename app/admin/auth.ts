@@ -8,6 +8,33 @@ export function getAdminKey() {
   return process.env.ADMIN_KEY || process.env.ADMIN_REPORTS_KEY;
 }
 
+// Every admin page accepts a raw ?key= as a bookmarkable auto-login link,
+// each checking it independently before handing off to /admin/login to
+// actually set the session cookie. A plain === here leaks timing info
+// about how many leading characters of the real key a guess got right.
+// timingSafeEqual requires equal-length buffers, so pad both to the same
+// length before comparing - the trailing length check is a cheap integer
+// comparison, not a byte-by-byte one, so it doesn't reintroduce a
+// content-timing leak.
+export function isValidAdminKey(candidate: string | null | undefined) {
+  const adminKey = getAdminKey();
+  if (!adminKey || !candidate) return false;
+
+  const expected = Buffer.from(adminKey);
+  const actual = Buffer.from(candidate);
+  const length = Math.max(expected.length, actual.length, 1);
+
+  const paddedExpected = Buffer.alloc(length);
+  const paddedActual = Buffer.alloc(length);
+  expected.copy(paddedExpected);
+  actual.copy(paddedActual);
+
+  return (
+    expected.length === actual.length &&
+    timingSafeEqual(paddedExpected, paddedActual)
+  );
+}
+
 function sign(payload: string, secret: string) {
   return createHmac("sha256", secret).update(payload).digest("hex");
 }

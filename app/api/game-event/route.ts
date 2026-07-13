@@ -41,7 +41,7 @@ function safeMetadata(value: unknown) {
 
 export async function POST(request: Request) {
   try {
-    const requestError = guardRequest(request, "game-event", 60);
+    const requestError = await guardRequest(request, "game-event", 60);
     if (requestError) return requestError;
 
     const body = await readJsonWithLimit<GameEventRequest>(request, 3_000);

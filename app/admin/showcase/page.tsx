@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { toggleRoundHistoryVisibility } from "../actions";
 import { SubmitButton } from "../SubmitButton";
-import { adminLoginUrl, getAdminKey, hasAdminSession } from "../auth";
+import { adminLoginUrl, getAdminKey, hasAdminSession, isValidAdminKey } from "../auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -42,8 +42,8 @@ export default async function AdminShowcasePage({ searchParams }: AdminShowcaseP
   }
 
   if (!(await hasAdminSession())) {
-    if (key && key === adminKey) {
-      redirect(adminLoginUrl(key, "/admin/showcase"));
+    if (isValidAdminKey(key)) {
+      redirect(adminLoginUrl(key!, "/admin/showcase"));
     }
 
     return (
