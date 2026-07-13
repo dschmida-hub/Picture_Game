@@ -56,9 +56,18 @@ export default async function GameGalleryPage({ params }: GalleryPageProps) {
     <main className="min-h-screen bg-purple-50 px-5 py-8 text-black">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         <section className="rounded-[2rem] border-4 border-black bg-white p-6 text-center shadow-xl">
-          <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-purple-600">
-            Picture This Gallery
-          </p>
+          <div className="flex items-center justify-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/mascot/mascot-sprite.png"
+              alt=""
+              aria-hidden="true"
+              className="h-10 w-auto shrink-0"
+            />
+            <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-rose-700">
+              Picture This Gallery
+            </p>
+          </div>
           <h1 className="mt-2 text-4xl font-black md:text-6xl">Room {code}</h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm font-bold text-gray-600 md:text-base">
             The winners, weirdest masterpieces, and receipts from this game night.

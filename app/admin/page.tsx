@@ -149,9 +149,18 @@ function AdminShell({
     <main className="min-h-screen bg-[#fff7ed] px-5 py-8 text-black md:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <section className="rounded-[2rem] border-4 border-black bg-white p-6 shadow-[8px_8px_0_#111827]">
-          <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-rose-700">
-            Picture This control room
-          </p>
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/mascot/mascot-sprite.png"
+              alt=""
+              aria-hidden="true"
+              className="h-10 w-auto shrink-0"
+            />
+            <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-rose-700">
+              Picture This control room
+            </p>
+          </div>
           <h1 className="mt-2 text-4xl font-black">{title}</h1>
         </section>
         {children}
