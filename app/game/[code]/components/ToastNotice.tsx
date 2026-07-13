@@ -16,7 +16,11 @@ export function ToastNotice({ message, tone = "info", onDismiss }: ToastNoticePr
   if (!message) return null;
 
   return (
-    <div className="fixed inset-x-4 top-4 z-[100] mx-auto max-w-md">
+    <div
+      className="fixed inset-x-4 top-4 z-[100] mx-auto max-w-md"
+      role={tone === "error" ? "alert" : "status"}
+      aria-live={tone === "error" ? "assertive" : "polite"}
+    >
       <div className={`rounded-2xl border-2 border-black p-4 shadow-[6px_6px_0_#111827] ${toneClasses[tone]}`}>
         <div className="flex items-start gap-3">
           <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-black bg-white text-xs font-black">

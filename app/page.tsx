@@ -34,7 +34,7 @@ const faqs = [
   },
   {
     question: "How long does a room stay open?",
-    answer: "Rooms expire 24 hours after the first round starts, so you can always pick up a game night later that day.",
+    answer: "Rooms stick around as long as you're playing. Inactive rooms are cleaned up after about a month, so you can always pick up a game night later.",
   },
   {
     question: "What actually draws the pictures?",

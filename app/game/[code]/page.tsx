@@ -36,12 +36,12 @@ import {
   arePlayerNamesEqual,
   confettiPieces,
   formatCountdown,
-  formatRoomExpiration,
   GENERATING_LOADING_MESSAGES,
   getContentRatingLabel,
   getGameModeLabel,
   getImageStyleLabel,
   getPromptRatingTable,
+  getRoomRetentionMessage,
   isPromptAllowedForContentRating,
   MAX_PLAYERS,
   normalizeContentRating,
@@ -125,7 +125,6 @@ export default function GameRoom() {
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [roomShareMessage, setRoomShareMessage] = useState("");
-  const [roomCreatedAt, setRoomCreatedAt] = useState<string | null>(null);
   const [reconnectMessage, setReconnectMessage] = useState("");
   const [promptSuggestions, setPromptSuggestions] = useState<PromptSuggestion[]>([]);
   const [promptSuggestionText, setPromptSuggestionText] = useState("");
@@ -227,7 +226,7 @@ export default function GameRoom() {
   const promptSkipVotesNeeded = Math.max(1, Math.ceil(players.length * PROMPT_SKIP_THRESHOLD));
   const promptApprovalVotesNeeded = Math.max(2, Math.ceil(players.length / 2));
   const promptSuggestionRating = ratePrompt(promptSuggestionText, selectedGameMode);
-  const roomExpirationMessage = formatRoomExpiration(roomCreatedAt);
+  const roomExpirationMessage = getRoomRetentionMessage();
 
   function chooseGameMode(mode: GameMode) {
     if (hasSelectedGameMode && selectedGameMode !== mode) {
@@ -976,7 +975,6 @@ async function loadGame() {
 
  if (data) {
   setCurrentGameId(data.id);
-  setRoomCreatedAt(data.created_at || null);
   setCurrentPromptId(data.prompt_id);
   setCurrentPromptSource(data.prompt_source as PromptSource | null);
   setStage(data.stage as GameStage);

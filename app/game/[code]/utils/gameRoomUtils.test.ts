@@ -2,19 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   arePlayerNamesEqual,
   formatCountdown,
-  formatRoomExpiration,
   getContentRatingLabel,
   getGameModeLabel,
   getImageStyleLabel,
   getPromptRatingTable,
-  getRoomExpiresAt,
+  getRoomRetentionMessage,
   isPromptAllowedForContentRating,
   normalizeContentRating,
   normalizeImageStyle,
   normalizePlayerName,
   pickBestRatedPromptDeck,
   resolveImageStyle,
-  ROOM_LIFETIME_HOURS,
   type PromptOption,
 } from "./gameRoomUtils";
 
@@ -188,35 +186,10 @@ describe("arePlayerNamesEqual", () => {
   });
 });
 
-describe("getRoomExpiresAt", () => {
-  it("returns null when there's no creation time", () => {
-    expect(getRoomExpiresAt(null)).toBeNull();
-  });
-
-  it("adds the room lifetime to the creation time", () => {
-    const createdAt = "2026-01-01T00:00:00.000Z";
-    const expected = new Date(createdAt).getTime() + ROOM_LIFETIME_HOURS * 60 * 60 * 1000;
-    expect(getRoomExpiresAt(createdAt)?.getTime()).toBe(expected);
-  });
-});
-
-describe("formatRoomExpiration", () => {
-  it("gives a generic message when there's no creation time yet", () => {
-    expect(formatRoomExpiration(null)).toBe("Room expires 24 hours after the first round starts.");
-  });
-
-  it("flags an already-expired room", () => {
-    const longAgo = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
-    expect(formatRoomExpiration(longAgo)).toBe("Room expired. Start a fresh room soon.");
-  });
-
-  it("warns when under an hour remains", () => {
-    const almostExpired = new Date(Date.now() - (ROOM_LIFETIME_HOURS * 60 - 30) * 60 * 1000).toISOString();
-    expect(formatRoomExpiration(almostExpired)).toBe("Room expires in under 1 hour.");
-  });
-
-  it("gives an hour estimate otherwise", () => {
-    const freshRoom = new Date().toISOString();
-    expect(formatRoomExpiration(freshRoom)).toBe(`Room expires in about ${ROOM_LIFETIME_HOURS} hours.`);
+describe("getRoomRetentionMessage", () => {
+  it("describes the real activity-based retention window", () => {
+    expect(getRoomRetentionMessage()).toBe(
+      "Inactive rooms are cleaned up after about a month, so you can pick this game night back up anytime."
+    );
   });
 });

@@ -12,7 +12,6 @@ export type PromptOption = {
 };
 
 export const MAX_PLAYERS = 8;
-export const ROOM_LIFETIME_HOURS = 24;
 export const PARTY_MODE_SECONDS_PER_IMAGE = 10;
 
 export const GENERATING_LOADING_MESSAGES = [
@@ -131,27 +130,12 @@ export function arePlayerNamesEqual(firstName: string, secondName: string) {
   return normalizePlayerName(firstName).toLowerCase() === normalizePlayerName(secondName).toLowerCase();
 }
 
-export function getRoomExpiresAt(createdAt: string | null) {
-  if (!createdAt) return null;
-
-  return new Date(new Date(createdAt).getTime() + ROOM_LIFETIME_HOURS * 60 * 60 * 1000);
-}
-
-export function formatRoomExpiration(createdAt: string | null) {
-  const expiresAt = getRoomExpiresAt(createdAt);
-
-  if (!expiresAt) {
-    return "Room expires 24 hours after the first round starts.";
-  }
-
-  const now = Date.now();
-  const msRemaining = expiresAt.getTime() - now;
-
-  if (msRemaining <= 0) return "Room expired. Start a fresh room soon.";
-
-  const hoursRemaining = Math.ceil(msRemaining / (60 * 60 * 1000));
-
-  if (hoursRemaining <= 1) return "Room expires in under 1 hour.";
-
-  return `Room expires in about ${hoursRemaining} hours.`;
+// Rooms are actually cleaned up by a nightly cron job after 30 days with
+// no game activity (see supabase/storage_retention_cleanup.sql), not on
+// a fixed countdown from creation - a room with ongoing play never gets
+// closer to deletion. This is a static, always-true statement of that
+// rather than a live countdown, since there's no accurate "time left" to
+// compute without knowing whether the room stays active.
+export function getRoomRetentionMessage() {
+  return "Inactive rooms are cleaned up after about a month, so you can pick this game night back up anytime.";
 }

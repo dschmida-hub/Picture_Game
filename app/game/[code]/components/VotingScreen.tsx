@@ -75,7 +75,11 @@ export function VotingScreen({
           />
 
           {voteMessage && (
-            <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-800 shadow-[4px_4px_0_#111827] md:text-base">
+            <div
+              role="status"
+              aria-live="polite"
+              className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-800 shadow-[4px_4px_0_#111827] md:text-base"
+            >
               {voteMessage}
             </div>
           )}
