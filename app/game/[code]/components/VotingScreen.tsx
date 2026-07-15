@@ -13,6 +13,7 @@ type VotingScreenProps = {
   isVotingTimeExpired: boolean;
   voteMessage: string;
   isHost: boolean;
+  hostName?: string;
   isForcingStage: boolean;
   hasVoted: boolean;
   allowSelfVoting: boolean;
@@ -41,6 +42,7 @@ export function VotingScreen({
   isVotingTimeExpired,
   voteMessage,
   isHost,
+  hostName,
   isForcingStage,
   hasVoted,
   allowSelfVoting,
@@ -68,7 +70,8 @@ export function VotingScreen({
             prompt={roundPrompt}
             imageStyle={roundImageStyle}
             timeRemainingSeconds={votingTimeRemainingSeconds}
-            expiredMessage="Voting time is up — waiting for the host"
+            expiredMessage="Voting time is up"
+            hostName={hostName}
             activeTimerLabel="Vote now"
             formatCountdown={formatCountdown}
             getImageStyleLabel={getImageStyleLabel}
@@ -141,7 +144,7 @@ export function VotingScreen({
               className={`overflow-hidden rounded-[1.7rem] border-2 border-black bg-white shadow-[6px_6px_0_#111827] transition ${
                 isVoteUnavailable
                   ? "cursor-not-allowed opacity-75"
-                  : "cursor-pointer active:scale-[0.99] md:hover:-translate-y-0.5"
+                  : "cursor-pointer active:scale-[0.99] md:hover:-translate-y-0.5 md:hover:border-rose-600 md:hover:shadow-[8px_8px_0_#111827]"
               }`}
             >
               <div className="relative">

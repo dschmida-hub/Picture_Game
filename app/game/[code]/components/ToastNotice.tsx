@@ -18,6 +18,7 @@ export function ToastNotice({ message, tone = "info", onDismiss }: ToastNoticePr
   return (
     <div
       className="fixed inset-x-4 top-4 z-[100] mx-auto max-w-md"
+      style={{ top: "max(1rem, env(safe-area-inset-top))" }}
       role={tone === "error" ? "alert" : "status"}
       aria-live={tone === "error" ? "assertive" : "polite"}
     >
@@ -30,10 +31,18 @@ export function ToastNotice({ message, tone = "info", onDismiss }: ToastNoticePr
           <button
             type="button"
             onClick={onDismiss}
-            className="rounded-full border-2 border-black bg-white px-2 py-0.5 text-xs font-black"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-black bg-white"
             aria-label="Dismiss notification"
           >
-            X
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3.5 w-3.5">
+              <path
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="3"
+                d="M5 5l14 14M19 5L5 19"
+              />
+            </svg>
           </button>
         </div>
       </div>

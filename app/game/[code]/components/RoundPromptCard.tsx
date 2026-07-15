@@ -8,6 +8,7 @@ type RoundPromptCardProps = {
   imageStyle: string;
   timeRemainingSeconds?: number | null;
   expiredMessage?: string;
+  hostName?: string;
   activeTimerLabel?: string;
   skipVoteCount?: number;
   skipVotesNeeded?: number;
@@ -25,7 +26,8 @@ export function RoundPromptCard({
   prompt,
   imageStyle,
   timeRemainingSeconds = null,
-  expiredMessage = "Time's up — waiting for the host",
+  expiredMessage = "Time's up",
+  hostName,
   activeTimerLabel = "Time remaining",
   skipVoteCount = 0,
   skipVotesNeeded = 0,
@@ -62,7 +64,7 @@ export function RoundPromptCard({
       {timeRemainingSeconds !== null && (
         <p className="mt-4 text-lg font-extrabold">
           {timeRemainingSeconds === 0
-            ? expiredMessage
+            ? `${expiredMessage} — waiting for ${hostName || "the host"}`
             : `${activeTimerLabel}: ${formatCountdown(timeRemainingSeconds)}`}
         </p>
       )}

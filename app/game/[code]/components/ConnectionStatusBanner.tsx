@@ -7,7 +7,11 @@ export function ConnectionStatusBanner({ isOffline, isReconnecting }: Connection
   if (!isOffline && !isReconnecting) return null;
 
   return (
-    <div className="fixed inset-x-0 top-0 z-[110] flex justify-center px-3 pt-3" role="status">
+    <div
+      className="fixed inset-x-0 top-0 z-[110] flex justify-center px-3 pt-3"
+      style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+      role="status"
+    >
       <div
         className={`flex items-center gap-2 rounded-full border-2 border-black px-4 py-2 text-sm font-black shadow-[4px_4px_0_#111827] ${
           isOffline ? "bg-rose-600 text-white" : "bg-amber-300 text-zinc-950"

@@ -62,6 +62,7 @@ type ToastState = {
 
 const PROMPT_SKIP_THRESHOLD = 0.75;
 const AGE_GATE_STORAGE_KEY = "picture-this:age-confirmed-at";
+const MAX_IMAGE_RETRY_EXTENSIONS = 3;
 
 export default function GameRoom() {
   const params = useParams();
@@ -134,6 +135,7 @@ export default function GameRoom() {
   const [voteMessage, setVoteMessage] = useState("");
   const [winnerName, setWinnerName] = useState("");
   const [winnerPrompt, setWinnerPrompt] = useState("");
+  const [noVotesCast, setNoVotesCast] = useState(false);
   const [winnerImages, setWinnerImages] = useState<string[]>([]);
   const [roundPrompt, setRoundPrompt] = useState("");
   const [roundImageStyle, setRoundImageStyle] = useState("clay_animation");
@@ -144,6 +146,7 @@ export default function GameRoom() {
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(true);
   const [showReconnectingBanner, setShowReconnectingBanner] = useState(false);
   const rescuingSubmissionIds = useRef(new Set<number>());
+  const imageRetryExtensionCountRef = useRef(0);
   const hostName = players.find((player) => player.is_host)?.name;
   const isHost = joined && name === hostName;
   const previousHostNameRef = useRef<string | null | undefined>(undefined);
@@ -1096,10 +1099,11 @@ useEffect(() => {
 
 // Host safety net: when the voting timer runs out, auto-advance to the winner
 // with whatever votes are in instead of stalling on "waiting for the host".
-// Skips the zero-vote case (loadWinner needs at least one vote to pick a winner).
+// loadWinner() handles the zero-vote case gracefully, so this no longer
+// needs to wait for at least one vote before advancing.
 useEffect(() => {
   if (!isHost || stage !== "reveal" || !currentGameId) return;
-  if (!isVotingTimeExpired || votedPlayerNames.length < 1) return;
+  if (!isVotingTimeExpired) return;
 
   let cancelled = false;
   (async () => {
@@ -1120,10 +1124,12 @@ useEffect(() => {
   return () => {
     cancelled = true;
   };
-}, [isHost, stage, currentGameId, isVotingTimeExpired, votedPlayerNames.length]);
+}, [isHost, stage, currentGameId, isVotingTimeExpired]);
 
 useEffect(() => {
   if (stage !== "submitting") return;
+
+  imageRetryExtensionCountRef.current = 0;
 
   const timeout = window.setTimeout(() => {
     setHasVoted(false);
@@ -1579,6 +1585,7 @@ async function startGame() {
 }
 async function grantImageRetryTime() {
   if (!currentGameId || !roundDeadline) return false;
+  if (imageRetryExtensionCountRef.current >= MAX_IMAGE_RETRY_EXTENSIONS) return false;
 
   const retryDeadline = new Date(
     Math.max(new Date(roundDeadline).getTime(), Date.now()) + 60_000
@@ -1594,6 +1601,7 @@ async function grantImageRetryTime() {
     return false;
   }
 
+  imageRetryExtensionCountRef.current += 1;
   setRoundDeadline(retryDeadline);
   return true;
 }
@@ -1690,6 +1698,7 @@ async function completeSoloRound(gameId: number) {
   setWinnerName(submission.player_name);
   setWinnerPrompt(submission.prompt);
   setWinner(`${submission.player_name}: ${submission.prompt} (solo run - nice work!)`);
+  setNoVotesCast(false);
 
   const { data: gameData, error: gameLookupError } = await supabase
     .from("games")
@@ -2109,6 +2118,7 @@ async function returnToLobby() {
     setWinnerName("");
     setWinnerPrompt("");
     setWinnerImages([]);
+    setNoVotesCast(false);
     setHasVoted(false);
     setVoteMessage("");
     setRoundDeadline(null);
@@ -2182,18 +2192,30 @@ async function loadWinner() {
     }
   });
 
-  if (topVotes === 0) return;
+  if (topVotes === 0) {
+    // Nobody voted this round (voting timer ran out with zero votes cast).
+    // Show a "no winner" result instead of leaving the screen stuck on
+    // "Calculating..." forever - the host can still start the next round.
+    setWinnerImages([]);
+    setWinnerName("No one voted");
+    setWinnerPrompt("");
+    setWinner("Nobody voted this round — no points awarded.");
+    setNoVotesCast(true);
+    return;
+  }
+
+  setNoVotesCast(false);
 
   const tiedSubmissions = Object.keys(voteCounts).filter(
     (submission) => voteCounts[submission] === topVotes
   );
 
   const tiedSubmissionDetails = tiedSubmissions.map((submission) => {
-    const [playerNamePart, ...promptParts] = submission.split(":");
+    const [playerNamePart = "", ...promptParts] = submission.split("|||");
 
     return {
       playerName: playerNamePart.trim(),
-      promptText: promptParts.join(":").trim(),
+      promptText: promptParts.join("|||").trim(),
       voteValue: submission,
     };
   });
@@ -2213,7 +2235,7 @@ async function loadWinner() {
 
   const winningImagesByVoteValue = new Map(
     (winningSubmissionImages || []).map((submission) => [
-      `${submission.player_name}: ${submission.prompt}`,
+      `${submission.player_name}|||${submission.prompt}`,
       submission,
     ])
   );
@@ -2399,6 +2421,7 @@ async function playAgain() {
     setWinnerName("");
     setWinnerPrompt("");
     setWinnerImages([]);
+    setNoVotesCast(false);
     setSubmissions([]);
     setVotedPlayerNames([]);
     setRoundDeadline(null);
@@ -2536,7 +2559,7 @@ if (isPageLoading) {
 
 
   return (
-    <main className="relative isolate min-h-screen flex flex-col items-center justify-center gap-6 overflow-hidden bg-[#fff7ed] p-6 text-zinc-950">
+    <main className="relative isolate min-h-dvh flex flex-col items-center justify-center gap-6 overflow-hidden bg-[#fff7ed] p-6 text-zinc-950">
       {toastNotice}
       {connectionStatusBanner}
       <div className="relative z-10">
@@ -2656,7 +2679,8 @@ if (isPageLoading) {
       prompt={roundPrompt}
       imageStyle={roundImageStyle}
       timeRemainingSeconds={timeRemainingSeconds}
-      expiredMessage="Time's up — waiting for the host"
+      expiredMessage="Time's up"
+      hostName={hostName}
       activeTimerLabel="Time remaining"
       skipVoteCount={promptSkipVoteCount}
       skipVotesNeeded={promptSkipVotesNeeded}
@@ -2696,6 +2720,7 @@ if (isPageLoading) {
     submission={submission}
     isSubmitting={isSubmitting}
     isSubmissionTimeExpired={isSubmissionTimeExpired}
+    hostName={hostName}
     isHost={isHost}
     submissionsCount={submissions.length}
     waitingOnPlayerNames={waitingOnSubmissionNames}
@@ -2710,20 +2735,28 @@ if (isPageLoading) {
 )}
   </>
       ) : stage === "generating" ? (
-  <div className="min-h-screen w-full bg-[#fff7ed] flex flex-col items-center justify-center text-zinc-950">
-    <div className="mb-6 h-16 w-16 animate-spin rounded-full border-8 border-rose-200 border-t-rose-600" />
+  <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-[2rem] border-2 border-black bg-white p-8 text-center shadow-[8px_8px_0_#111827]">
+    <div className="h-14 w-14 animate-spin rounded-full border-8 border-rose-200 border-t-rose-600" />
 
-    <h2 className="text-4xl font-black mb-4">
-      Creating Chaos...
-    </h2>
+    <h2 className="text-4xl font-black text-zinc-950">Creating Chaos...</h2>
 
-    <p className="text-xl text-center max-w-md font-bold text-zinc-600">
+    <p className="max-w-md text-lg font-bold text-zinc-600">
       The AI is cooking up something ridiculous.
     </p>
 
-    <div className="mt-8 animate-pulse text-lg font-black text-rose-700">
+    <p className="animate-pulse text-lg font-black text-rose-700">
       Generating masterpiece...
-    </div>
+    </p>
+
+    {isHost && (
+      <button
+        type="button"
+        onClick={returnToLobby}
+        className="mt-2 rounded-2xl border-2 border-black bg-white px-5 py-3 text-sm font-black text-zinc-950 shadow-[4px_4px_0_#111827]"
+      >
+        Back to Lobby
+      </button>
+    )}
   </div>
    ) : stage === "reveal" && isPartyModeRevealActive ? (
     <PartyModeRevealScreen
@@ -2741,6 +2774,7 @@ if (isPageLoading) {
       isVotingTimeExpired={isVotingTimeExpired}
       voteMessage={voteMessage}
       isHost={isHost}
+      hostName={hostName}
       isForcingStage={isForcingStage}
       hasVoted={hasVoted}
       allowSelfVoting={players.length === 2}
@@ -2770,6 +2804,7 @@ if (isPageLoading) {
   winnerName={winnerName}
   winnerPrompt={winnerPrompt}
   winner={winner}
+  noVotesCast={noVotesCast}
   players={players}
   scoreboardPlayers={scoreboardPlayers}
   finalWinner={finalWinner}
@@ -2789,7 +2824,26 @@ if (isPageLoading) {
   onReturnToLobby={returnToLobby}
 />
 ) : (
-  <p>Unknown game stage.</p>
+  <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-[2rem] border-2 border-black bg-white p-8 text-center shadow-[8px_8px_0_#111827]">
+    <p className="text-4xl">{"\u{1F915}"}</p>
+    <h2 className="text-2xl font-black text-zinc-950">Something got out of sync</h2>
+    <p className="text-sm font-bold text-zinc-600">
+      This room ended up in a state we don&apos;t recognize. Heading back to the lobby usually fixes it.
+    </p>
+    {isHost ? (
+      <button
+        type="button"
+        onClick={returnToLobby}
+        className="mt-2 w-full rounded-2xl bg-rose-600 px-5 py-3 text-sm font-black text-white shadow-[4px_4px_0_#111827]"
+      >
+        Back to Lobby
+      </button>
+    ) : (
+      <p className="mt-2 text-sm font-bold text-zinc-500">
+        Waiting for {hostName || "the host"} to reset the room...
+      </p>
+    )}
+  </div>
 )}
 </main>
   );

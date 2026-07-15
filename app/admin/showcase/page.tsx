@@ -32,7 +32,7 @@ export default async function AdminShowcasePage({ searchParams }: AdminShowcaseP
 
   if (!adminKey) {
     return (
-      <main className="min-h-screen bg-purple-50 p-6 text-black">
+      <main className="min-h-dvh bg-purple-50 p-6 text-black">
         <section className="mx-auto max-w-2xl rounded-3xl border border-red-200 bg-white p-6 text-center shadow-xl">
           <h1 className="text-3xl font-black">Not found</h1>
           <p className="mt-3 font-bold text-gray-600">That admin page is not available.</p>
@@ -47,7 +47,7 @@ export default async function AdminShowcasePage({ searchParams }: AdminShowcaseP
     }
 
     return (
-      <main className="min-h-screen bg-purple-50 p-6 text-black">
+      <main className="min-h-dvh bg-purple-50 p-6 text-black">
         <section className="mx-auto max-w-2xl rounded-3xl border border-red-200 bg-white p-6 text-center shadow-xl">
           <h1 className="text-3xl font-black">Not found</h1>
           <p className="mt-3 font-bold text-gray-600">That admin page is not available.</p>
@@ -88,7 +88,7 @@ export default async function AdminShowcasePage({ searchParams }: AdminShowcaseP
     }`;
 
   return (
-    <main className="min-h-screen bg-purple-50 px-5 py-8 text-black">
+    <main className="min-h-dvh bg-purple-50 px-5 py-8 text-black">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
         <section className="rounded-[2rem] border-4 border-black bg-white p-6 shadow-xl">
           <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-purple-600">Admin</p>

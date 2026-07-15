@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 
-const REACTION_EMOJIS = ["\u{1F602}", "\u{2764}\u{FE0F}", "\u{1F631}", "\u{1F525}", "\u{1F44F}"];
+const REACTION_EMOJIS: { emoji: string; label: string }[] = [
+  { emoji: "\u{1F602}", label: "Laughing" },
+  { emoji: "\u{2764}\u{FE0F}", label: "Love it" },
+  { emoji: "\u{1F631}", label: "Shocked" },
+  { emoji: "\u{1F525}", label: "Fire" },
+  { emoji: "\u{1F44F}", label: "Clap" },
+];
 
 type PartyModeRevealScreenProps = {
   currentImageIndex: number;
@@ -44,11 +50,13 @@ export function PartyModeRevealScreen({
 
       <p className="text-sm font-bold text-zinc-500">React to what&apos;s on screen:</p>
       <div className="flex flex-wrap justify-center gap-3">
-        {REACTION_EMOJIS.map((emoji) => (
+        {REACTION_EMOJIS.map(({ emoji, label }) => (
           <button
             key={emoji}
             type="button"
             onClick={() => handleTap(emoji)}
+            aria-label={`React with ${label}`}
+            title={label}
             className={`flex h-16 w-16 items-center justify-center rounded-full border-2 border-black bg-rose-50 text-3xl shadow-[3px_3px_0_#111827] transition active:scale-90 ${
               lastTappedEmoji === emoji ? "scale-110 bg-amber-100" : ""
             }`}

@@ -112,7 +112,9 @@ export async function POST(request: Request) {
     if (existingVoteError) throw existingVoteError;
     if (existingVote) return jsonError("You already voted this round", 409);
 
-    const voteValue = `${targetSubmission.player_name}: ${targetSubmission.prompt}`;
+    // ||| (not ": ") avoids ambiguity when a player name or prompt contains
+    // a literal colon - see supabase/zero_vote_and_vote_delimiter_fix.sql.
+    const voteValue = `${targetSubmission.player_name}|||${targetSubmission.prompt}`;
 
     const { error: insertError } = await supabaseAdmin.from("votes").insert([
       {

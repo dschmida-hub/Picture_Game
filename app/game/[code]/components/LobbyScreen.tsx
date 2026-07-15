@@ -163,10 +163,18 @@ export function LobbyScreen({
               <button
                 type="button"
                 onClick={() => setIsHowToPlayOpen(false)}
-                className="rounded-full border-2 border-black bg-white px-3 py-2 text-sm font-black"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-black bg-white"
                 aria-label="Close how to play"
               >
-                X
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+                  <path
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeWidth="3"
+                    d="M5 5l14 14M19 5L5 19"
+                  />
+                </svg>
               </button>
             </div>
 

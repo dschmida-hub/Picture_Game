@@ -29,7 +29,7 @@ const steps = [
 
 export default function HowToPlayPage() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#fff7ed] px-5 py-8 text-black md:px-8 md:py-12">
+    <main className="relative min-h-dvh overflow-hidden bg-[#fff7ed] px-5 py-8 text-black md:px-8 md:py-12">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[#fff7ed]" />
         <div className="absolute -left-20 top-24 h-72 w-72 rounded-full bg-rose-100/80 blur-2xl" />

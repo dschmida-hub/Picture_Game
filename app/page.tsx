@@ -372,7 +372,7 @@ export default function Home() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#fff7ed] text-black">
+    <main className="relative min-h-dvh overflow-hidden bg-[#fff7ed] text-black">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[#fff7ed]" />
 

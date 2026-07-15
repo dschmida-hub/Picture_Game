@@ -53,9 +53,9 @@ export default async function GameGalleryPage({ params }: GalleryPageProps) {
   const topPlayer = scoreboardPlayers[0];
 
   return (
-    <main className="min-h-screen bg-purple-50 px-5 py-8 text-black">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
-        <section className="rounded-[2rem] border-4 border-black bg-white p-6 text-center shadow-xl">
+    <main className="min-h-dvh bg-[#fff7ed] px-5 py-8 text-black">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <section className="rounded-[2rem] border-2 border-black bg-white p-6 text-center shadow-[8px_8px_0_#111827]">
           <div className="flex items-center justify-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -64,24 +64,24 @@ export default async function GameGalleryPage({ params }: GalleryPageProps) {
               aria-hidden="true"
               className="h-10 w-auto shrink-0"
             />
-            <p className="text-xs font-extrabold uppercase tracking-[0.25em] text-rose-700">
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-rose-700">
               Picture This Gallery
             </p>
           </div>
           <h1 className="mt-2 text-4xl font-black md:text-6xl">Room {code}</h1>
-          <p className="mx-auto mt-3 max-w-2xl text-sm font-bold text-gray-600 md:text-base">
+          <p className="mx-auto mt-3 max-w-2xl text-sm font-bold text-zinc-600 md:text-base">
             The winners, weirdest masterpieces, and receipts from this game night.
           </p>
           <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
             <Link
               href={`/game/${code}`}
-              className="rounded-2xl bg-purple-600 px-6 py-3 font-extrabold text-white"
+              className="rounded-2xl bg-rose-600 px-6 py-3 font-black text-white shadow-[4px_4px_0_#111827]"
             >
               Rejoin Room
             </Link>
             <Link
               href="/"
-              className="rounded-2xl border border-purple-200 bg-purple-50 px-6 py-3 font-extrabold text-purple-700"
+              className="rounded-2xl border-2 border-black bg-white px-6 py-3 font-black text-zinc-950 shadow-[4px_4px_0_#111827]"
             >
               Start New Game
             </Link>
@@ -89,8 +89,8 @@ export default async function GameGalleryPage({ params }: GalleryPageProps) {
         </section>
 
         {topPlayer && (
-          <section className="rounded-3xl border border-yellow-300 bg-yellow-100 p-5 text-center shadow-lg">
-            <p className="text-xs font-extrabold uppercase tracking-wider text-yellow-700">Current leader</p>
+          <section className="rounded-[2rem] border-2 border-black bg-amber-100 p-5 text-center shadow-[6px_6px_0_#111827]">
+            <p className="text-xs font-black uppercase tracking-wider text-amber-800">Current leader</p>
             <div className="mt-3 flex items-center justify-center gap-3">
               {topPlayer.avatar_url && (
                 <img
@@ -98,27 +98,27 @@ export default async function GameGalleryPage({ params }: GalleryPageProps) {
                   alt={topPlayer.name}
                   loading="lazy"
                   decoding="async"
-                  className="h-12 w-12 rounded-full border-2 border-white object-cover"
+                  className="h-12 w-12 rounded-full border-2 border-black object-cover"
                 />
               )}
               <p className="text-2xl font-black">
-                👑 {topPlayer.name} · {topPlayer.points} pts
+                {"\u{1F451}"} {topPlayer.name} &middot; {topPlayer.points} pts
               </p>
             </div>
           </section>
         )}
 
         {roundsError && (
-          <section className="rounded-3xl border border-red-200 bg-white p-6 text-center text-red-700 shadow-lg">
+          <section className="rounded-[2rem] border-2 border-black bg-white p-6 text-center text-rose-700 shadow-[6px_6px_0_#111827]">
             <h2 className="text-2xl font-black">Could not load gallery</h2>
             <p className="mt-2 text-sm font-bold">Try refreshing the page.</p>
           </section>
         )}
 
         {!roundsError && galleryRounds.length === 0 && (
-          <section className="rounded-3xl border border-purple-200 bg-white p-8 text-center shadow-lg">
+          <section className="rounded-[2rem] border-2 border-black bg-white p-8 text-center shadow-[6px_6px_0_#111827]">
             <h2 className="text-3xl font-black">No winners yet</h2>
-            <p className="mt-2 font-bold text-gray-500">
+            <p className="mt-2 font-bold text-zinc-500">
               Finish a round, then this page will become the recap gallery.
             </p>
           </section>
@@ -134,7 +134,7 @@ export default async function GameGalleryPage({ params }: GalleryPageProps) {
                 return (
                   <article
                     key={round.id}
-                    className="overflow-hidden rounded-3xl border border-purple-200 bg-white shadow-lg"
+                    className="overflow-hidden rounded-[1.7rem] border-2 border-black bg-white shadow-[6px_6px_0_#111827]"
                   >
                     {displayImage && (
                       <img
@@ -142,15 +142,15 @@ export default async function GameGalleryPage({ params }: GalleryPageProps) {
                         alt={round.winner_prompt}
                         loading="lazy"
                         decoding="async"
-                        className="aspect-square w-full bg-purple-100 object-cover"
+                        className="aspect-square w-full bg-rose-50 object-cover"
                       />
                     )}
                     <div className="p-4 text-center">
-                      <p className="text-xs font-extrabold uppercase tracking-wider text-purple-600">
+                      <p className="text-xs font-black uppercase tracking-wider text-rose-700">
                         Round {round.round_number}
                       </p>
-                      <h3 className="mt-1 text-xl font-black">👑 {round.winner_name}</h3>
-                      <p className="mt-3 text-sm font-bold leading-snug text-gray-600">
+                      <h3 className="mt-1 text-xl font-black">{"\u{1F451}"} {round.winner_name}</h3>
+                      <p className="mt-3 text-sm font-bold leading-snug text-zinc-600">
                         {`"${round.winner_prompt}"`}
                       </p>
                     </div>

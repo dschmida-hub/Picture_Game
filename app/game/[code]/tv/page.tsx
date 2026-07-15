@@ -399,14 +399,14 @@ export default function TvMode() {
 
   if (isLoading) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-[#fff7ed] text-zinc-950">
+      <main className="flex min-h-dvh flex-col items-center justify-center bg-[#fff7ed] text-zinc-950">
         <p className="text-2xl font-black">Loading room...</p>
       </main>
     );
   }
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center gap-8 bg-[#fff7ed] p-10 text-center text-zinc-950">
+    <main className="relative flex min-h-dvh flex-col items-center justify-center gap-8 bg-[#fff7ed] p-10 text-center text-zinc-950">
       <div className="pointer-events-none fixed inset-0 z-40 overflow-hidden" aria-hidden="true">
         {floatingReactions.map((reaction) => (
           <span

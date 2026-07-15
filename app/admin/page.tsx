@@ -147,7 +147,7 @@ function AdminShell({
   title?: string;
 }) {
   return (
-    <main className="min-h-screen bg-[#fff7ed] px-5 py-8 text-black md:px-8">
+    <main className="min-h-dvh bg-[#fff7ed] px-5 py-8 text-black md:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <section className="rounded-[2rem] border-4 border-black bg-white p-6 shadow-[8px_8px_0_#111827]">
           <div className="flex items-center gap-2">

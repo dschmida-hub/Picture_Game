@@ -256,7 +256,10 @@ export function GeneratingScreen({
         )}
 
         {(isHost || canRateCurrentPrompt) && (
-          <div className="sticky bottom-3 z-[55] mx-auto flex w-full max-w-xl flex-col gap-3">
+          <div
+            className="sticky bottom-3 z-[55] mx-auto flex w-full max-w-xl flex-col gap-3"
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          >
             <CurrentPromptRater
               prompt={roundPrompt}
               currentRating={currentPromptRating}

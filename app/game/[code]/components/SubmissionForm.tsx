@@ -9,6 +9,7 @@ type SubmissionFormProps = {
   isSubmitting: boolean;
   isSubmissionTimeExpired: boolean;
   isHost: boolean;
+  hostName?: string;
   submissionsCount: number;
   waitingOnPlayerNames: string[];
   isForcingStage: boolean;
@@ -27,6 +28,7 @@ export function SubmissionForm({
   isSubmitting,
   isSubmissionTimeExpired,
   isHost,
+  hostName,
   submissionsCount,
   waitingOnPlayerNames,
   isForcingStage,
@@ -78,7 +80,7 @@ export function SubmissionForm({
           </p>
           <p className="text-sm font-black text-zinc-500">{submission.length}/120</p>
         </div>
-        <p className="mt-2 text-xs font-bold text-zinc-400">
+        <p className="mt-2 text-xs font-bold text-zinc-500">
           Tip: say &quot;I&quot;/&quot;me&quot; or a player&apos;s name to put their avatar in the picture.
         </p>
       </div>
@@ -96,6 +98,14 @@ export function SubmissionForm({
         names={waitingOnPlayerNames}
         emptyMessage="Everyone submitted!"
       />
+
+      {!isHost && isSubmissionTimeExpired && (
+        <p className="rounded-2xl border-2 border-black bg-white px-4 py-3 text-center text-sm font-bold text-zinc-600 shadow-[4px_4px_0_#111827]">
+          {submissionsCount > 0
+            ? `Waiting for ${hostName || "the host"} to reveal the round...`
+            : `Waiting for ${hostName || "the host"} to skip this round...`}
+        </p>
+      )}
 
       {isHost && submissionsCount > 0 && (
         <button

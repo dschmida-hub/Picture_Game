@@ -97,7 +97,7 @@ export function JoinRoomForm({
           <label className="block">
             <span className="mb-2 flex items-center justify-between gap-2 text-sm font-extrabold text-gray-700">
               <span>Your display name</span>
-              <span className="text-xs font-bold text-zinc-400">
+              <span className="text-xs font-bold text-zinc-500">
                 {name.length}/{MAX_NAME_LENGTH}
               </span>
             </span>

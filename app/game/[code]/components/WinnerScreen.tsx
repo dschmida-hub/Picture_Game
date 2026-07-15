@@ -15,6 +15,7 @@ type WinnerScreenProps = {
   winnerName: string;
   winnerPrompt: string;
   winner: string;
+  noVotesCast: boolean;
   players: Player[];
   scoreboardPlayers: ScoreboardPlayer[];
   finalWinner: string;
@@ -219,6 +220,7 @@ export function WinnerScreen({
   winnerName,
   winnerPrompt,
   winner,
+  noVotesCast,
   players,
   scoreboardPlayers,
   finalWinner,
@@ -304,49 +306,59 @@ export function WinnerScreen({
       <div className="w-full max-w-md rounded-[2rem] border-2 border-black bg-white p-6 text-center text-zinc-950 shadow-[8px_8px_0_#111827]">
         <p className="mb-2 text-xs font-black uppercase tracking-[0.24em] text-rose-700">Results</p>
         <h2 className="mb-4 text-4xl font-black">
-          {winnerImages.length > 1 ? "Tie Winners" : "Round Winner"}
+          {noVotesCast ? "No Winner" : winnerImages.length > 1 ? "Tie Winners" : "Round Winner"}
         </h2>
 
-        <div className={`mb-5 grid gap-4 ${winnerImages.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
-          {winnerImages.map((imageUrl, index) => (
-            <img
-              key={index}
-              src={imageUrl}
-              alt="Winning image"
-              className="aspect-square w-full rounded-2xl border-2 border-black object-cover"
-            />
-          ))}
-        </div>
-
-        <div className="relative rounded-2xl border-2 border-black bg-rose-50 p-4 text-black">
-          <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full border-2 border-black bg-amber-300 px-3 py-1 text-xs font-black uppercase tracking-wider">
-            Winner
+        {noVotesCast ? (
+          <div className="rounded-2xl border-2 border-black bg-zinc-50 p-6 text-black">
+            <p className="text-5xl">{"\u{1F937}"}</p>
+            <p className="mt-3 text-lg font-black">Nobody voted this round</p>
+            <p className="mt-2 text-sm font-bold text-zinc-500">No points awarded. Time to try again.</p>
           </div>
-
-          {winnerAvatars.length > 0 && (
-            <div className="mb-3 mt-4 flex justify-center">
-              <div className="flex -space-x-3">
-                {winnerAvatars.map((winnerAvatar) => (
-                  <img
-                    key={winnerAvatar.name}
-                    src={winnerAvatar.avatarUrl || ""}
-                    alt={winnerAvatar.name}
-                    title={winnerAvatar.name}
-                    className="h-16 w-16 rounded-full border-4 border-white object-cover shadow-lg"
-                  />
-                ))}
-              </div>
+        ) : (
+          <>
+            <div className={`mb-5 grid gap-4 ${winnerImages.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+              {winnerImages.map((imageUrl, index) => (
+                <img
+                  key={index}
+                  src={imageUrl}
+                  alt="Winning image"
+                  className="aspect-square w-full rounded-2xl border-2 border-black object-cover"
+                />
+              ))}
             </div>
-          )}
 
-          <p className="mt-4 text-3xl font-black">{winnerName || "Calculating..."}</p>
-          <p className="mt-1 text-sm font-bold text-zinc-500">
-            {winnerImages.length > 1 ? "tied for the round" : "won the round"}
-          </p>
-          <p className="mt-4 text-lg font-black">{`"${winnerPrompt || winner}"`}</p>
-        </div>
+            <div className="relative rounded-2xl border-2 border-black bg-rose-50 p-4 text-black">
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full border-2 border-black bg-amber-300 px-3 py-1 text-xs font-black uppercase tracking-wider">
+                Winner
+              </div>
 
-        {roundBonusAwards.length > 0 && (
+              {winnerAvatars.length > 0 && (
+                <div className="mb-3 mt-4 flex justify-center">
+                  <div className="flex -space-x-3">
+                    {winnerAvatars.map((winnerAvatar) => (
+                      <img
+                        key={winnerAvatar.name}
+                        src={winnerAvatar.avatarUrl || ""}
+                        alt={winnerAvatar.name}
+                        title={winnerAvatar.name}
+                        className="h-16 w-16 rounded-full border-4 border-white object-cover shadow-lg"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <p className="mt-4 text-3xl font-black">{winnerName || "Calculating..."}</p>
+              <p className="mt-1 text-sm font-bold text-zinc-500">
+                {winnerImages.length > 1 ? "tied for the round" : "won the round"}
+              </p>
+              <p className="mt-4 text-lg font-black">{`"${winnerPrompt || winner}"`}</p>
+            </div>
+          </>
+        )}
+
+        {!noVotesCast && roundBonusAwards.length > 0 && (
           <div className="mt-5 rounded-2xl border-2 border-black bg-amber-50 p-4">
             {roundBonusAwards.map((award) => {
               const avatarUrl = findPlayerAvatar(award.playerName);
